@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "skypro-cli"
+version = "0.1.0"
+description = "Skyprospector command line tool by Cepro"
+authors = ["damonrand <damon@cepro.energy>"]
+license = "AGPL-3.0"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
