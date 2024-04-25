@@ -1,24 +1,45 @@
 import argparse
-from skypro.commands import prepare, validate
+import logging
+
+from commands.simulator.main import simulate
+
 
 def main():
-    parser = argparse.ArgumentParser(prog="skypro", description="Skyprospector data generator")
-    subparsers = parser.add_subparsers(dest="command", help="Available sub-commands")
 
-    # Add sub-command parsers
-    prepare_parser = subparsers.add_parser("prepare", help="Run prepare")
-    validate_parser = subparsers.add_parser("validate", help="Run validate")
-    validate_parser.add_argument("folder", help="Path to the folder to validate")
+    # Configure logging
+    logging.basicConfig(level=logging.INFO)  # Set to logging.INFO for non-debug mode
 
-    #parser.add_argument("--name", help="Your name")
-    args = parser.parse_args()
+    # Create a dictionary of commands, mapping to their python function
+    commands = {
+        "simulate": simulate
+    }
 
-    if args.command == "prepare":
-        prepare.main()
-    elif args.command == "validate":
-        validate.main(args.folder)
-    else:
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest='subparser')
+
+    parser_simulate = subparsers.add_parser('simulate')
+    parser_simulate.add_argument(
+        '-c', '--config',
+        dest='config_file_path',
+        required=True,
+        help='JSON configuration file for this simulation'
+    )
+    parser_simulate.add_argument(
+        '-o', '--output',
+        dest='output_file_path',
+        default=None,
+        help='Output CSV file location, by default no output file is generated.'
+    )
+
+    kwargs = vars(parser.parse_args())
+
+    command = kwargs.pop('subparser')
+    if command is None:
         parser.print_help()
+        exit(-1)
+
+    commands[command](**kwargs)
+
 
 if __name__ == "__main__":
     main()
