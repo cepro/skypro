@@ -1,7 +1,7 @@
 import argparse
 import logging
 
-from commands.simulator.main import simulate
+from skypro.commands.simulator.main import simulate
 
 
 def main():
