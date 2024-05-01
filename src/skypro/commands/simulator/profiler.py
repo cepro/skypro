@@ -2,9 +2,10 @@ import logging
 from datetime import datetime
 from os import listdir
 from os.path import join, isfile
-from typing import Optional
 
 import pandas as pd
+
+from skypro.cli_utils.cli_utils import read_directory_of_csvs
 
 
 class Profiler:
@@ -14,29 +15,16 @@ class Profiler:
     def __init__(
             self,
             scaling_factor: float,
-            value_col_name: str,
-            profile_csv: Optional[str] = None,
-            profile_csv_dir: Optional[str] = None,
+            profile_csv_dir: str
     ):
         self._scaling_factor = scaling_factor
 
-        if profile_csv_dir:
-            # read in all the profile files in the given directory into a dataframe
-            df = pd.DataFrame()
-            for f in listdir(profile_csv_dir):
-                path = join(profile_csv_dir, f)
-                if isfile(path) and path.endswith(".csv"):
-                    file_df = pd.read_csv(path)
-                    df = pd.concat([df, file_df], ignore_index=True)
-        elif profile_csv:
-            # read in a single profile file
-            df = pd.read_csv(profile_csv)
-        else:
-            raise ValueError("No profile provided")
+        # read in all the profile files in the given directory into a dataframe
+        df = read_directory_of_csvs(profile_csv_dir)
 
         # store only the information that we need - which is a pd.Series of the profile, indexed by datetime
         df["UTCTime"] = pd.to_datetime(df["UTCTime"])
-        self._profile = df.set_index("UTCTime")[value_col_name]
+        self._profile = df.set_index("UTCTime")["energy"]
         self._profile_searchable = self._profile.index.strftime("%Y-%m-%d %H:%M:%S").str
 
     def get_for(self, times: pd.Series) -> pd.Series:

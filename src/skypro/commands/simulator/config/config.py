@@ -33,7 +33,7 @@ class Site:
 
 @dataclass
 class SolarProfile:
-    profile_dir: str  = name_in_json("profileDir")
+    profile_dir: str = name_in_json("profileDir")
     profiled_size_kwp: float = name_in_json("profiledSizeKwp")
     scaled_size_kwp: float = name_in_json("scaledSizeKwp")
 
@@ -49,7 +49,7 @@ class Solar:
 
 @dataclass
 class LoadProfile:
-    profile_csv_file: str = name_in_json("profileCsvFile")
+    profile_dir: str = name_in_json("profileDir")
     profiled_num_plots: float = name_in_json("profiledNumPlots")
     scaled_num_plots: float = name_in_json("scaledNumPlots")
 
@@ -100,23 +100,9 @@ class NivPeriod:
 
 
 @dataclass
-class ElexonDataSource:
-    csv_directory: str = name_in_json("csvDirectory")
-
-
-@dataclass
-class ModoDataSource:
-    price_csv: str = name_in_json("priceCsv")
-    volume_csv: str = name_in_json("volumeCsv")
-
-
-@dataclass
 class ImbalanceDataSource:
-    elexon: Optional[ElexonDataSource] = field(default=None)
-    modo: Optional[ModoDataSource] = field(default=None)
-
-    def __post_init__(self):
-        enforce_one_option([self.elexon, self.modo], "'elexon' or 'modo' imbalance data source")
+    price_dir: str = name_in_json("priceDir")
+    volume_dir: str = name_in_json("volumeDir")
 
 
 @dataclass

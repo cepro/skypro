@@ -1,16 +1,13 @@
 import logging
-from datetime import timedelta
-from os import listdir
-from os.path import isfile, join
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
-import pandas as pd
-import pytz
 
 from simt_common.jsonconfig.rates import parse_rates, parse_supply_points, collate_import_and_export_rate_configurations
+
 from skypro.commands.simulator.algorithm import run_imbalance_algorithm
 from skypro.commands.simulator.config import parse_config
+from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data
 from skypro.commands.simulator.profiler import Profiler
 from skypro.commands.simulator.results import explore_results
 
@@ -36,28 +33,17 @@ def simulate(config_file_path: str, output_file_path: Optional[str] = None):
 
     logging.info("Reading pricing files...")
 
-    # Imbalance pricing can come from either Modo or Elexon files, Modo takes priority if both are given
-    imbalance_source = config.simulation.imbalance_data_source
-    if imbalance_source.modo is not None:
-        by_sp = read_modo_imbalance_data(
-            price_csv=imbalance_source.modo.price_csv,
-            volume_csv=imbalance_source.modo.volume_csv
-        )
-    elif imbalance_source.elexon is not None:
-        directory = imbalance_source.elexon.csv_directory
-        files = []
-        for f in listdir(directory):
-            path = join(directory, f)
-            if isfile(path):
-                files.append(path)
-        by_sp = read_elexon_imbalance_data(files)
-    else:
-        raise ValueError("Unknown imbalance data source")
+    # Imbalance pricing/volume data can come from either Modo or Elexon, Modo is 'predictive' and it's predictions
+    # change over the course of the SP, whereas Elexon publishes a single figure for each SP in hindsight.
+    by_sp = read_imbalance_data(
+        price_dir=config.simulation.imbalance_data_source.price_dir,
+        volume_dir=config.simulation.imbalance_data_source.volume_dir,
+    )
 
     if config.simulation.start < by_sp.index[0]:
-        raise ValueError(f"Simulation start time is outside of data range")
+        raise ValueError(f"Simulation start time is outside of imbalance data range")
     if config.simulation.end >= by_sp.index[-1]:
-        raise ValueError(f"Simulation end time is outside of data range")
+        raise ValueError(f"Simulation end time is outside of imbalance data range")
 
     # Remove any extra settlement periods that are in the data, but are outside the start and end times
     by_sp = by_sp[by_sp.index >= config.simulation.start]
@@ -100,13 +86,12 @@ def simulate(config_file_path: str, output_file_path: Optional[str] = None):
     for rate in export_rates_final:
         logging.info(f"Export rate {rate}")
 
-    logging.info("Generating solar data...")
+    logging.info("Generating solar profile...")
     solar_config = config.simulation.site.solar
     if solar_config.profile is not None:
         solarProfiler = Profiler(
             profile_csv_dir=solar_config.profile.profile_dir,
-            scaling_factor=(solar_config.profile.scaled_size_kwp / solar_config.profile.profiled_size_kwp),
-            value_col_name="Plot-08",
+            scaling_factor=(solar_config.profile.scaled_size_kwp / solar_config.profile.profiled_size_kwp)
         )
         by_sp["solar"] = solarProfiler.get_for(by_sp.index.to_series()) * 2  # Multiply to convert kWh over HH to kW
     elif not np.isnan(solar_config.constant):
@@ -115,19 +100,20 @@ def simulate(config_file_path: str, output_file_path: Optional[str] = None):
         raise ValueError("Solar configuration must be either 'profile' or 'constant'")
 
     # Create domestic load data
-    logging.info("Generating domestic load data...")
+    logging.info("Generating domestic load profile...")
     load_config = config.simulation.site.load
     if load_config.profile is not None:
         loadProfiler = Profiler(
-            profile_csv=load_config.profile.profile_csv_file,
-            scaling_factor=(load_config.profile.scaled_num_plots / load_config.profile.profiled_num_plots),
-            value_col_name="total"
+            profile_csv_dir=load_config.profile.profile_dir,
+            scaling_factor=(load_config.profile.scaled_num_plots / load_config.profile.profiled_num_plots)
         )
         by_sp["load"] = loadProfiler.get_for(by_sp.index.to_series()) * 2  # Multiply to convert kWh over HH to kW
     elif not np.isnan(load_config.constant):
         by_sp["load"] = load_config.constant
     else:
         raise ValueError("Load configuration must be either 'profile' or 'constant'")
+
+    breakpoint()
 
     df = run_imbalance_algorithm(
         by_sp,
@@ -160,112 +146,3 @@ def simulate(config_file_path: str, output_file_path: Optional[str] = None):
         export_rates=export_rates_final,
     )
 
-
-def read_modo_imbalance_data(price_csv: str, volume_csv: str) -> pd.DataFrame:
-    """
-    Reads in the CSV files of Modo data and returns a dataframe with a row per settlement period.
-    """
-
-    imbalance_price = pd.read_csv(price_csv)
-    imbalance_volume = pd.read_csv(volume_csv)
-
-    def clean_modo_imbalance_df(df: pd.DataFrame):
-        london_tz = pytz.timezone('Europe/London')
-        df["datetime"] = (pd.to_datetime(df["date"]).dt.tz_localize(london_tz).dt.tz_convert("UTC") +
-                          pd.to_timedelta((df["settlement_period"] - 1) * 30, unit='minutes'))
-        df["created_at"] = pd.to_datetime(df["created_at"], utc=True)
-
-    clean_modo_imbalance_df(imbalance_price)
-    clean_modo_imbalance_df(imbalance_volume)
-
-    all_sps = pd.concat([
-        imbalance_price["datetime"],
-        imbalance_volume["datetime"]
-    ]).sort_values(ascending=True).unique()
-
-    by_sp = pd.DataFrame(index=all_sps)
-
-    # Run through the imbalance prices and extract the '10m price' and the 'final price'
-    for grouping_tuple, sub_df in imbalance_price[["created_at", "datetime", "imbalance_price"]].groupby(["datetime"]):
-        sp = grouping_tuple[0]  # SP is short for settlement period
-        final_price = sub_df.iloc[-1]["imbalance_price"]  # The last imbalance price that Modo published for this SP
-        by_sp.loc[sp, "imbalance_price_final"] = final_price
-        try:
-            price_forecast_10m = sub_df[  # The imbalance price calculation that Modo published ~10m into the SP
-                sub_df["created_at"] < sp + timedelta(minutes=10, seconds=10)
-                # Give another 10 secs as the data pull is run on a minute-aligned cron job
-                ].iloc[-1]["imbalance_price"]
-        except IndexError:
-            price_forecast_10m = np.NaN  # Occasionally Modo doesn't publish a price within 10m
-        try:
-            price_forecast_20m = sub_df[
-                sub_df["created_at"] < sp + timedelta(minutes=20, seconds=10)
-                # Give another 10 secs as the data pull is run on a minute-aligned cron job
-                ].iloc[-1]["imbalance_price"]
-        except IndexError:
-            price_forecast_20m = np.NaN # Occasionally Modo doesn't publish a price within 10m
-
-        by_sp.loc[sp, "imbalance_price_10m"] = price_forecast_10m
-        by_sp.loc[sp, "imbalance_price_20m"] = price_forecast_20m
-
-    # Do the same thing for imbalance *volumes*
-    for grouping_tuple, sub_df in imbalance_volume[["created_at", "datetime", "imbalance_volume"]].groupby(
-            ["datetime"]):
-        sp = grouping_tuple[0]
-        final_volume = sub_df.iloc[-1]["imbalance_volume"]
-        by_sp.loc[sp, "imbalance_volume_final"] = final_volume
-        try:
-            volume_forecast_10m = sub_df[
-                sub_df["created_at"] < sp + timedelta(minutes=10, seconds=10)
-                ].iloc[-1]["imbalance_volume"]
-        except IndexError:
-            volume_forecast_10m = np.NaN
-        try:
-            volume_forecast_20m = sub_df[
-                sub_df["created_at"] < sp + timedelta(minutes=20, seconds=10)
-                ].iloc[-1]["imbalance_volume"]
-        except IndexError:
-            volume_forecast_20m = np.NaN
-        by_sp.loc[sp, "imbalance_volume_10m"] = volume_forecast_10m
-        by_sp.loc[sp, "imbalance_volume_20m"] = volume_forecast_20m
-
-    by_sp["imbalance_price_10m"] = by_sp["imbalance_price_10m"] / 10  # convert £/MW to p/kW
-    by_sp["imbalance_price_20m"] = by_sp["imbalance_price_20m"] / 10  # convert £/MW to p/kW
-    by_sp["imbalance_price_final"] = by_sp["imbalance_price_final"] / 10  # convert £/MW to p/kW
-
-    return by_sp
-
-
-def read_elexon_imbalance_data(csv_files: List[str]) -> pd.DataFrame:
-    """
-    Reads the given list of CSV files of Elexon-published imbalance and creates a single
-    dataframe with a row per settlement period
-    """
-    imbalance_df = pd.DataFrame()
-    for csv_file in csv_files:
-        file_df = pd.read_csv(csv_file)
-        imbalance_df = pd.concat([imbalance_df, file_df], ignore_index=True)
-
-    imbalance_df["datetime"] = pd.to_datetime(imbalance_df["datetime"])
-
-    imbalance_df = imbalance_df.sort_values(by="datetime",ascending=True)
-
-    # Elexon only has a single final SSP price that we need to use for 10m and 20m. This means we are feeding in
-    # a 'perfect price forecast' so the results should be taken with a pinch of salt.
-    logging.warning("When using Elexon imbalance data, perfect hindsight is used for price and volume predictions."
-                    "Expected profitability should be reduced by approx 12.5%")
-
-    by_sp = pd.DataFrame(index=imbalance_df["datetime"])
-    imbalance_df = imbalance_df.set_index("datetime")
-    by_sp["imbalance_price_10m"] = imbalance_df["Price"] / 10  # convert £/MW to p/kW
-    by_sp["imbalance_price_20m"] = imbalance_df["Price"] / 10  # convert £/MW to p/kW
-    by_sp["imbalance_price_final"] = imbalance_df["Price"] / 10  # convert £/MW to p/kW
-    by_sp["imbalance_volume_10m"] = imbalance_df["Volume"]
-    by_sp["imbalance_volume_20m"] = imbalance_df["Volume"]
-    by_sp["imbalance_volume_final"] = imbalance_df["Volume"]
-
-    return by_sp
-
-
-if __name__ == "__main__":
-    Fire(main)
