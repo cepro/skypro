@@ -142,7 +142,7 @@ def plot_hh_strategy(df: pd.DataFrame):
     fig.add_trace(
         go.Scatter(x=df.index, y=df["rate_export_final"], name="Export Price", line=dict(color="rgba(102, 0, 178, 1)")))
     # fig.add_trace(go.Scatter(x=df.index, y=df["imbalance_volume_final"], name="Imbalance volume final", line=dict(color="red")), secondary_y=True)
-    fig.add_trace(go.Scatter(x=df.index, y=df["soe"], name="Battery charge", line=dict(color="orange")),
+    fig.add_trace(go.Scatter(x=df.index, y=df["soe"], name="Battery SoE", line=dict(color="orange")),
                   secondary_y=True)
 
     fig.update_yaxes(title_text="Price (p/kW)", range=[-10, 40], secondary_y=False, row=1, col=1)

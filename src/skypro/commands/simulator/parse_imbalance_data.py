@@ -148,4 +148,6 @@ def read_imbalance_data(price_dir: str, volume_dir: str) -> pd.DataFrame:
     else:
         df = normalise_non_predictive_imbalance_data(price_df, volume_df)
 
+    df = df.sort_index()
+
     return df

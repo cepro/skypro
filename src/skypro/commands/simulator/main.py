@@ -7,6 +7,7 @@ from simt_common.jsonconfig.rates import parse_rates, parse_supply_points, colla
 
 from skypro.commands.simulator.algorithm import run_imbalance_algorithm
 from skypro.commands.simulator.config import parse_config
+from skypro.commands.simulator.output import save_output
 from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data
 from skypro.commands.simulator.profiler import Profiler
 from skypro.commands.simulator.results import explore_results
@@ -39,7 +40,6 @@ def simulate(config_file_path: str, output_file_path: Optional[str] = None):
         price_dir=config.simulation.imbalance_data_source.price_dir,
         volume_dir=config.simulation.imbalance_data_source.volume_dir,
     )
-
     if config.simulation.start < by_sp.index[0]:
         raise ValueError(f"Simulation start time is outside of imbalance data range")
     if config.simulation.end >= by_sp.index[-1]:
@@ -113,8 +113,6 @@ def simulate(config_file_path: str, output_file_path: Optional[str] = None):
     else:
         raise ValueError("Load configuration must be either 'profile' or 'constant'")
 
-    breakpoint()
-
     df = run_imbalance_algorithm(
         by_sp,
         import_rates_10m=import_rates_10m,
@@ -133,8 +131,7 @@ def simulate(config_file_path: str, output_file_path: Optional[str] = None):
     )
 
     if output_file_path:
-        logging.info("Saving output file")
-        df.to_csv(output_file_path)
+        save_output(df, output_file_path)
 
     explore_results(
         df=df,
