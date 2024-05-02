@@ -13,6 +13,7 @@ from skypro.commands.simulator.algorithm import get_days
 
 def explore_results(
         df: pd.DataFrame,
+        do_plots: bool,
         battery_energy_capacity: float,
         battery_nameplate_power: float,
         site_import_limit: float,
@@ -20,12 +21,14 @@ def explore_results(
         import_rates: List,
         export_rates: List,
 ):
-    plot_hh_strategy(df)
-
     """
     Generally explores/plots the results, including logging the weighted average prices, cycling statistics, and
     benchmark £/kW and £/kWh values for the simulation.
     """
+
+    if do_plots:
+        plot_hh_strategy(df)
+
     cols_of_interest = [
         "energy_delta",
         "imbalance_price_10m",
@@ -42,12 +45,14 @@ def explore_results(
     exports_inc_nan = df[df["energy_delta"] < 0][cols_of_interest]
 
     # Calculate the expected prices when 10m into the SP
-    imports_with_10m_prices = imports_inc_nan[["energy_delta", "rate_import_10m"]].dropna().copy()
-    exports_with_10m_prices = exports_inc_nan[["energy_delta", "rate_export_10m"]].dropna().copy()
-    report_dropped_rows(imports_inc_nan, imports_with_10m_prices, "imports for 10m expected average price")
-    report_dropped_rows(exports_inc_nan, exports_with_10m_prices, "exports for 10m expected average price")
-    avg_import_price_10m = np.average(a=imports_with_10m_prices["rate_import_10m"], weights=imports_with_10m_prices["energy_delta"])
-    avg_export_price_10m = np.average(a=exports_with_10m_prices["rate_export_10m"], weights=exports_with_10m_prices["energy_delta"])
+    # This is commented out because a lot of the time these days Modo doesn't publish a price within 10mins so this
+    # just always log a warning.
+    # imports_with_10m_prices = imports_inc_nan[["energy_delta", "rate_import_10m"]].dropna().copy()
+    # exports_with_10m_prices = exports_inc_nan[["energy_delta", "rate_export_10m"]].dropna().copy()
+    # report_dropped_rows(imports_inc_nan, imports_with_10m_prices, "imports for 10m expected average price")
+    # report_dropped_rows(exports_inc_nan, exports_with_10m_prices, "exports for 10m expected average price")
+    # avg_import_price_10m = np.average(a=imports_with_10m_prices["rate_import_10m"], weights=imports_with_10m_prices["energy_delta"])
+    # avg_export_price_10m = np.average(a=exports_with_10m_prices["rate_export_10m"], weights=exports_with_10m_prices["energy_delta"])
 
     # Calculate the actual prices achieved (using pricing data from after the end of the SP)
     imports_with_final_prices = imports_inc_nan[["energy_delta", "rate_import_final"]].dropna().copy()
@@ -58,8 +63,8 @@ def explore_results(
     avg_export_price_final = np.average(a=exports_with_final_prices["rate_export_final"], weights=exports_with_final_prices["energy_delta"])
 
     print("\n- - AVERAGE PRICES - - ")
-    print(f"10m expected average import price: {avg_import_price_10m:.2f} p/kW")
-    print(f"10m Expected average export price: {avg_export_price_10m:.2f} p/kW")
+    # print(f"10m expected average import price: {avg_import_price_10m:.2f} p/kW")
+    # print(f"10m Expected average export price: {avg_export_price_10m:.2f} p/kW")
     print(f"Final average import price: {avg_import_price_final:.2f} p/kW")
     print(f"Final average export price: {avg_export_price_final:.2f} p/kW")
 
@@ -102,32 +107,35 @@ def explore_results(
     import_charges_df = import_rates_df.mul(imports_with_final_prices["energy_delta"], axis=0)
     export_charges_df = export_rates_df.mul(exports_with_final_prices["energy_delta"], axis=0)
 
-    # Plot cummulative profit
-    total_import_charges = import_charges_df.sum(axis=1)
-    total_export_charges = export_charges_df.sum(axis=1)
-    total_charges = total_export_charges - total_import_charges
-    px.line(total_charges.cumsum()).show()
+    # Plot cumulative profit
+    if do_plots:
+        total_import_charges = import_charges_df.sum(axis=1)
+        total_export_charges = export_charges_df.sum(axis=1)
+        total_charges = total_export_charges - total_import_charges
+        px.line(total_charges.cumsum()).show()
 
     # imports["cost"] = imports["rate_import_final"] * imports["energy_delta"]
     # exports["cost"] = exports["rate_export_final"] * exports["energy_delta"]
 
-    plot_costs_by_categories(
-        import_rates=import_rates,
-        export_rates=export_rates,
-        import_charges_df=import_charges_df,
-        export_charges_df=export_charges_df,
-        import_col_name_prefix="rate_import_final_",
-        export_col_name_prefix="rate_export_final_"
-    ).show()
+    if do_plots:
+        plot_costs_by_categories(
+            import_rates=import_rates,
+            export_rates=export_rates,
+            import_charges_df=import_charges_df,
+            export_charges_df=export_charges_df,
+            import_col_name_prefix="rate_import_final_",
+            export_col_name_prefix="rate_export_final_"
+        ).show()
 
     # Plot bess charge / discharge limits
-    df["battery_charge_power"] = imports_inc_nan["energy_delta"] * 2
-    df["battery_discharge_power"] = exports_inc_nan["energy_delta"] * -2
-    fig = px.line(df[["solar", "load", "battery_max_power_charge", "battery_max_power_discharge", "battery_charge_power", "battery_discharge_power"]])
-    fig.add_hline(y=site_import_limit, line_dash="dot", annotation_text="Site import limit")
-    fig.add_hline(y=site_export_limit, line_dash="dot", annotation_text="Site export limit")
-    fig.add_hline(y=battery_nameplate_power, line_dash="dot", annotation_text="Battery nameplate power")
-    fig.show()
+    if do_plots:
+        df["battery_charge_power"] = imports_inc_nan["energy_delta"] * 2
+        df["battery_discharge_power"] = exports_inc_nan["energy_delta"] * -2
+        fig = px.line(df[["solar", "load", "battery_max_power_charge", "battery_max_power_discharge", "battery_charge_power", "battery_discharge_power"]])
+        fig.add_hline(y=site_import_limit, line_dash="dot", annotation_text="Site import limit")
+        fig.add_hline(y=site_export_limit, line_dash="dot", annotation_text="Site export limit")
+        fig.add_hline(y=battery_nameplate_power, line_dash="dot", annotation_text="Battery nameplate power")
+        fig.show()
 
 
 def plot_hh_strategy(df: pd.DataFrame):

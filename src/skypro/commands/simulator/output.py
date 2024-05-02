@@ -34,8 +34,6 @@ def save_output(df: pd.DataFrame, output_file_path: str):
 
     logging.info(f"Saving output to {output_file_path}...")
 
-    breakpoint()
-
     output_df.to_csv(
         output_file_path,
         index_label="utctime"

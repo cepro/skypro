@@ -30,6 +30,12 @@ def main():
         default=None,
         help='Output CSV file location, by default no output file is generated.'
     )
+    parser_simulate.add_argument(
+        '-p', '--plot',
+        dest='do_plots',
+        action="store_true",
+        help='If specified, plots will be generated and shown in your default browser.'
+    )
 
     kwargs = vars(parser.parse_args())
 

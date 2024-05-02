@@ -13,7 +13,7 @@ from skypro.commands.simulator.profiler import Profiler
 from skypro.commands.simulator.results import explore_results
 
 
-def simulate(config_file_path: str, output_file_path: Optional[str] = None):
+def simulate(config_file_path: str, do_plots: bool, output_file_path: Optional[str] = None):
 
     logging.info("Simulator - - - - - - - - - - - - -")
 
@@ -135,11 +135,11 @@ def simulate(config_file_path: str, output_file_path: Optional[str] = None):
 
     explore_results(
         df=df,
+        do_plots=do_plots,
         battery_energy_capacity=config.simulation.site.bess.energy_capacity,
-        battery_nameplate_power=config.simulation.site.bess.energy_capacity,
+        battery_nameplate_power=config.simulation.site.bess.nameplate_power,
         site_import_limit=config.simulation.site.grid_connection.import_limit,
         site_export_limit=config.simulation.site.grid_connection.export_limit,
         import_rates=import_rates_final,
         export_rates=export_rates_final,
     )
-

@@ -5,6 +5,7 @@ from typing import List, Tuple, Optional
 import numpy as np
 import pandas as pd
 
+from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
 from skypro.commands.simulator.cartesian import Curve, Point
 from skypro.commands.simulator.config.config import get_relevant_niv_config
 import skypro.commands.simulator.config as config
@@ -191,7 +192,9 @@ def run_imbalance_algorithm(
         last_imbalance_volume_final = imbalance_volume_final
 
     if num_skipped_periods > 0:
-        logging.warning(f"Skipped {num_skipped_periods}/{len(by_sp)} periods (probably due to missing data)")
+        get_user_ack_of_warning_or_exit(
+            f"Skipped {num_skipped_periods}/{len(by_sp)} periods (probably due to missing imbalance data)"
+        )
 
     return df
 
