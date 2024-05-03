@@ -1,5 +1,6 @@
 import argparse
 import logging
+import importlib.metadata
 
 from skypro.commands.simulator.main import simulate
 
@@ -8,6 +9,9 @@ def main():
 
     # Configure logging
     logging.basicConfig(level=logging.INFO)  # Set to logging.INFO for non-debug mode
+
+    version = importlib.metadata.version('skypro')
+    logging.info(f"Skypro version {version}")
 
     # Create a dictionary of commands, mapping to their python function
     commands = {

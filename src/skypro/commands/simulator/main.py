@@ -131,7 +131,7 @@ def simulate(config_file_path: str, do_plots: bool, output_file_path: Optional[s
     )
 
     if output_file_path:
-        save_output(df, output_file_path)
+        save_output(df, config, output_file_path)
 
     explore_results(
         df=df,
