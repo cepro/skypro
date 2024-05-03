@@ -60,44 +60,17 @@ A JSON configuration file defines the simulation scenario and is in the format s
             },
             "niv": {
               "chargeCurve": [ -- defines the Price vs SoE curve that defines when the battery should charge 
-                {
-                  "x": -Infinity,
-                  "y": 1280
-                },
-                {
-                  "x": 4,
-                  "y": 1280
-                },
-                {
-                  "x": 6,
-                  "y": 1000
-                },
-                {
-                  "x": 12,
-                  "y": 0
-                }
+                {"x": -Infinity, "y": 1280},
+                {"x": 4, "y": 1280},
+                {"x": 6, "y": 1000},
+                {"x": 12, "y": 0}
               ],
               "dischargeCurve": [ -- defines the Price vs SoE curve that defines when the battery should discharge
-                {
-                  "x": 8,
-                  "y": 1280
-                },
-                {
-                  "x": 18,
-                  "y": 1000
-                },
-                {
-                  "x": 25,
-                  "y": 1000
-                },
-                {
-                  "x": 35,
-                  "y": 0
-                },
-                {
-                  "x": Infinity,
-                  "y": 0
-                }
+                {"x": 8, "y": 1280},
+                {"x": 18, "y": 1000},
+                {"x": 25, "y": 1000},
+                {"x": 35, "y": 0},
+                {"x": Infinity, "y": 0}
               ],
               "curveShiftLong": 6,  -- bias towards charging when then the imbalance volume is negative
               "curveShiftShort": 2,  -- bias towards discharging when then the imbalance volume is positive
