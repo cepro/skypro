@@ -1,5 +1,5 @@
 import logging
-from datetime import timedelta, datetime
+from datetime import timedelta
 from typing import List, Tuple, Optional
 
 import numpy as np
@@ -11,7 +11,7 @@ from skypro.commands.simulator.config.config import get_relevant_niv_config
 import skypro.commands.simulator.config as config
 
 
-def run_imbalance_algorithm(
+def run_price_curve_imbalance_algorithm(
         by_sp: pd.DataFrame,
         import_rates_10m: List,
         import_rates_20m: List,
@@ -295,16 +295,8 @@ def cap_power(power: float, max_charge: float, max_discharge) -> float:
     return power
 
 
-def get_days(duration: timedelta) -> float:
-    """
-    Returns the duration in number of days, with decimal places if required.
-    """
-    return get_hours(duration) / 24.0
-
-
 def get_hours(duration: timedelta) -> float:
     """
     Returns the duration in number of hours, with decimal places if required.
     """
     return duration.total_seconds() / 3600
-

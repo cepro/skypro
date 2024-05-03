@@ -5,7 +5,7 @@ import numpy as np
 
 from simt_common.jsonconfig.rates import parse_rates, parse_supply_points, collate_import_and_export_rate_configurations
 
-from skypro.commands.simulator.algorithm import run_imbalance_algorithm
+from skypro.commands.simulator.algorithms.price_curve import run_price_curve_imbalance_algorithm
 from skypro.commands.simulator.config import parse_config
 from skypro.commands.simulator.output import save_output
 from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data
@@ -113,22 +113,26 @@ def simulate(config_file_path: str, do_plots: bool, output_file_path: Optional[s
     else:
         raise ValueError("Load configuration must be either 'profile' or 'constant'")
 
-    df = run_imbalance_algorithm(
-        by_sp,
-        import_rates_10m=import_rates_10m,
-        import_rates_20m=import_rates_20m,
-        import_rates_final=import_rates_final,
-        export_rates_10m=export_rates_10m,
-        export_rates_20m=export_rates_20m,
-        export_rates_final=export_rates_final,
-        battery_energy_capacity=config.simulation.site.bess.energy_capacity,
-        battery_charge_efficiency=config.simulation.site.bess.charge_efficiency,
-        battery_nameplate_power=config.simulation.site.bess.nameplate_power,
-        site_import_limit=config.simulation.site.grid_connection.import_limit,
-        site_export_limit=config.simulation.site.grid_connection.export_limit,
-        niv_chase_periods=config.simulation.strategy.niv_chase_periods,
-        full_discharge_when_export_rate_applies=config.simulation.strategy.do_full_discharge_when_export_rate_applies,
-    )
+    if config.simulation.strategy.price_curve_algo:
+        df = run_price_curve_imbalance_algorithm(
+            by_sp,
+            import_rates_10m=import_rates_10m,
+            import_rates_20m=import_rates_20m,
+            import_rates_final=import_rates_final,
+            export_rates_10m=export_rates_10m,
+            export_rates_20m=export_rates_20m,
+            export_rates_final=export_rates_final,
+            battery_energy_capacity=config.simulation.site.bess.energy_capacity,
+            battery_charge_efficiency=config.simulation.site.bess.charge_efficiency,
+            battery_nameplate_power=config.simulation.site.bess.nameplate_power,
+            site_import_limit=config.simulation.site.grid_connection.import_limit,
+            site_export_limit=config.simulation.site.grid_connection.export_limit,
+            niv_chase_periods=config.simulation.strategy.price_curve_algo.niv_chase_periods,
+            full_discharge_when_export_rate_applies
+            =config.simulation.strategy.price_curve_algo.do_full_discharge_when_export_rate_applies,
+        )
+    else:
+        raise ValueError("Unknown algorithm chosen")
 
     if output_file_path:
         save_output(df, config, output_file_path)

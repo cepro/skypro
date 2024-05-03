@@ -62,8 +62,7 @@ def save_output(df: pd.DataFrame, config: Config, output_file_path: str):
             ("site.bess.energyCapacity", config.simulation.site.bess.energy_capacity),
             ("site.bess.nameplatePower", config.simulation.site.bess.nameplate_power),
             ("site.bess.chargeEfficiency", config.simulation.site.bess.charge_efficiency),
-            ("strategy.doFullDischargeWhenExportRateApplies", config.simulation.strategy.do_full_discharge_when_export_rate_applies),
-            ("strategy.nivChasePeriods", config.simulation.strategy.niv_chase_periods),
+            ("strategy.priceCurveAlgo", config.simulation.strategy.price_curve_algo),
             ("imbalanceDataSource", config.simulation.imbalance_data_source),
             ("rates", config.simulation.rates),
         ]

@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import List
 
 import pandas as pd
@@ -8,7 +9,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from simt_common.analysis.costs_by_categories import plot_costs_by_categories
-from skypro.commands.simulator.algorithm import get_days
 
 
 def explore_results(
@@ -73,7 +73,7 @@ def explore_results(
     total_cycles = total_export / battery_energy_capacity
     sim_start = df.iloc[0].name
     sim_end = df.iloc[-1].name
-    sim_days = get_days(sim_end - sim_start)
+    sim_days = get_24hr_days(sim_end - sim_start)
     cycles_per_day = total_cycles / sim_days
     print("\n- - CYCLING - - ")
     print(f"Total energy discharge over simulation: {total_export:.2f} kWh")
@@ -170,3 +170,11 @@ def report_dropped_rows(orig, filtered, data_name):
             exit(-1)
     elif pct_dropped > 0:
         print(f"Warning: dropped {pct_dropped:.1f}% of rows for '{data_name}.")
+
+
+def get_24hr_days(duration: timedelta) -> float:
+    """
+    Returns the duration in number of days, assuming each day is 24hrs (which is not always true with daylight saving
+    transitions) with decimal places if required.
+    """
+    return (duration.total_seconds() / 3600) / 24.0

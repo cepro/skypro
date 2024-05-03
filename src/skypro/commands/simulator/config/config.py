@@ -116,10 +116,18 @@ class Rates:
 
 
 @dataclass
-class Strategy:
+class PriceCurveAlgo:
     do_full_discharge_when_export_rate_applies: str = name_in_json("doFullDischargeWhenExportRateApplies")
     niv_chase_periods: List[NivPeriod] = name_in_json("nivChasePeriods")
 
+
+@dataclass
+class Strategy:
+    price_curve_algo: PriceCurveAlgo = name_in_json("priceCurveAlgo")
+
+    def __post_init__(self):
+        # There is currently only one option - but this is here as a placeholder for when other algos are available
+        enforce_one_option([self.price_curve_algo], "'priceCurveAlgo'")
 
 @dataclass
 class Simulation:
