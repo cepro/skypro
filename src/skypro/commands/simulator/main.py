@@ -42,7 +42,7 @@ def simulate(config_file_path: str, do_plots: bool, output_file_path: Optional[s
     )
     if config.simulation.start < by_sp.index[0]:
         raise ValueError(f"Simulation start time is outside of imbalance data range")
-    if config.simulation.end >= by_sp.index[-1]:
+    if config.simulation.end > by_sp.index[-1]:
         raise ValueError(f"Simulation end time is outside of imbalance data range")
 
     # Remove any extra settlement periods that are in the data, but are outside the start and end times
