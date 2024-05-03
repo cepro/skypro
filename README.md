@@ -124,3 +124,15 @@ A JSON configuration file defines the simulation scenario and is in the format s
 
 ## Running tests
 To run the unit tests: `python -m unittest discover  --start-directory src`
+
+### Publishing to test pypi
+To publish the repository to test.pypi:
+1. Make your code changes
+2. Update the semver version number in `pyproject.toml`
+3. Commit to git and push
+4. Run `poetry build` and observe the new version number
+5. Run `poetry publish -r test-pypi` to publish
+
+If this is your first time publishing to test.pypi then you will also need to do the following steps before publishing:
+1. `poetry config repositories.test-pypi https://test.pypi.org/legacy/`
+2. `poetry config pypi-token.test-pypi  pypi-YYYYYYYY` using an API token from your account on the test.pypi website.
