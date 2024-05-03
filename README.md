@@ -9,13 +9,13 @@ To install from test.pypi:
 ## Usage
 See `skypro -h` for help.
 
-To run a BESS simulation and plot the results: `skypro simulate -c <scenario-configuration> -o ./output.csv --plot`
+To run a BESS simulation and plot the results: `skypro simulate -c <config-file> -o ./output.csv --plot`
 
 
 ### Scenario configuration file
 
 A JSON configuration file defines the simulation scenario and is in the format shown in the example below:
-```JSON
+```json
 {
   "configFormatVersion": "2.0.0",
   "simulation": {
@@ -59,7 +59,7 @@ A JSON configuration file defines the simulation scenario and is in the format s
               "end": "23:59:59:Europe/London"
             },
             "niv": {
-              "chargeCurve": [
+              "chargeCurve": [ -- defines the Price vs SoE curve that defines when the battery should charge 
                 {
                   "x": -Infinity,
                   "y": 1280
@@ -77,7 +77,7 @@ A JSON configuration file defines the simulation scenario and is in the format s
                   "y": 0
                 }
               ],
-              "dischargeCurve": [
+              "dischargeCurve": [ -- defines the Price vs SoE curve that defines when the battery should discharge
                 {
                   "x": 8,
                   "y": 1280
@@ -99,9 +99,9 @@ A JSON configuration file defines the simulation scenario and is in the format s
                   "y": 0
                 }
               ],
-              "curveShiftLong": 6,
-              "curveShiftShort": 2,
-              "volumeCutoffForPrediction": Infinity
+              "curveShiftLong": 6,  -- bias towards charging when then the imbalance volume is negative
+              "curveShiftShort": 2,  -- bias towards discharging when then the imbalance volume is positive
+              "volumeCutoffForPrediction": 150000  -- when the previous imbalance volume is larger than this number, then the imbalance price from the previous SP is used for the first 10 minutes of the next SP 
             }
           }
         ]
