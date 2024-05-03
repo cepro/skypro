@@ -46,7 +46,7 @@ class Curve:
                 # Use linear interpolation to find where the curve is at the given point
                 curve_y = np.interp(p.x, [p1.x, p2.x], [p1.y, p2.y])
                 distance = curve_y - p.y
-                return distance
+                return float(distance)
 
         return np.NaN
 
