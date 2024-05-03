@@ -107,9 +107,9 @@ def normalise_non_predictive_imbalance_data(price_df: pd.DataFrame, volume_df: p
         right_index=True,
     )
 
-    df["imbalance_price_10m"] = df["price"] / 10  # convert £/MW to p/kW
-    df["imbalance_price_20m"] = df["price"] / 10  # convert £/MW to p/kW
-    df["imbalance_price_final"] = df["price"] / 10  # convert £/MW to p/kW
+    df["imbalance_price_10m"] = df["price"]
+    df["imbalance_price_20m"] = df["price"]
+    df["imbalance_price_final"] = df["price"]
     df["imbalance_volume_10m"] = df["volume"]
     df["imbalance_volume_20m"] = df["volume"]
     df["imbalance_volume_final"] = df["volume"]
