@@ -1,11 +1,8 @@
 import logging
 from datetime import datetime
-from os import listdir
-from os.path import join, isfile
 
 import pandas as pd
-
-from skypro.cli_utils.cli_utils import read_directory_of_csvs
+from simt_common.dataparse.dataparse import read_directory_of_csvs
 
 
 class Profiler:

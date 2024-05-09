@@ -2,8 +2,9 @@ from datetime import timedelta
 
 import numpy as np
 import pandas as pd
+from simt_common.dataparse.dataparse import read_directory_of_csvs
 
-from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit, read_directory_of_csvs
+from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
 
 
 def split_modo_data_by_settlement_period(df, col: str, col_10m: str, col_20m: str, col_final: str):
