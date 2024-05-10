@@ -93,7 +93,7 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
     solar_config = config.simulation.site.solar
     if solar_config.profile is not None:
         solarProfiler = Profiler(
-            profile_csv_dir=solar_config.profile.profile_dir,
+            profile_csv_dir=substitute_vars(solar_config.profile.profile_dir, env_vars),
             scaling_factor=(solar_config.profile.scaled_size_kwp / solar_config.profile.profiled_size_kwp)
         )
         by_sp["solar"] = solarProfiler.get_for(by_sp.index.to_series()) * 2  # Multiply to convert kWh over HH to kW
@@ -107,7 +107,7 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
     load_config = config.simulation.site.load
     if load_config.profile is not None:
         loadProfiler = Profiler(
-            profile_csv_dir=load_config.profile.profile_dir,
+            profile_csv_dir=substitute_vars(load_config.profile.profile_dir, env_vars),
             scaling_factor=(load_config.profile.scaled_num_plots / load_config.profile.profiled_num_plots)
         )
         by_sp["load"] = loadProfiler.get_for(by_sp.index.to_series()) * 2  # Multiply to convert kWh over HH to kW
