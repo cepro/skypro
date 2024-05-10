@@ -5,6 +5,7 @@ import numpy as np
 
 from simt_common.jsonconfig.rates import parse_rates, parse_supply_points, collate_import_and_export_rate_configurations
 
+from skypro.cli_utils.cli_utils import substitute_vars, read_json_file
 from skypro.commands.simulator.algorithms.price_curve import run_price_curve_imbalance_algorithm
 from skypro.commands.simulator.config import parse_config
 from skypro.commands.simulator.output import save_output
@@ -13,7 +14,7 @@ from skypro.commands.simulator.profiler import Profiler
 from skypro.commands.simulator.results import explore_results
 
 
-def simulate(config_file_path: str, do_plots: bool, output_file_path: Optional[str] = None):
+def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_file_path: Optional[str] = None):
 
     logging.info("Simulator - - - - - - - - - - - - -")
 
@@ -21,15 +22,17 @@ def simulate(config_file_path: str, do_plots: bool, output_file_path: Optional[s
     logging.info(f"Using config file: {config_file_path}")
     config = parse_config(config_file_path)
 
+    env_vars = read_json_file(env_file_path)["vars"]
+
     # Parse the supply points config file:
     supply_points = parse_supply_points(
-        supply_points_config_file=config.simulation.rates.supply_points_config_file
+        supply_points_config_file=substitute_vars(config.simulation.rates.supply_points_config_file, env_vars)
     )
 
     # Read all the rates config files and sort into import and export rate configurations. The actual
     # import/export configurations are actually parsed into Rates objects later.
     rates_import_config, rates_export_config = collate_import_and_export_rate_configurations(
-        rates_config_files=config.simulation.rates.rates_config_files
+        rates_config_files=[substitute_vars(file, env_vars) for file in config.simulation.rates.rates_config_files]
     )
 
     logging.info("Reading pricing files...")
@@ -37,8 +40,8 @@ def simulate(config_file_path: str, do_plots: bool, output_file_path: Optional[s
     # Imbalance pricing/volume data can come from either Modo or Elexon, Modo is 'predictive' and it's predictions
     # change over the course of the SP, whereas Elexon publishes a single figure for each SP in hindsight.
     by_sp = read_imbalance_data(
-        price_dir=config.simulation.imbalance_data_source.price_dir,
-        volume_dir=config.simulation.imbalance_data_source.volume_dir,
+        price_dir=substitute_vars(config.simulation.imbalance_data_source.price_dir, env_vars),
+        volume_dir=substitute_vars(config.simulation.imbalance_data_source.volume_dir, env_vars),
     )
     if config.simulation.start < by_sp.index[0]:
         raise ValueError(f"Simulation start time is outside of imbalance data range")

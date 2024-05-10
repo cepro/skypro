@@ -162,3 +162,4 @@ poetry.lock
 .DS_Store
 config
 skypro_symlink
+simt_hidden

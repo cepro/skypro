@@ -5,6 +5,9 @@ import importlib.metadata
 from skypro.commands.simulator.main import simulate
 
 
+DEFAULT_ENV_FILE = f"~/.simt/env.json"
+
+
 def main():
 
     # Configure logging
@@ -27,6 +30,12 @@ def main():
         dest='config_file_path',
         required=True,
         help='JSON configuration file for this simulation'
+    )
+    parser_simulate.add_argument(
+        '-e', '--env',
+        dest='env_file_path',
+        default=DEFAULT_ENV_FILE,
+        help=f'JSON file containing environment and secret configuration, defaults to {DEFAULT_ENV_FILE}'
     )
     parser_simulate.add_argument(
         '-o', '--output',
