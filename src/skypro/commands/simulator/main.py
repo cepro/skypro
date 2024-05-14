@@ -7,6 +7,7 @@ from simt_common.jsonconfig.rates import parse_rates, parse_supply_points, colla
 
 from skypro.cli_utils.cli_utils import substitute_vars, read_json_file
 from skypro.commands.simulator.algorithms.price_curve import run_price_curve_imbalance_algorithm
+from skypro.commands.simulator.algorithms.spread.algo import run_spread_based_algo
 from skypro.commands.simulator.config import parse_config
 from skypro.commands.simulator.output import save_output
 from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data
@@ -116,8 +117,10 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
     else:
         raise ValueError("Load configuration must be either 'profile' or 'constant'")
 
+    logging.info("Done")
+
     if config.simulation.strategy.price_curve_algo:
-        df = run_price_curve_imbalance_algorithm(
+        df = run_spread_based_algo(
             by_sp,
             import_rates_10m=import_rates_10m,
             import_rates_20m=import_rates_20m,

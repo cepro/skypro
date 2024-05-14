@@ -42,7 +42,7 @@ class Curve:
         # Loop over each pair of points in the curve
         for p1, p2 in pairwise(self._points):
             # Check if the given point is 'within the vertical band' of the two current points
-            if p1.x < p.x < p2.x:
+            if p1.x <= p.x <= p2.x:
                 # Use linear interpolation to find where the curve is at the given point
                 curve_y = np.interp(p.x, [p1.x, p2.x], [p1.y, p2.y])
                 distance = curve_y - p.y

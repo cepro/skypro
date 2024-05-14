@@ -153,10 +153,23 @@ def plot_hh_strategy(df: pd.DataFrame):
     fig.add_trace(go.Scatter(x=df.index, y=df["soe"], name="Battery SoE", line=dict(color="orange")),
                   secondary_y=True)
 
+    fig.add_trace(go.Scatter(x=df.index, y=df["notional_spread_final"], name="Notional Spread", line=dict(color="red")))
+
+    fig.add_trace(go.Scatter(x=df.index, y=df["recent_imbalance_price_short"], name="Recent imbalance short"))
+    fig.add_trace(go.Scatter(x=df.index, y=df["recent_imbalance_price_long"], name="Recent imbalance long"))
+    fig.add_trace(go.Scatter(x=df.index, y=df["imbalance_volume_final"]/1000, name="imbalance_volume_final"))
+
+
+    # fig.add_trace(go.Scatter(x=df.index, y=df["soe"], name="Battery SoE", line=dict(color="orange")),
+    #               secondary_y=True)
+
     fig.update_yaxes(title_text="Price (p/kW)", range=[-10, 40], secondary_y=False, row=1, col=1)
     fig.update_yaxes(title_text="SoE (kWh)", range=[0, 200], secondary_y=True, row=1, col=1)
     fig.update_layout(title="Typical optimisation strategy")
     fig.show()
+
+    breakpoint()
+
 
 
 def report_dropped_rows(orig, filtered, data_name):
