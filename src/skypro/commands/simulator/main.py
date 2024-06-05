@@ -1,9 +1,13 @@
 import logging
-from typing import Optional
+from datetime import timedelta
+from typing import Optional, Tuple, List
 
 import numpy as np
+import pandas as pd
 
-from simt_common.jsonconfig.rates import parse_rates, parse_supply_points, collate_import_and_export_rate_configurations
+from simt_common.jsonconfig.rates import parse_rates, parse_supply_points, process_rates_for_all_energy_flows, \
+    RatesForEnergyFlows
+from simt_common.timeutils.hh_math import floor_hh
 
 from skypro.cli_utils.cli_utils import substitute_vars, read_json_file
 from skypro.commands.simulator.algorithms.price_curve import run_price_curve_imbalance_algorithm
@@ -12,6 +16,11 @@ from skypro.commands.simulator.output import save_output
 from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data
 from skypro.commands.simulator.profiler import Profiler
 from skypro.commands.simulator.results import explore_results
+
+
+STEP_SIZE = timedelta(minutes=10)
+STEPS_PER_SP = int(timedelta(minutes=30) / STEP_SIZE)
+assert((timedelta(minutes=30) / STEP_SIZE) == STEPS_PER_SP)  # Check that we have an exact number of steps per SP
 
 
 def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_file_path: Optional[str] = None):
@@ -29,66 +38,61 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
         supply_points_config_file=substitute_vars(config.simulation.rates.supply_points_config_file, env_vars)
     )
 
-    # Read all the rates config files and sort into import and export rate configurations. The actual
-    # import/export configurations are actually parsed into Rates objects later.
-    rates_import_config, rates_export_config = collate_import_and_export_rate_configurations(
-        rates_config_files=[substitute_vars(file, env_vars) for file in config.simulation.rates.rates_config_files]
-    )
+    # # Read all the rates config files and sort into import and export rate configurations. The actual
+    # # import/export configurations are actually parsed into Rates objects later.
+    # rates_import_config, rates_export_config = collate_import_and_export_rate_configurations(
+    #     rates_config_files=[substitute_vars(file, env_vars) for file in config.simulation.rates.rates_config_files]
+    # )
 
-    logging.info("Reading pricing files...")
+    # Run the simulation at 10 minute granularity
+    time_index = pd.date_range(config.simulation.start, config.simulation.end, freq=STEP_SIZE)
+    time_index = time_index.tz_convert("UTC")
+    # df = pd.DataFrame(index=time_index)
 
     # Imbalance pricing/volume data can come from either Modo or Elexon, Modo is 'predictive' and it's predictions
     # change over the course of the SP, whereas Elexon publishes a single figure for each SP in hindsight.
-    by_sp = read_imbalance_data(
+    df = read_imbalance_data(
+        time_index=time_index,
         price_dir=substitute_vars(config.simulation.imbalance_data_source.price_dir, env_vars),
         volume_dir=substitute_vars(config.simulation.imbalance_data_source.volume_dir, env_vars),
     )
-    if config.simulation.start < by_sp.index[0]:
-        raise ValueError(f"Simulation start time is outside of imbalance data range")
-    if config.simulation.end > by_sp.index[-1]:
-        raise ValueError(f"Simulation end time is outside of imbalance data range")
+    # TODO: equivalent error check here?
+    # if config.simulation.start < by_sp.index[0]:
+    #     raise ValueError(f"Simulation start time is outside of imbalance data range")
+    # if config.simulation.end > by_sp.index[-1]:
+    #     raise ValueError(f"Simulation end time is outside of imbalance data range")
 
-    # Remove any extra settlement periods that are in the data, but are outside the start and end times
-    by_sp = by_sp[by_sp.index >= config.simulation.start]
-    by_sp = by_sp[by_sp.index <= config.simulation.end]
+    predicted_rates = process_rates_for_all_energy_flows(
+        config=config.simulation.rates.files,
+        env_vars=env_vars,
+        supply_points=supply_points,
+        imbalance_pricing=df["imbalance_price_predicted"]
+    )
 
-    import_rates_10m = parse_rates(
-        rates_config=rates_import_config,
+    final_rates = process_rates_for_all_energy_flows(
+        config=config.simulation.rates.files,
+        env_vars=env_vars,
         supply_points=supply_points,
-        imbalance_pricing=by_sp["imbalance_price_10m"],
-    )
-    import_rates_20m = parse_rates(
-        rates_config=rates_import_config,
-        supply_points=supply_points,
-        imbalance_pricing=by_sp["imbalance_price_20m"],
-    )
-    import_rates_final = parse_rates(
-        rates_config=rates_import_config,
-        supply_points=supply_points,
-        imbalance_pricing=by_sp["imbalance_price_final"],
-    )
-    export_rates_10m = parse_rates(
-        rates_config=rates_export_config,
-        supply_points=supply_points,
-        imbalance_pricing=by_sp["imbalance_price_10m"]*-1,  # imbalance price is inverted for exports
-    )
-    export_rates_20m = parse_rates(
-        rates_config=rates_export_config,
-        supply_points=supply_points,
-        imbalance_pricing=by_sp["imbalance_price_20m"]*-1,  # imbalance price is inverted for exports
-    )
-    export_rates_final = parse_rates(
-        rates_config=rates_export_config,
-        supply_points=supply_points,
-        imbalance_pricing=by_sp["imbalance_price_final"]*-1,  # imbalance price is inverted for exports
+        imbalance_pricing=df["imbalance_price_final"]
     )
 
     # Log the parsed rates for user information
-    for rate in import_rates_final:
-        logging.info(f"Import rate {rate}")
-    for rate in export_rates_final:
-        logging.info(f"Export rate {rate}")
+    for name, rate_set in predicted_rates.get_all_sets_named():
+        for rate in rate_set:
+            logging.info(f"Flow: {name}, Rate: {rate}")
 
+    logging.info("Calculating predicted rates...")
+    predicted_rates_dfs = get_rates_df(time_index, predicted_rates)
+    logging.info("Calculating final rates...")
+    final_rates_dfs = get_rates_df(time_index, final_rates)
+
+    # Add the total rate of each energy flow to the dataframe
+    for set_name, rates_df in predicted_rates_dfs:
+        df[f"rate_predicted_{set_name}"] = rates_df.sum(axis=1, skipna=False)
+    for set_name, rates_df in final_rates_dfs:
+        df[f"rate_final_{set_name}"] = rates_df.sum(axis=1, skipna=False)
+
+    # TODO: continue with refactor...
     logging.info("Generating solar profile...")
     solar_config = config.simulation.site.solar
     if solar_config.profile is not None:
@@ -96,9 +100,10 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
             profile_csv_dir=substitute_vars(solar_config.profile.profile_dir, env_vars),
             scaling_factor=(solar_config.profile.scaled_size_kwp / solar_config.profile.profiled_size_kwp)
         )
-        by_sp["solar"] = solarProfiler.get_for(by_sp.index.to_series()) * 2  # Multiply to convert kWh over HH to kW
+        solar_energy = solarProfiler.get_for(time_index)
+        df["solar_power"] = solar_energy / (STEP_SIZE.total_seconds()/3600)
     elif not np.isnan(solar_config.constant):
-        by_sp["solar"] = solar_config.constant
+        df["solar_power"] = solar_config.constant
     else:
         raise ValueError("Solar configuration must be either 'profile' or 'constant'")
 
@@ -110,32 +115,70 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
             profile_csv_dir=substitute_vars(load_config.profile.profile_dir, env_vars),
             scaling_factor=(load_config.profile.scaled_num_plots / load_config.profile.profiled_num_plots)
         )
-        by_sp["load"] = loadProfiler.get_for(by_sp.index.to_series()) * 2  # Multiply to convert kWh over HH to kW
+        load_energy = loadProfiler.get_for(time_index)
+        df["load_power"] = load_energy / (STEP_SIZE.total_seconds()/3600)
     elif not np.isnan(load_config.constant):
-        by_sp["load"] = load_config.constant
+        df["load_power"] = load_config.constant
     else:
         raise ValueError("Load configuration must be either 'profile' or 'constant'")
 
+    # Calculate the BESS charge and discharge limits based on how much solar generation and housing load
+    # there is. We need to abide by the overall site import/export limits. And stay within the nameplate inverter
+    # capabilities of the BESS
+    non_bess_power = df["load_power"] - df["solar_power"]
+    df["bess_max_power_charge"] = ((config.simulation.site.grid_connection.import_limit - non_bess_power).
+                                    clip(upper=config.simulation.site.bess.nameplate_power))
+    df["bess_max_power_discharge"] = ((config.simulation.site.grid_connection.export_limit + non_bess_power).
+                                       clip(upper=config.simulation.site.bess.nameplate_power))
+
+    # The algo sometimes needs the previous SP's final rates. The algo processes each step as a row, so make the
+    # previous SPs values available in each row/step.
+    cols_to_shift = [
+        "imbalance_volume_final",
+        "rate_final_bess_charge_from_solar",
+        "rate_final_bess_charge_from_grid",
+        "rate_final_bess_discharge_to_load",
+        "rate_final_bess_discharge_to_grid",
+        "rate_final_solar_to_grid",
+        "rate_final_load_from_grid",
+    ]
+    for col in cols_to_shift:
+        df[f"prev_sp_{col}"] = df[col].shift(STEPS_PER_SP)
+
     if config.simulation.strategy.price_curve_algo:
-        df = run_price_curve_imbalance_algorithm(
-            by_sp,
-            import_rates_10m=import_rates_10m,
-            import_rates_20m=import_rates_20m,
-            import_rates_final=import_rates_final,
-            export_rates_10m=export_rates_10m,
-            export_rates_20m=export_rates_20m,
-            export_rates_final=export_rates_final,
+
+        # Only share the columns that are relevant with the algo
+        cols = [
+            "load_power",
+            "solar_power",
+            "bess_max_power_charge",
+            "bess_max_power_discharge",
+            "imbalance_volume_predicted",
+            "rate_predicted_bess_charge_from_solar",
+            "rate_predicted_bess_charge_from_grid",
+            "rate_predicted_bess_discharge_to_load",
+            "rate_predicted_bess_discharge_to_grid",
+            "rate_predicted_solar_to_grid",
+            "rate_predicted_load_from_grid",
+            "prev_sp_imbalance_volume_final",
+            "prev_sp_rate_final_bess_charge_from_solar",
+            "prev_sp_rate_final_bess_charge_from_grid",
+            "prev_sp_rate_final_bess_discharge_to_load",
+            "prev_sp_rate_final_bess_discharge_to_grid",
+            "prev_sp_rate_final_solar_to_grid",
+            "prev_sp_rate_final_load_from_grid",
+        ]
+        df_algo = run_price_curve_imbalance_algorithm(
+            df_in=df[cols],
             battery_energy_capacity=config.simulation.site.bess.energy_capacity,
             battery_charge_efficiency=config.simulation.site.bess.charge_efficiency,
-            battery_nameplate_power=config.simulation.site.bess.nameplate_power,
-            site_import_limit=config.simulation.site.grid_connection.import_limit,
-            site_export_limit=config.simulation.site.grid_connection.export_limit,
             niv_chase_periods=config.simulation.strategy.price_curve_algo.niv_chase_periods,
-            full_discharge_when_export_rate_applies
-            =config.simulation.strategy.price_curve_algo.do_full_discharge_when_export_rate_applies,
+            full_discharge_period=config.simulation.strategy.price_curve_algo.full_discharge_period,
         )
     else:
         raise ValueError("Unknown algorithm chosen")
+
+    df = pd.concat([df, df_algo], axis=1)
 
     if output_file_path:
         save_output(df, config, output_file_path)
@@ -147,6 +190,26 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
         battery_nameplate_power=config.simulation.site.bess.nameplate_power,
         site_import_limit=config.simulation.site.grid_connection.import_limit,
         site_export_limit=config.simulation.site.grid_connection.export_limit,
-        import_rates=import_rates_final,
-        export_rates=export_rates_final,
     )
+
+
+def get_rates_df(time_index: pd.DatetimeIndex, all_rates: RatesForEnergyFlows) -> List[Tuple[str, pd.DataFrame]]:
+    """
+    Returns a dataframe containing both the individual and total rates for each energy flow.
+    """
+    rates_dfs = []
+    cache = {}
+
+    for rate_set_name, rate_set in all_rates.get_all_sets_named():
+        logging.info(f"Calculating rates for {rate_set_name}...")
+        set_df = pd.DataFrame(index=time_index)
+        for rate in rate_set:
+            rate_id = id(rate)
+            if rate_id not in cache:
+                cache[rate_id] = rate.get_per_kwh_rate_series(time_index)
+            per_kwh = cache[rate_id]
+            set_df[f"{rate.name}"] = per_kwh
+
+        rates_dfs.append((rate_set_name, set_df))
+
+    return rates_dfs
