@@ -1,13 +1,12 @@
 import logging
 from datetime import timedelta
-from typing import Optional, Tuple, List
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 
-from simt_common.jsonconfig.rates import parse_rates, parse_supply_points, process_rates_for_all_energy_flows, \
-    RatesForEnergyFlows
-from simt_common.timeutils.hh_math import floor_hh
+from simt_common.jsonconfig.rates import parse_supply_points, process_rates_for_all_energy_flows, RatesForEnergyFlows
+from simt_common.rates.microgrid import get_rates_dfs
 
 from skypro.cli_utils.cli_utils import substitute_vars, read_json_file
 from skypro.commands.simulator.algorithms.price_curve import run_price_curve_imbalance_algorithm
@@ -38,16 +37,9 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
         supply_points_config_file=substitute_vars(config.simulation.rates.supply_points_config_file, env_vars)
     )
 
-    # # Read all the rates config files and sort into import and export rate configurations. The actual
-    # # import/export configurations are actually parsed into Rates objects later.
-    # rates_import_config, rates_export_config = collate_import_and_export_rate_configurations(
-    #     rates_config_files=[substitute_vars(file, env_vars) for file in config.simulation.rates.rates_config_files]
-    # )
-
     # Run the simulation at 10 minute granularity
     time_index = pd.date_range(config.simulation.start, config.simulation.end, freq=STEP_SIZE)
     time_index = time_index.tz_convert("UTC")
-    # df = pd.DataFrame(index=time_index)
 
     # Imbalance pricing/volume data can come from either Modo or Elexon, Modo is 'predictive' and it's predictions
     # change over the course of the SP, whereas Elexon publishes a single figure for each SP in hindsight.
@@ -82,17 +74,16 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
             logging.info(f"Flow: {name}, Rate: {rate}")
 
     logging.info("Calculating predicted rates...")
-    predicted_rates_dfs = get_rates_df(time_index, predicted_rates)
+    predicted_rates_dfs = get_rates_dfs(time_index, predicted_rates)
     logging.info("Calculating final rates...")
-    final_rates_dfs = get_rates_df(time_index, final_rates)
+    final_rates_dfs = get_rates_dfs(time_index, final_rates)
 
     # Add the total rate of each energy flow to the dataframe
-    for set_name, rates_df in predicted_rates_dfs:
+    for set_name, rates_df in predicted_rates_dfs.items():
         df[f"rate_predicted_{set_name}"] = rates_df.sum(axis=1, skipna=False)
-    for set_name, rates_df in final_rates_dfs:
+    for set_name, rates_df in final_rates_dfs.items():
         df[f"rate_final_{set_name}"] = rates_df.sum(axis=1, skipna=False)
 
-    # TODO: continue with refactor...
     logging.info("Generating solar profile...")
     solar_config = config.simulation.site.solar
     if solar_config.profile is not None:
@@ -185,31 +176,10 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
 
     explore_results(
         df=df,
+        final_rates_dfs=final_rates_dfs,
         do_plots=do_plots,
         battery_energy_capacity=config.simulation.site.bess.energy_capacity,
         battery_nameplate_power=config.simulation.site.bess.nameplate_power,
         site_import_limit=config.simulation.site.grid_connection.import_limit,
         site_export_limit=config.simulation.site.grid_connection.export_limit,
     )
-
-
-def get_rates_df(time_index: pd.DatetimeIndex, all_rates: RatesForEnergyFlows) -> List[Tuple[str, pd.DataFrame]]:
-    """
-    Returns a dataframe containing both the individual and total rates for each energy flow.
-    """
-    rates_dfs = []
-    cache = {}
-
-    for rate_set_name, rate_set in all_rates.get_all_sets_named():
-        logging.info(f"Calculating rates for {rate_set_name}...")
-        set_df = pd.DataFrame(index=time_index)
-        for rate in rate_set:
-            rate_id = id(rate)
-            if rate_id not in cache:
-                cache[rate_id] = rate.get_per_kwh_rate_series(time_index)
-            per_kwh = cache[rate_id]
-            set_df[f"{rate.name}"] = per_kwh
-
-        rates_dfs.append((rate_set_name, set_df))
-
-    return rates_dfs

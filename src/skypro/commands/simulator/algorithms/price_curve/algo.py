@@ -1,6 +1,5 @@
-import logging
 from datetime import timedelta
-from typing import List, Tuple, Optional
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -38,12 +37,6 @@ def run_price_curve_imbalance_algorithm(
 
     # Run through each row (where each row represents a time step) and apply the strategy
     for t in df_in.index:
-        #
-        #
-        # sp = floor_hh(t)
-        # time_into_sp = t - sp
-        # time_left_of_sp = timedelta(minutes=30) - time_into_sp
-
 
         # Show the user some progress status
         if (t == df_in.index[0]) or (t.date().day == 1 and t.time().hour == 0 and t.time().minute == 0):
@@ -116,6 +109,9 @@ def run_price_curve_imbalance_algorithm(
                     battery_charge_efficiency=battery_charge_efficiency
                 )
                 power = get_capped_power(target_energy_delta, df_in, df_out, t)
+        else:
+            # TODO: this isn't very helpful
+            num_skipped_periods += 1
 
         energy_delta = get_energy(power, time_step)
 
@@ -134,7 +130,7 @@ def run_price_curve_imbalance_algorithm(
 
     if num_skipped_periods > 0:
         get_user_ack_of_warning_or_exit(
-            f"Skipped {num_skipped_periods}/{len(by_sp)} periods (probably due to missing imbalance data)"
+            f"Skipped {num_skipped_periods}/{len(df_in)} periods (probably due to missing imbalance data)"
         )
 
     return df_out[["soe", "energy_delta"]]

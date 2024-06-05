@@ -1,5 +1,6 @@
+from dataclasses import dataclass
 from datetime import timedelta
-from typing import List
+from typing import List, Tuple, Dict
 
 import pandas as pd
 import numpy as np
@@ -9,10 +10,12 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from simt_common.analysis.costs_by_categories import plot_costs_by_categories
+from simt_common.rates.microgrid import breakdown_costs
 
 
 def explore_results(
         df: pd.DataFrame,
+        final_rates_dfs: Dict[str, pd.DataFrame],
         do_plots: bool,
         battery_energy_capacity: float,
         battery_nameplate_power: float,
@@ -25,6 +28,7 @@ def explore_results(
     """
 
     df = df.copy()
+    time_step_hours = (pd.to_timedelta(df.index.freq).total_seconds() / 3600)
 
     if do_plots:
         plot_hh_strategy(df)
@@ -39,63 +43,38 @@ def explore_results(
         "rate_final_load_from_grid",
     ]
 
-    df["bess_discharge"] = df["energy_delta"][df["energy_delta"] < 0]
+    df["bess_discharge"] = -df["energy_delta"][df["energy_delta"] < 0]
     df["bess_discharge"] = df["bess_discharge"].fillna(0)
     df["bess_charge"] = df["energy_delta"][df["energy_delta"] > 0]
     df["bess_charge"] = df["bess_charge"].fillna(0)
 
+    # Calculate load and solar energies from the power
+    df["solar"] = df["solar_power"] * time_step_hours
+    df["load"] = df["load_power"] * time_step_hours
 
-    imports_inc_nan = df[df["energy_delta"] > 0][cols_of_interest]
-    exports_inc_nan = df[df["energy_delta"] < 0][cols_of_interest]
+    df["solar_to_load"] = df[["solar", "load"]].min(axis=1)
+    df["solar_to_grid"] = df["solar"] - df["solar_to_load"]  # TODO: this is wrong?
 
-    # mg = pd.DataFrame(index=df.index)
-    # mg["solar"] = df["solar"]
-    # mg["load"] = df["load"]
-    # # mg["bess_0m"] = df["power_0m"] * (10/60)
-    # # mg["bess_10m"] = df["power_10m"] * (10 / 60)
-    # # mg["bess_20m"] = df["power_20m"] * (10 / 60)
-    # mg["bess"] = df["energy_delta"]
-    # # TODO: handle 10m granularity
-    #
-    # mg["bess_discharge"] = mg["bess"][mg["bess"] < 0] * -1
-    # mg["bess_discharge"] = mg["bess_discharge"].fillna(0)
-    # mg["bess_charge"] = mg["bess"][mg["bess"] > 0]
-    # mg["bess_charge"] = mg["bess_charge"].fillna(0)
-    #
-    # mg["solar_to_load"] = mg[["solar", "load"]].min(axis=1)
-    # mg["load_nsb_solar"] = mg["load"] - mg["solar_to_load"]
-    #
-    # mg["bess_discharge_to_load"] = mg[["bess_discharge", "load_nsb_solar"]].min(axis=1)
-    # mg["bess_discharge_to_grid"] = mg["bess_discharge"] - mg["bess_discharge_to_load"]
-    #
-    # mg["bess_charge_from_solar"] = mg[["bess_charge", "solar"]].min(axis=1)
-    # mg["bess_charge_from_grid"] = mg["bess_charge"] - mg["bess_charge_from_solar"]
-    #
-    #
-    # # Additional imports: bess_charge_from_grid
-    # # Additional exports: bess_discharge_to_grid
-    # # Avoided imports: bess_discharge_to_load
-    # # Avoided exports: bess_charge_from_solar
-    #
-    # # When the battery discharges into a microgrid domestic load then the strategy gets "paid" the avoided import rates,
-    # # which are higher than the equivalent export rates
-    # mg["additional_exports_cost"] = mg["bess_discharge_to_grid"] * df["rate_export_final"]
-    # mg["avoided_imports_cost"] = - mg["bess_discharge_to_load"] * df["rate_import_final"]
-    #
-    # # When the battery charges from microgrid solar then the strategy only has to "pay" the avoided export rates,
-    # # which is lower than the equivalent import rates
-    # mg["additional_imports_cost"] = mg["bess_charge_from_grid"] * df["rate_import_final"]
-    # mg["avoided_exports_cost"] = - mg["bess_charge_from_solar"] * df["rate_export_final"]
+    df["load_not_supplied_by_solar"] = df["load"] - df["solar_to_load"]
 
-    # Calculate the expected prices when 10m into the SP
-    # This is commented out because a lot of the time these days Modo doesn't publish a price within 10mins so this
-    # just always log a warning.
-    # imports_with_10m_prices = imports_inc_nan[["energy_delta", "rate_import_10m"]].dropna().copy()
-    # exports_with_10m_prices = exports_inc_nan[["energy_delta", "rate_export_10m"]].dropna().copy()
-    # report_dropped_rows(imports_inc_nan, imports_with_10m_prices, "imports for 10m expected average price")
-    # report_dropped_rows(exports_inc_nan, exports_with_10m_prices, "exports for 10m expected average price")
-    # avg_import_price_10m = np.average(a=imports_with_10m_prices["rate_import_10m"], weights=imports_with_10m_prices["energy_delta"])
-    # avg_export_price_10m = np.average(a=exports_with_10m_prices["rate_export_10m"], weights=exports_with_10m_prices["energy_delta"])
+    df["bess_discharge_to_load"] = df[["bess_discharge", "load_not_supplied_by_solar"]].min(axis=1)
+    df["bess_discharge_to_grid"] = df["bess_discharge"] - df["bess_discharge_to_load"]
+
+    df["bess_charge_from_solar"] = df[["bess_charge", "solar"]].min(axis=1)
+    df["bess_charge_from_grid"] = df["bess_charge"] - df["bess_charge_from_solar"]
+
+    df["load_from_grid"] = df["load"] - df["solar_to_load"] - df["bess_discharge_to_load"] # TODO: this is wrong?
+
+    df["solar_n"] = df["solar"] * -1
+    df["bess_discharge_to_load_n"] = df["bess_discharge_to_load"] * -1
+    df["bess_discharge_to_grid_n"] = df["bess_discharge_to_grid"] * -1
+    df["bess_discharge_n"] = df["bess_discharge"] * -1
+
+    costs_dfs = breakdown_costs(rates_dfs=final_rates_dfs, df=df)
+
+    mg_total_cost_bess_charge = costs_dfs["bess_charge"].sum().sum()
+    mg_total_cost_bess_discharge = costs_dfs["bess_discharge"].sum().sum()
+    mg_total_bess_gain = - mg_total_cost_bess_discharge - mg_total_cost_bess_charge
 
 
     # Calculate the actual prices achieved (using pricing data from after the end of the SP)
@@ -119,7 +98,7 @@ def explore_results(
     print(f"Final average export price: {avg_export_price_final:.2f} p/kW")
 
     # Cycling
-    total_export = -exports_inc_nan["energy_delta"].sum()
+    total_export = df["bess_discharge"].sum()
     total_cycles = total_export / battery_energy_capacity
     sim_start = df.iloc[0].name
     sim_end = df.iloc[-1].name
@@ -138,14 +117,14 @@ def explore_results(
     df["cost"] = df["cost_charge"] + df["cost_discharge"]
     total_import_cost = df["cost_charge"].sum() / 100  # convert p to £
     total_export_cost = df["cost_discharge"].sum() / 100  # convert p to £
-    total_gain = -total_export_cost - total_import_cost
+    total_gain = total_export_cost - total_import_cost
     average_gain_per_day = total_gain / sim_days
     annualized_per_kwh = (average_gain_per_day * 365) / battery_energy_capacity
     annualized_per_kw_nameplate = (average_gain_per_day * 365) / battery_nameplate_power
     # annualized_per_kw_usable = (average_gain_per_day * 365) / ((battery_charge_limit + battery_discharge_limit)/2)
     print("\n- - BENCHMARKING - - ")
     print(f"Total import cost over simulation: £{total_import_cost:.2f}")
-    print(f"Total export revenue over simulation: £{-total_export_cost:.2f}")
+    print(f"Total export revenue over simulation: £{total_export_cost:.2f}")
     print(f"Total gain over simulation: £{total_gain:.2f}")
     print(f"Average gain per day: £{average_gain_per_day:.2f}")
     print(f"Annualised per kWh: £{annualized_per_kwh:.2f} £/kWh")
