@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import List, Optional
 
 import numpy as np
@@ -60,59 +60,52 @@ def run_price_curve_imbalance_algorithm(
             # for a certain period - probably a DUoS red band
             power = -df_in.loc[t, "bess_max_power_discharge"]
 
-        elif not np.isnan(df_in.loc[t, "rate_predicted_bess_charge_from_grid"]) and \
+        else:
+            target_energy_delta = 0
+
+            if not np.isnan(df_in.loc[t, "rate_predicted_bess_charge_from_grid"]) and \
                 not np.isnan(df_in.loc[t, "rate_predicted_bess_discharge_to_grid"]) and \
                 not np.isnan(df_in.loc[t, "imbalance_volume_predicted"]):
-            # If we have Modo API data then use it
-            shifted_rate_charge_from_grid, shifted_rate_discharge_to_grid = shift_rates(
-                original_import_rate=df_in.loc[t, "rate_predicted_bess_charge_from_grid"],
-                original_export_rate=-df_in.loc[t, "rate_predicted_bess_discharge_to_grid"],
-                imbalance_volume=df_in.loc[t, "imbalance_volume_predicted"],
-                rate_shift_long=niv_config.curve_shift_long,
-                rate_shift_short=niv_config.curve_shift_short
-            )
 
-            target_energy_delta = get_target_energy_delta_from_curves(
-                charge_curve=niv_config.charge_curve,
-                discharge_curve=niv_config.discharge_curve,
-                import_rate=shifted_rate_charge_from_grid,
-                export_rate=shifted_rate_discharge_to_grid,
-                soe=soe,
-                battery_charge_efficiency=battery_charge_efficiency
-            )
-            power = get_capped_power(target_energy_delta, df_in, df_out, t)
-
-        elif df_out.loc[t, "time_into_sp"] < timedelta(minutes=10) and \
-                not np.isnan(df_in.loc[t, "prev_sp_rate_final_bess_charge_from_grid"]) and \
-                not np.isnan(df_in.loc[t, "prev_sp_rate_final_bess_discharge_to_grid"]) and \
-                not np.isnan(df_in.loc[t, "prev_sp_imbalance_volume_final"]):
-
-            # During the first 10mins of the SP we can use the previous SP's imbalance data to inform the activity
-
-            # MWh to kWh
-            if abs(df_in.loc[t, "prev_sp_imbalance_volume_final"]) * 1e3 >= niv_config.volume_cutoff_for_prediction:
-
-                shifted_rate_charge_from_grid, shifted_rate_discharge_to_grid = shift_rates(
-                    original_import_rate=df_in.loc[t, "prev_sp_rate_final_bess_charge_from_grid"],
-                    original_export_rate=-df_in.loc[t, "prev_sp_rate_final_bess_discharge_to_grid"],
-                    imbalance_volume=df_in.loc[t, "prev_sp_imbalance_volume_final"],
-                    rate_shift_long=niv_config.curve_shift_long,
-                    rate_shift_short=niv_config.curve_shift_short
-                )
-
-                target_energy_delta = get_target_energy_delta_from_curves(
-                    charge_curve=niv_config.charge_curve,
-                    discharge_curve=niv_config.discharge_curve,
-                    import_rate=shifted_rate_charge_from_grid,
-                    export_rate=shifted_rate_discharge_to_grid,
+                # If we have predictions then use them
+                target_energy_delta = get_target_energy_delta_from_shifted_curves(
+                    df_in=df_in,
+                    t=t,
+                    charge_rate_col="rate_predicted_bess_charge_from_grid",
+                    discharge_rate_col="rate_predicted_bess_discharge_to_grid",
+                    imbalance_volume_col="imbalance_volume_predicted",
                     soe=soe,
-                    battery_charge_efficiency=battery_charge_efficiency
+                    battery_charge_efficiency=battery_charge_efficiency,
+                    niv_config=niv_config
                 )
-                power = get_capped_power(target_energy_delta, df_in, df_out, t)
-        else:
-            # TODO: this isn't very helpful
-            num_skipped_periods += 1
 
+            elif df_out.loc[t, "time_into_sp"] < timedelta(minutes=10) and \
+                    not np.isnan(df_in.loc[t, "prev_sp_rate_final_bess_charge_from_grid"]) and \
+                    not np.isnan(df_in.loc[t, "prev_sp_rate_final_bess_discharge_to_grid"]) and \
+                    not np.isnan(df_in.loc[t, "prev_sp_imbalance_volume_final"]):
+
+                # If we don't have predictions yet, then in the first 10mins of the SP we can use the previous SP's
+                # imbalance data to inform the activity
+
+                # MWh to kWh
+                if abs(df_in.loc[t, "prev_sp_imbalance_volume_final"]) * 1e3 >= niv_config.volume_cutoff_for_prediction:
+                    target_energy_delta = get_target_energy_delta_from_shifted_curves(
+                        df_in=df_in,
+                        t=t,
+                        charge_rate_col="prev_sp_rate_final_bess_charge_from_grid",
+                        discharge_rate_col="prev_sp_rate_final_bess_discharge_to_grid",
+                        imbalance_volume_col="prev_sp_imbalance_volume_final",
+                        soe=soe,
+                        battery_charge_efficiency=battery_charge_efficiency,
+                        niv_config=niv_config
+                    )
+            else:
+                # TODO: this isn't very helpful
+                num_skipped_periods += 1
+
+            power = get_power(target_energy_delta, df_out.loc[t, "time_left_of_sp"])
+
+        power = cap_power(power, df_in.loc[t, "bess_max_power_charge"], df_in.loc[t, "bess_max_power_discharge"])
         energy_delta = get_energy(power, time_step)
 
         # Cap the SoE at the physical limits of the battery
@@ -136,6 +129,36 @@ def run_price_curve_imbalance_algorithm(
     return df_out[["soe", "energy_delta"]]
 
 
+def get_target_energy_delta_from_shifted_curves(
+        df_in: pd.DataFrame,
+        t: datetime,
+        charge_rate_col: str,
+        discharge_rate_col: str,
+        imbalance_volume_col: str,
+        soe: float,
+        battery_charge_efficiency: float,
+        niv_config,
+):
+
+    shifted_rate_charge_from_grid, shifted_rate_discharge_to_grid = shift_rates(
+        original_import_rate=df_in.loc[t, charge_rate_col],
+        original_export_rate=-df_in.loc[t, discharge_rate_col],
+        imbalance_volume=df_in.loc[t, imbalance_volume_col],
+        rate_shift_long=niv_config.curve_shift_long,
+        rate_shift_short=niv_config.curve_shift_short
+    )
+
+    target_energy_delta = get_target_energy_delta_from_curves(
+        charge_curve=niv_config.charge_curve,
+        discharge_curve=niv_config.discharge_curve,
+        import_rate=shifted_rate_charge_from_grid,
+        export_rate=shifted_rate_discharge_to_grid,
+        soe=soe,
+        battery_charge_efficiency=battery_charge_efficiency
+    )
+    return target_energy_delta
+
+
 def shift_rates(
         original_import_rate: float,
         original_export_rate: float,
@@ -157,9 +180,6 @@ def shift_rates(
         shifted_export_rate = original_export_rate + rate_shift_short
 
     return shifted_import_rate, shifted_export_rate
-
-
-
 
 
 def get_target_energy_delta_from_curves(
@@ -188,6 +208,7 @@ def get_target_energy_delta_from_curves(
 
     return target_energy_delta
 
+
 def get_capped_power(target_energy_delta: float, df_in, df_out, t) -> float:
     """
     Returns the power level for the given target energy delta, accounting for the charge and discharge power constraints
@@ -196,6 +217,7 @@ def get_capped_power(target_energy_delta: float, df_in, df_out, t) -> float:
     power = get_power(target_energy_delta, df_out.loc[t, "time_left_of_sp"])
     power = cap_power(power, df_in.loc[t, "bess_max_power_charge"], df_in.loc[t, "bess_max_power_discharge"])
     return power
+
 
 def get_energy(power: float, duration: timedelta) -> float:
     """

@@ -5,7 +5,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from simt_common.jsonconfig.rates import parse_supply_points, process_rates_for_all_energy_flows, RatesForEnergyFlows
+from simt_common.jsonconfig.rates import parse_supply_points, process_rates_for_all_energy_flows
 from simt_common.rates.microgrid import get_rates_dfs
 
 from skypro.cli_utils.cli_utils import substitute_vars, read_json_file
