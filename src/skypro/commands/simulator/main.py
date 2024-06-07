@@ -48,11 +48,6 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
         price_dir=substitute_vars(config.simulation.imbalance_data_source.price_dir, env_vars),
         volume_dir=substitute_vars(config.simulation.imbalance_data_source.volume_dir, env_vars),
     )
-    # TODO: equivalent error check here?
-    # if config.simulation.start < by_sp.index[0]:
-    #     raise ValueError(f"Simulation start time is outside of imbalance data range")
-    # if config.simulation.end > by_sp.index[-1]:
-    #     raise ValueError(f"Simulation end time is outside of imbalance data range")
 
     predicted_rates = process_rates_for_all_energy_flows(
         config=config.simulation.rates.files,
