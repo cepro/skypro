@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta, datetime
 from typing import List, Optional
 
@@ -53,8 +54,6 @@ def run_price_curve_imbalance_algorithm(
         # Select the appropriate NIV chasing configuration for this time of day
         niv_config = get_relevant_niv_config(niv_chase_periods, t).niv
 
-        power = 0  # The power level to use for this time step
-
         if full_discharge_period and full_discharge_period.contains(t):
             # The configuration may specify that we ignore the charge/discharge curves and do a full discharge
             # for a certain period - probably a DUoS red band
@@ -100,7 +99,8 @@ def run_price_curve_imbalance_algorithm(
                         niv_config=niv_config
                     )
             else:
-                # TODO: this isn't very helpful
+                # TODO: this isn't very helpful, it would be more interesting to report how many settlement periods
+                #       are skipped
                 num_skipped_periods += 1
 
             power = get_power(target_energy_delta, df_out.loc[t, "time_left_of_sp"])
@@ -122,9 +122,9 @@ def run_price_curve_imbalance_algorithm(
         last_energy_delta = energy_delta
 
     if num_skipped_periods > 0:
-        get_user_ack_of_warning_or_exit(
-            f"Skipped {num_skipped_periods}/{len(df_in)} periods (probably due to missing imbalance data)"
-        )
+        time_step_minutes = time_step.total_seconds() / 60
+        logging.info(f"Skipped {num_skipped_periods}/{len(df_in)} {time_step_minutes} minute periods (probably due to "
+                     f"missing imbalance data)")
 
     return df_out[["soe", "energy_delta"]]
 

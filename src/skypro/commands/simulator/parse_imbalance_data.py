@@ -103,7 +103,8 @@ def normalise_non_predictive_imbalance_data(time_index: pd.DatetimeIndex, price_
     # Elexon only has a single final SSP price, this means we are feeding in a 'perfect price forecast' so the results
     # should be taken with a pinch of salt.
     get_user_ack_of_warning_or_exit("When using Elexon imbalance data, perfect hindsight is used for imbalance price "
-                                    "and volume predictions. Expected profitability should be reduced by approx 12.5%")
+                                    "and volume predictions. Modo data may not be as reliable or accurate so real-world"
+                                    " profitability may be less")
 
     price_df = price_df.set_index("spUTCTime")
     price_df.index.name = None
