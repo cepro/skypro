@@ -25,6 +25,9 @@ class Profiler:
         df["UTCTime"] = pd.to_datetime(df["UTCTime"])
         self._profile = df.set_index("UTCTime")["energy"]
         self._profile = self._profile.sort_index()
+        duplicated = self._profile[self._profile.index.duplicated()].index
+        if len(duplicated) > 0:
+            raise ValueError(f"Duplicate times in profiled data: {duplicated}")
 
     def get_for(self, times: pd.DatetimeIndex) -> pd.Series:
         """
