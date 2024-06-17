@@ -1,6 +1,6 @@
 from dataclasses import field
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import numpy as np
 from marshmallow_dataclass import dataclass
@@ -112,12 +112,12 @@ class Rates:
     contents of these files is done in the common.config.rates module.
     """
     supply_points_config_file: str = name_in_json("supplyPointsConfigFile")
-    rates_config_files: List[str] = name_in_json("ratesConfigFiles")
+    files: Dict = name_in_json("files")
 
 
 @dataclass
 class PriceCurveAlgo:
-    do_full_discharge_when_export_rate_applies: str = name_in_json("doFullDischargeWhenExportRateApplies")
+    full_discharge_period: DayedPeriodType = name_in_json("doFullDischargeInPeriod")
     niv_chase_periods: List[NivPeriod] = name_in_json("nivChasePeriods")
 
 
