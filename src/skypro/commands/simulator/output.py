@@ -23,14 +23,23 @@ def save_output(df: pd.DataFrame, config: Config, output_file_path: str):
     output_df["clocktime"] = df.index.tz_convert("Europe/London")  # TODO: check this
 
     output_df["m:battSoe"] = df["soe"]
-    output_df["m:battCharge"] = df[df["energy_delta"] > 0]["energy_delta"]
-    output_df["m:battCharge"] = output_df["m:battCharge"].fillna(0)
-    output_df["m:battDischarge"] = df[df["energy_delta"] < 0]["energy_delta"] * -1
-    output_df["m:battDischarge"] = output_df["m:battDischarge"].fillna(0)
+    output_df["m:battCharge"] = df["bess_charge"]
+    output_df["m:battDischarge"] = df["bess_discharge"]
+    output_df["c:battLosses"] = df["bess_losses"]
+    output_df["c:limitMaxBattCharge"] = df["bess_max_charge"]
+    output_df["c:limitMaxBattDischarge"] = df["bess_max_discharge"]
 
-    # Convert kW to kWh in a HH
-    output_df["c:limitMaxBattCharge"] = df["bess_max_power_charge"] / 2.0
-    output_df["c:limitMaxBattDischarge"] = df["bess_max_power_discharge"] / 2.0
+    output_df["agd:solar"] = df["solar"]
+    output_df["agd:load"] = df["load"]
+    output_df["solarToLoad"] = df["solar_to_load"]  # TODO: what to call this as it's match at adg level plus m level
+    output_df["loadNotSuppliedBySolar"] = df["load_not_supplied_by_solar"]
+    output_df["solarNotSupplyingLoad"] = df["solar_not_supplying_load"]
+    output_df["battDischargeToLoad"] = df["bess_discharge_to_load"]
+    output_df["battDischargeToGrid"] = df["bess_discharge_to_grid"]
+    output_df["battChargeFromSolar"] = df["bess_charge_from_solar"]
+    output_df["battChargeFromGrid"] = df["bess_charge_from_grid"]
+    output_df["loadFromGrid"] = df["load_from_grid"]
+    output_df["solarToGrid"] = df["solar_to_grid"]
 
     output_df["other:imbalanceVolume.final"] = df["imbalance_volume_final"]
     output_df["other:imbalanceVolume.predicted"] = df["imbalance_volume_predicted"]
