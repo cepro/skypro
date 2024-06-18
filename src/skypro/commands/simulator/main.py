@@ -10,6 +10,7 @@ from simt_common.rates.microgrid import get_rates_dfs
 
 from skypro.cli_utils.cli_utils import substitute_vars, read_json_file
 from skypro.commands.simulator.algorithms.price_curve import run_price_curve_imbalance_algorithm
+from skypro.commands.simulator.algorithms.spread.algo_2 import run_spread_based_algo_2
 from skypro.commands.simulator.config import parse_config
 from skypro.commands.simulator.output import save_output
 from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data
@@ -121,6 +122,7 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
     # previous SPs values available in each row/step.
     cols_to_shift = [
         "imbalance_volume_final",
+        "imbalance_price_final",
         "rate_final_bess_charge_from_solar",
         "rate_final_bess_charge_from_grid",
         "rate_final_bess_discharge_to_load",
@@ -131,36 +133,50 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
     for col in cols_to_shift:
         df[f"prev_sp_{col}"] = df[col].shift(STEPS_PER_SP)
 
+    # Only share the columns that are relevant with the algo
+    cols_to_share_with_algo = [
+        "load_power",
+        "solar_power",
+        "bess_max_power_charge",
+        "bess_max_power_discharge",
+        "imbalance_volume_predicted",
+        "rate_predicted_bess_charge_from_solar",
+        "rate_predicted_bess_charge_from_grid",
+        "rate_predicted_bess_discharge_to_load",
+        "rate_predicted_bess_discharge_to_grid",
+        "rate_predicted_solar_to_grid",
+        "rate_predicted_load_from_grid",
+        "prev_sp_imbalance_price_final",
+        "prev_sp_imbalance_volume_final",
+        "prev_sp_rate_final_bess_charge_from_solar",
+        "prev_sp_rate_final_bess_charge_from_grid",
+        "prev_sp_rate_final_bess_discharge_to_load",
+        "prev_sp_rate_final_bess_discharge_to_grid",
+        "prev_sp_rate_final_solar_to_grid",
+        "prev_sp_rate_final_load_from_grid",
+    ]
     if config.simulation.strategy.price_curve_algo:
-
-        # Only share the columns that are relevant with the algo
-        cols = [
-            "load_power",
-            "solar_power",
-            "bess_max_power_charge",
-            "bess_max_power_discharge",
-            "imbalance_volume_predicted",
-            "rate_predicted_bess_charge_from_solar",
-            "rate_predicted_bess_charge_from_grid",
-            "rate_predicted_bess_discharge_to_load",
-            "rate_predicted_bess_discharge_to_grid",
-            "rate_predicted_solar_to_grid",
-            "rate_predicted_load_from_grid",
-            "prev_sp_imbalance_volume_final",
-            "prev_sp_rate_final_bess_charge_from_solar",
-            "prev_sp_rate_final_bess_charge_from_grid",
-            "prev_sp_rate_final_bess_discharge_to_load",
-            "prev_sp_rate_final_bess_discharge_to_grid",
-            "prev_sp_rate_final_solar_to_grid",
-            "prev_sp_rate_final_load_from_grid",
-        ]
         df_algo = run_price_curve_imbalance_algorithm(
-            df_in=df[cols],
+            df_in=df[cols_to_share_with_algo],
             battery_energy_capacity=config.simulation.site.bess.energy_capacity,
             battery_charge_efficiency=config.simulation.site.bess.charge_efficiency,
             niv_chase_periods=config.simulation.strategy.price_curve_algo.niv_chase_periods,
             full_discharge_period=config.simulation.strategy.price_curve_algo.full_discharge_period,
         )
+    elif config.simulation.strategy.spread_algo:
+        # TODO: make this more elegant and check the numbers - particularly not certain on the discharge side, although
+        #       the numbers are small
+        df["rate_bess_charge_from_grid_non_imbalance"] = df["rate_final_bess_charge_from_grid"] - df["imbalance_price_final"]
+        df["rate_bess_discharge_to_grid_non_imbalance"] = df["rate_final_bess_discharge_to_grid"] + df["imbalance_price_final"]
+
+        cols_to_share_with_algo.extend(["rate_bess_charge_from_grid_non_imbalance", "rate_bess_discharge_to_grid_non_imbalance"])
+        df_algo = run_spread_based_algo_2(
+            df_in=df[cols_to_share_with_algo],
+            battery_energy_capacity=config.simulation.site.bess.energy_capacity,
+            battery_charge_efficiency=config.simulation.site.bess.charge_efficiency,
+            full_discharge_period=config.simulation.strategy.spread_algo.full_discharge_period,
+        )
+
     else:
         raise ValueError("Unknown algorithm chosen")
 

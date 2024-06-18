@@ -122,12 +122,17 @@ class PriceCurveAlgo:
 
 
 @dataclass
+class SpreadAlgo:
+    full_discharge_period: DayedPeriodType = name_in_json("doFullDischargeInPeriod")
+
+
+@dataclass
 class Strategy:
-    price_curve_algo: PriceCurveAlgo = name_in_json("priceCurveAlgo")
+    price_curve_algo: Optional[PriceCurveAlgo] = name_in_json("priceCurveAlgo")
+    spread_algo: Optional[SpreadAlgo] = name_in_json("spreadAlgo")
 
     def __post_init__(self):
-        # There is currently only one option - but this is here as a placeholder for when other algos are available
-        enforce_one_option([self.price_curve_algo], "'priceCurveAlgo'")
+        enforce_one_option([self.price_curve_algo, self.spread_algo], "'priceCurveAlgo', 'spreadAlgo'")
 
 @dataclass
 class Simulation:
