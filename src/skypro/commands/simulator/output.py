@@ -29,21 +29,19 @@ def save_output(df: pd.DataFrame, config: Config, output_file_path: str):
     output_df["m:battDischarge"] = output_df["m:battDischarge"].fillna(0)
 
     # Convert kW to kWh in a HH
-    output_df["c:limitMaxBattCharge"] = df["battery_max_power_charge"] / 2.0
-    output_df["c:limitMaxBattDischarge"] = df["battery_max_power_discharge"] / 2.0
+    output_df["c:limitMaxBattCharge"] = df["bess_max_power_charge"] / 2.0
+    output_df["c:limitMaxBattDischarge"] = df["bess_max_power_discharge"] / 2.0
 
     output_df["other:imbalanceVolume.final"] = df["imbalance_volume_final"]
+    output_df["other:imbalanceVolume.predicted"] = df["imbalance_volume_predicted"]
 
     for col in df.columns:
-        if col.startswith("rate_import_final_"):
-            rateName = col.removeprefix("rate_import_final_")
-            output_df[f"rate:import.final.{rateName}"] = df[col]
-        if col.startswith("rate_export_final_"):
-            rateName = col.removeprefix("rate_export_final_")
-            output_df[f"rate:export.final.{rateName}"] = df[col]
-
-    output_df["rate:import.final"] = df["rate_import_final"]
-    output_df["rate:export.final"] = df["rate_export_final"]
+        if col.startswith("rate_final_"):
+            flow_name = col.removeprefix("rate_final_")
+            output_df[f"rate:{flow_name}.final"] = df[col]
+        if col.startswith("rate_predicted_"):
+            flow_name = col.removeprefix("rate_predicted_")
+            output_df[f"rate:{flow_name}.predicted"] = df[col]
 
     # Add the configuration input to the output file - this is stretching the use of the CSV format a bit, but it means
     # that there is a single output file with full traceability as to all the inputs.
