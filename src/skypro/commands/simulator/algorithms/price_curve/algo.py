@@ -8,6 +8,8 @@ from simt_common.timeutils import ClockTimePeriod
 from simt_common.timeutils.hh_math import floor_hh
 
 from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
+from skypro.commands.simulator.algorithms.approach import get_red_approach_energy, get_amber_approach_energy
+from skypro.commands.simulator.algorithms.spread.algo_2 import get_spread_algo_energy
 from skypro.commands.simulator.cartesian import Curve, Point
 from skypro.commands.simulator.config.config import get_relevant_niv_config
 import skypro.commands.simulator.config as config
@@ -60,6 +62,19 @@ def run_price_curve_imbalance_algorithm(
         else:
             target_energy_delta = 0
 
+            # TODO: include the volume size threshold to match with other algo
+            imbalance_volume_assumed = df_in.loc[t, "imbalance_volume_predicted"]
+            if np.isnan(imbalance_volume_assumed):
+                imbalance_volume_assumed = df_in.loc[t, "prev_sp_imbalance_volume_final"]
+            if np.isnan(imbalance_volume_assumed):
+                imbalance_volume_assumed = np.nan
+
+            red_approach_energy = get_red_approach_energy(t, soe)
+            amber_approach_energy = get_amber_approach_energy(t, soe, imbalance_volume_assumed)
+
+            df_out.loc[t, "red_approach_distance"] = red_approach_energy
+            df_out.loc[t, "amber_approach_distance"] = amber_approach_energy
+
             if not np.isnan(df_in.loc[t, "rate_predicted_bess_charge_from_grid"]) and \
                 not np.isnan(df_in.loc[t, "rate_predicted_bess_discharge_to_grid"]) and \
                 not np.isnan(df_in.loc[t, "imbalance_volume_predicted"]):
@@ -101,6 +116,11 @@ def run_price_curve_imbalance_algorithm(
                 #       are skipped
                 num_skipped_periods += 1
 
+            if red_approach_energy > 0:
+                target_energy_delta = max(red_approach_energy, amber_approach_energy, target_energy_delta)
+            elif amber_approach_energy > 0:
+                target_energy_delta = max(amber_approach_energy, target_energy_delta)
+
             power = get_power(target_energy_delta, df_out.loc[t, "time_left_of_sp"])
 
         power = cap_power(power, df_in.loc[t, "bess_max_power_charge"], df_in.loc[t, "bess_max_power_discharge"])
@@ -132,7 +152,7 @@ def run_price_curve_imbalance_algorithm(
         logging.info(f"Skipped {num_skipped_periods}/{len(df_in)} {time_step_minutes} minute periods (probably due to "
                      f"missing imbalance data)")
 
-    return df_out[["soe", "energy_delta", "bess_losses"]]
+    return df_out[["soe", "energy_delta", "bess_losses", "red_approach_distance", "amber_approach_distance"]]
 
 
 def get_target_energy_delta_from_shifted_curves(

@@ -100,6 +100,7 @@ def explore_results(
     # Plot energy flows with charge / discharge limits
     if do_plots:
         plot_hh_strategy(df)
+        breakpoint()
         plot_microgrid_energy_flows(
             df, site_import_limit, site_export_limit, battery_nameplate_power
         )
@@ -118,27 +119,38 @@ def plot_hh_strategy(df: pd.DataFrame):
     # fig.add_trace(go.Scatter(x=df.index, y=df["rate_export_20m"], name="Export Price 20m (SSP plus DUoS)", line=dict(color="rgba(153, 59, 224, 1)")))
     fig.add_trace(
         go.Scatter(x=df.index, y=df["rate_final_bess_discharge_to_grid"]*-1, name="Export Price", line=dict(color="rgba(102, 0, 178, 1)")))
+
+    if "notional_spread" in df.columns:
+        fig.add_trace(
+            go.Scatter(x=df.index, y=df["notional_spread"], name="Notional Spread", mode="markers", line=dict(color="green"))
+        )
+
+    if "red_approach_distance" in df.columns:
+        fig.add_trace(
+            go.Scatter(x=df.index, y=df["red_approach_distance"], name="red_approach_distance", mode="markers", line=dict(color="red")),
+            secondary_y=True
+        )
+
+    if "amber_approach_distance" in df.columns:
+        fig.add_trace(
+            go.Scatter(x=df.index, y=df["amber_approach_distance"], name="amber_approach_distance", mode="markers", line=dict(color="orange")),
+            secondary_y=True
+        )
+
+    if "spread_algo_energy" in df.columns:
+        fig.add_trace(
+            go.Scatter(x=df.index, y=df["spread_algo_energy"], name="spread_algo_energy", mode="markers", line=dict(color="yellow")),
+            secondary_y=True
+        )
+
     # fig.add_trace(go.Scatter(x=df.index, y=df["imbalance_volume_final"], name="Imbalance volume final", line=dict(color="red")), secondary_y=True)
     fig.add_trace(go.Scatter(x=df.index, y=df["soe"], name="Battery SoE", line=dict(color="orange")),
                   secondary_y=True)
-
-    fig.add_trace(go.Scatter(x=df.index, y=df["notional_spread_final"], name="Notional Spread", line=dict(color="red")))
-
-    fig.add_trace(go.Scatter(x=df.index, y=df["recent_imbalance_price_short"], name="Recent imbalance short"))
-    fig.add_trace(go.Scatter(x=df.index, y=df["recent_imbalance_price_long"], name="Recent imbalance long"))
-    fig.add_trace(go.Scatter(x=df.index, y=df["imbalance_volume_final"]/1000, name="imbalance_volume_final"))
-
-
-    # fig.add_trace(go.Scatter(x=df.index, y=df["soe"], name="Battery SoE", line=dict(color="orange")),
-    #               secondary_y=True)
 
     fig.update_yaxes(title_text="Price (p/kW)", range=[-10, 40], secondary_y=False, row=1, col=1)
     fig.update_yaxes(title_text="SoE (kWh)", range=[0, 200], secondary_y=True, row=1, col=1)
     fig.update_layout(title="Typical optimisation strategy")
     fig.show()
-
-    breakpoint()
-
 
 
 def plot_microgrid_energy_flows(df, site_import_limit, site_export_limit, battery_nameplate_power):

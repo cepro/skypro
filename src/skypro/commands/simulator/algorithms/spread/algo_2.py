@@ -1,12 +1,19 @@
 import logging
-from datetime import timedelta
-from typing import Optional
+from dataclasses import dataclass
+from datetime import timedelta, datetime, time, date
+from typing import Optional, List
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 
 from simt_common.timeutils import ClockTimePeriod
+from simt_common.timeutils.days import Days
 from simt_common.timeutils.hh_math import floor_hh
+
+from skypro.commands.simulator.algorithms.approach import get_red_approach_energy, get_amber_approach_energy
+from skypro.commands.simulator.cartesian import Point, Curve
+
 
 
 def run_spread_based_algo_2(
@@ -26,6 +33,7 @@ def run_spread_based_algo_2(
 
     time_step = pd.to_timedelta(df_in.index.freq)
 
+    # TODO: the surrounding 'harness' code should be brought out to be shared with all algos
 
     # The settlement period is calculated by rounding down to the nearest half-hour
     df_out["sp"] = df_in.index.to_series().apply(lambda t: floor_hh(t))
@@ -33,7 +41,6 @@ def run_spread_based_algo_2(
     df_out["time_left_of_sp"] = timedelta(minutes=30) - df_out["time_into_sp"]
 
 
-    breakpoint()
     df_out["prev_sp_imbalance_price_long"] = df_in["prev_sp_imbalance_price_final"][df_in["prev_sp_imbalance_volume_final"] < 0]
     df_out["prev_sp_imbalance_price_short"] = df_in["prev_sp_imbalance_price_final"][df_in["prev_sp_imbalance_volume_final"] > 0]
 
@@ -59,24 +66,8 @@ def run_spread_based_algo_2(
     df_out["notional_spread_short"] = notional_spread_short
     df_out["notional_spread_long"] = notional_spread_long
 
-
-    fig = px.line(
-        df_out[[
-            "prev_sp_imbalance_price_long",
-            "prev_sp_imbalance_price_short",
-            "recent_imbalance_price_long",
-            "recent_imbalance_price_short",
-            "rate_bess_charge_from_grid_non_imbalance",
-            "rate_bess_discharge_to_grid_non_imbalance",
-            "notional_spread_short",
-            "notional_spread_long",
-            "notional_spread"
-        ]],
-        # markers=True,
-        line_shape='hv',
-    )
-    fig.update_traces(connectgaps=True)
-    fig.show()
+    STEPS_PER_SP = 3  # TODO: link up
+    df_out["prev_sp_notional_spread"] = df_out["notional_spread"].shift(STEPS_PER_SP).bfill(limit=STEPS_PER_SP-1)
 
     # Run through each row (where each row represents a time step) and apply the strategy
     for t in df_in.index:
@@ -93,6 +84,9 @@ def run_spread_based_algo_2(
             soe = last_soe + last_energy_delta
         df_out.loc[t, "soe"] = soe
 
+        # if t > datetime.fromisoformat("2024-05-01T15:00:00+00:00"):
+        #     breakpoint()
+
         if full_discharge_period and full_discharge_period.contains(t):
             # The configuration may specify that we ignore the charge/discharge curves and do a full discharge
             # for a certain period - probably a DUoS red band
@@ -101,14 +95,34 @@ def run_spread_based_algo_2(
         else:
             target_energy_delta = 0
 
+            # ALGO ALGO ALGO ALGO ALGO ALGO ALGO ALGO ALGO
+
+            # TODO: include the volume size threshold to match with other algo
+            imbalance_volume_assumed = df_in.loc[t, "imbalance_volume_predicted"]
+            if np.isnan(imbalance_volume_assumed):
+                imbalance_volume_assumed = df_in.loc[t, "prev_sp_imbalance_volume_final"]
+            if np.isnan(imbalance_volume_assumed):
+                imbalance_volume_assumed = np.nan
+
+            red_approach_energy = get_red_approach_energy(t, soe)
+            amber_approach_energy = get_amber_approach_energy(t, soe, imbalance_volume_assumed)
+            spread_algo_energy = get_spread_algo_energy(t, df_out, imbalance_volume_assumed)
+
+            df_out.loc[t, "red_approach_distance"] = red_approach_energy
+            df_out.loc[t, "amber_approach_distance"] = amber_approach_energy
+            df_out.loc[t, "spread_algo_energy"] = spread_algo_energy
+
+            if red_approach_energy > 0:
+                target_energy_delta = max(red_approach_energy, amber_approach_energy, spread_algo_energy)
+            elif amber_approach_energy > 0:
+                target_energy_delta = max(amber_approach_energy, spread_algo_energy)
+            else:
+                target_energy_delta = spread_algo_energy
 
 
+            # END END END END END END END END END
 
-
-
-
-
-            power = get_power(target_energy_delta, df_out.loc[t, "time_left_of_sp"])
+            power = get_power(target_energy_delta, time_step)
 
         power = cap_power(power, df_in.loc[t, "bess_max_power_charge"], df_in.loc[t, "bess_max_power_discharge"])
         energy_delta = get_energy(power, time_step)
@@ -131,9 +145,42 @@ def run_spread_based_algo_2(
         logging.info(f"Skipped {num_skipped_periods}/{len(df_in)} {time_step_minutes} minute periods (probably due to "
                      f"missing imbalance data)")
 
-    return df_out[["soe", "energy_delta"]]
+    fig = px.line(
+        df_out[[
+            "prev_sp_imbalance_price_long",
+            "prev_sp_imbalance_price_short",
+            "recent_imbalance_price_long",
+            "recent_imbalance_price_short",
+            "rate_bess_charge_from_grid_non_imbalance",
+            "rate_bess_discharge_to_grid_non_imbalance",
+            "notional_spread_short",
+            "notional_spread_long",
+            "notional_spread",
+        ]],
+        # markers=True,
+        line_shape='hv',
+    )
+    fig.update_traces(connectgaps=True)
+    fig.show()
 
 
+    return df_out[["soe", "energy_delta", "notional_spread", "red_approach_distance", "amber_approach_distance", "spread_algo_energy"]]
+
+
+def get_spread_algo_energy(t, df_out, imbalance_volume_assumed) -> float:
+    is_currently_short = imbalance_volume_assumed > 0
+    notional_spread_assumed = df_out.loc[t, "notional_spread"]
+    if np.isnan(notional_spread_assumed):
+        notional_spread_assumed = df_out.loc[t, "prev_sp_notional_spread"]
+    if np.isnan(notional_spread_assumed):
+        notional_spread_assumed = np.nan
+
+    if notional_spread_assumed > 4:
+        if is_currently_short:
+            return -50
+        else:
+            return 100
+    return 0
 
 def get_capped_power(target_energy_delta: float, df_in, df_out, t) -> float:
     """
