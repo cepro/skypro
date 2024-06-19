@@ -27,31 +27,9 @@ def explore_results(
     """
 
     df = df.copy()
-    time_step_hours = (pd.to_timedelta(df.index.freq).total_seconds() / 3600)
     sim_start = df.iloc[0].name
     sim_end = df.iloc[-1].name
     sim_days = get_24hr_days(sim_end - sim_start)
-
-    df["bess_discharge"] = -df["energy_delta"][df["energy_delta"] < 0]
-    df["bess_discharge"] = df["bess_discharge"].fillna(0)
-    df["bess_charge"] = df["energy_delta"][df["energy_delta"] > 0]
-    df["bess_charge"] = df["bess_charge"].fillna(0)
-
-    # Calculate load and solar energies from the power
-    df["solar"] = df["solar_power"] * time_step_hours
-    df["load"] = df["load_power"] * time_step_hours
-    df["solar_to_load"] = df[["solar", "load"]].min(axis=1)
-    df["load_not_supplied_by_solar"] = df["load"] - df["solar_to_load"]
-    df["solar_not_supplying_load"] = df["solar"] - df["solar_to_load"]
-
-    df["bess_discharge_to_load"] = df[["bess_discharge", "load_not_supplied_by_solar"]].min(axis=1)
-    df["bess_discharge_to_grid"] = df["bess_discharge"] - df["bess_discharge_to_load"]
-
-    df["bess_charge_from_solar"] = df[["bess_charge", "solar_not_supplying_load"]].min(axis=1)
-    df["bess_charge_from_grid"] = df["bess_charge"] - df["bess_charge_from_solar"]
-
-    df["load_from_grid"] = df["load_not_supplied_by_solar"] - df["bess_discharge_to_load"]
-    df["solar_to_grid"] = df["solar_not_supplying_load"] - df["bess_charge_from_solar"]
 
     df["solar_n"] = df["solar"] * -1
     df["bess_discharge_to_load_n"] = df["bess_discharge_to_load"] * -1
