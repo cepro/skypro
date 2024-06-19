@@ -166,6 +166,8 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
 
     df = pd.concat([df, df_algo], axis=1)
 
+    df = calculate_microgrid_flows(df)
+
     if output_file_path:
         save_output(df, config, output_file_path)
 
@@ -178,3 +180,37 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
         site_import_limit=config.simulation.site.grid_connection.import_limit,
         site_export_limit=config.simulation.site.grid_connection.export_limit,
     )
+
+
+def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculates the individual flows of energy around the microgrid and adds them to the dataframe
+    """
+    df = df.copy()
+    time_step_hours = (STEP_SIZE.total_seconds() / 3600)
+
+    df["bess_discharge"] = -df["energy_delta"][df["energy_delta"] < 0]
+    df["bess_discharge"] = df["bess_discharge"].fillna(0)
+    df["bess_charge"] = df["energy_delta"][df["energy_delta"] > 0]
+    df["bess_charge"] = df["bess_charge"].fillna(0)
+
+    df["bess_max_charge"] = df["bess_max_power_charge"] * time_step_hours
+    df["bess_max_discharge"] = df["bess_max_power_discharge"] * time_step_hours
+
+    # Calculate load and solar energies from the power
+    df["solar"] = df["solar_power"] * time_step_hours
+    df["load"] = df["load_power"] * time_step_hours
+    df["solar_to_load"] = df[["solar", "load"]].min(axis=1)
+    df["load_not_supplied_by_solar"] = df["load"] - df["solar_to_load"]
+    df["solar_not_supplying_load"] = df["solar"] - df["solar_to_load"]
+
+    df["bess_discharge_to_load"] = df[["bess_discharge", "load_not_supplied_by_solar"]].min(axis=1)
+    df["bess_discharge_to_grid"] = df["bess_discharge"] - df["bess_discharge_to_load"]
+
+    df["bess_charge_from_solar"] = df[["bess_charge", "solar_not_supplying_load"]].min(axis=1)
+    df["bess_charge_from_grid"] = df["bess_charge"] - df["bess_charge_from_solar"]
+
+    df["load_from_grid"] = df["load_not_supplied_by_solar"] - df["bess_discharge_to_load"]
+    df["solar_to_grid"] = df["solar_not_supplying_load"] - df["bess_charge_from_solar"]
+
+    return df

@@ -27,6 +27,7 @@ def run_price_curve_imbalance_algorithm(
     # These vars keep track of the previous settlement periods values
     last_soe = battery_energy_capacity / 2  # initial SoE is 50%
     last_energy_delta = 0
+    last_bess_losses = 0
     num_skipped_periods = 0
 
     time_step = pd.to_timedelta(df_in.index.freq)
@@ -45,10 +46,7 @@ def run_price_curve_imbalance_algorithm(
 
         # Set the `soe` column to the value at the start of this time step (the previous value plus the energy
         # transferred in the previous time step)
-        if last_energy_delta > 0:
-            soe = last_soe + (last_energy_delta * battery_charge_efficiency)  # Apply a charge efficiency
-        else:
-            soe = last_soe + last_energy_delta
+        soe = last_soe + last_energy_delta - last_bess_losses
         df_out.loc[t, "soe"] = soe
 
         # Select the appropriate NIV chasing configuration for this time of day
@@ -114,19 +112,27 @@ def run_price_curve_imbalance_algorithm(
         elif soe + energy_delta < 0:
             energy_delta = -soe
 
+        # Apply a charge efficiency
+        if energy_delta > 0:
+            bess_losses = energy_delta * (1 - battery_charge_efficiency)
+        else:
+            bess_losses = 0
+
         df_out.loc[t, "power"] = power
         df_out.loc[t, "energy_delta"] = energy_delta
+        df_out.loc[t, "bess_losses"] = bess_losses
 
         # Save for next iteration...
         last_soe = soe
         last_energy_delta = energy_delta
+        last_bess_losses = bess_losses
 
     if num_skipped_periods > 0:
         time_step_minutes = time_step.total_seconds() / 60
         logging.info(f"Skipped {num_skipped_periods}/{len(df_in)} {time_step_minutes} minute periods (probably due to "
                      f"missing imbalance data)")
 
-    return df_out[["soe", "energy_delta"]]
+    return df_out[["soe", "energy_delta", "bess_losses"]]
 
 
 def get_target_energy_delta_from_shifted_curves(
