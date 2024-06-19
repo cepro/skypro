@@ -34,11 +34,6 @@ def run_price_curve_imbalance_algorithm(
 
     time_step = pd.to_timedelta(df_in.index.freq)
 
-    # The settlement period is calculated by rounding down to the nearest half-hour
-    df_out["sp"] = df_in.index.to_series().apply(lambda t: floor_hh(t))
-    df_out["time_into_sp"] = df_in.index.to_series() - df_out["sp"]
-    df_out["time_left_of_sp"] = timedelta(minutes=30) - df_out["time_into_sp"]
-
     # Run through each row (where each row represents a time step) and apply the strategy
     for t in df_in.index:
 
@@ -91,7 +86,7 @@ def run_price_curve_imbalance_algorithm(
                     niv_config=niv_config
                 )
 
-            elif df_out.loc[t, "time_into_sp"] < timedelta(minutes=10) and \
+            elif df_in.loc[t, "time_into_sp"] < timedelta(minutes=10) and \
                     not np.isnan(df_in.loc[t, "prev_sp_rate_final_bess_charge_from_grid"]) and \
                     not np.isnan(df_in.loc[t, "prev_sp_rate_final_bess_discharge_to_grid"]) and \
                     not np.isnan(df_in.loc[t, "prev_sp_imbalance_volume_final"]):
@@ -121,7 +116,7 @@ def run_price_curve_imbalance_algorithm(
             elif amber_approach_energy > 0:
                 target_energy_delta = max(amber_approach_energy, target_energy_delta)
 
-            power = get_power(target_energy_delta, df_out.loc[t, "time_left_of_sp"])
+            power = get_power(target_energy_delta, df_in.loc[t, "time_left_of_sp"])
 
         power = cap_power(power, df_in.loc[t, "bess_max_power_charge"], df_in.loc[t, "bess_max_power_discharge"])
         energy_delta = get_energy(power, time_step)
@@ -240,7 +235,7 @@ def get_capped_power(target_energy_delta: float, df_in, df_out, t) -> float:
     Returns the power level for the given target energy delta, accounting for the charge and discharge power constraints
     that apply to the given timestep
     """
-    power = get_power(target_energy_delta, df_out.loc[t, "time_left_of_sp"])
+    power = get_power(target_energy_delta, df_in.loc[t, "time_left_of_sp"])
     power = cap_power(power, df_in.loc[t, "bess_max_power_charge"], df_in.loc[t, "bess_max_power_discharge"])
     return power
 

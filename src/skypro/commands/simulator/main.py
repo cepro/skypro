@@ -7,6 +7,7 @@ import pandas as pd
 
 from simt_common.jsonconfig.rates import parse_supply_points, process_rates_for_all_energy_flows
 from simt_common.rates.microgrid import get_rates_dfs
+from simt_common.timeutils.hh_math import floor_hh
 
 from skypro.cli_utils.cli_utils import substitute_vars, read_json_file
 from skypro.commands.simulator.algorithms.price_curve import run_price_curve_imbalance_algorithm
@@ -133,8 +134,16 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
     for col in cols_to_shift:
         df[f"prev_sp_{col}"] = df[col].shift(STEPS_PER_SP)
 
+    # Calculate settlement period timings
+    df["sp"] = df.index.to_series().apply(lambda t: floor_hh(t))
+    df["time_into_sp"] = df.index.to_series() - df["sp"]
+    df["time_left_of_sp"] = timedelta(minutes=30) - df["time_into_sp"]
+
     # Only share the columns that are relevant with the algo
     cols_to_share_with_algo = [
+        "sp",
+        "time_into_sp",
+        "time_left_of_sp",
         "load_power",
         "solar_power",
         "bess_max_power_charge",

@@ -35,12 +35,6 @@ def run_spread_based_algo_2(
 
     # TODO: the surrounding 'harness' code should be brought out to be shared with all algos
 
-    # The settlement period is calculated by rounding down to the nearest half-hour
-    df_out["sp"] = df_in.index.to_series().apply(lambda t: floor_hh(t))
-    df_out["time_into_sp"] = df_in.index.to_series() - df_out["sp"]
-    df_out["time_left_of_sp"] = timedelta(minutes=30) - df_out["time_into_sp"]
-
-
     df_out["prev_sp_imbalance_price_long"] = df_in["prev_sp_imbalance_price_final"][df_in["prev_sp_imbalance_volume_final"] < 0]
     df_out["prev_sp_imbalance_price_short"] = df_in["prev_sp_imbalance_price_final"][df_in["prev_sp_imbalance_volume_final"] > 0]
 
@@ -97,12 +91,16 @@ def run_spread_based_algo_2(
 
             # ALGO ALGO ALGO ALGO ALGO ALGO ALGO ALGO ALGO
 
-            # TODO: include the volume size threshold to match with other algo
             imbalance_volume_assumed = df_in.loc[t, "imbalance_volume_predicted"]
-            if np.isnan(imbalance_volume_assumed):
+            # TODO: optionally only allow this for the first 10mins? df_in.loc[t, "time_into_sp"] < timedelta(minutes=10) and
+            if np.isnan(imbalance_volume_assumed) and \
+                    abs(df_in.loc[t, "prev_sp_imbalance_volume_final"]) > 150:
                 imbalance_volume_assumed = df_in.loc[t, "prev_sp_imbalance_volume_final"]
-            if np.isnan(imbalance_volume_assumed):
-                imbalance_volume_assumed = np.nan
+
+            df_out.loc[t, "imbalance_volume_assumed"] = imbalance_volume_assumed
+
+            # if np.isnan(imbalance_volume_assumed):
+            #     imbalance_volume_assumed = np.nan
 
             red_approach_energy = get_red_approach_energy(t, soe)
             amber_approach_energy = get_amber_approach_energy(t, soe, imbalance_volume_assumed)
@@ -168,6 +166,10 @@ def run_spread_based_algo_2(
 
 
 def get_spread_algo_energy(t, df_out, imbalance_volume_assumed) -> float:
+
+    if np.isnan(imbalance_volume_assumed):
+        return 0
+
     is_currently_short = imbalance_volume_assumed > 0
     notional_spread_assumed = df_out.loc[t, "notional_spread"]
     if np.isnan(notional_spread_assumed):
@@ -175,7 +177,7 @@ def get_spread_algo_energy(t, df_out, imbalance_volume_assumed) -> float:
     if np.isnan(notional_spread_assumed):
         notional_spread_assumed = np.nan
 
-    if notional_spread_assumed > 4:
+    if notional_spread_assumed > 5:
         if is_currently_short:
             return -50
         else:
