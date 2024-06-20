@@ -40,7 +40,7 @@ class SolarProfile:
 
 @dataclass
 class Solar:
-    constant: Optional[float] = field(default=np.NaN)
+    constant: Optional[float] = field(default=np.nan)
     profile: Optional[SolarProfile] = field(default=None)
 
     def __post_init__(self):
@@ -56,7 +56,7 @@ class LoadProfile:
 
 @dataclass
 class Load:
-    constant: Optional[float] = field(default=np.NaN)
+    constant: Optional[float] = field(default=np.nan)
     profile: Optional[LoadProfile] = field(default=None)
 
     def __post_init__(self):

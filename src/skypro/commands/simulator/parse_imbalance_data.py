@@ -119,7 +119,7 @@ def normalise_non_predictive_imbalance_data(time_index: pd.DatetimeIndex, price_
     df["imbalance_price_final"] = df["imbalance_price_final"].ffill(limit=(steps_per_sp-1))
     df["imbalance_volume_final"] = df["imbalance_volume_final"].ffill(limit=(steps_per_sp-1))
 
-    df["imbalance_price_predicted"] = np.NAN
+    df["imbalance_price_predicted"] = np.nan
     df["sp"] = df.index.to_series().apply(lambda t: floor_hh(t))
     df["time_into_sp"] = df.index.to_series() - df["sp"]
 
