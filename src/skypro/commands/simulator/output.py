@@ -25,7 +25,7 @@ def save_output(df: pd.DataFrame, config: Config, output_file_path: str):
     output_df["m:battSoe"] = df["soe"]
     output_df["m:battCharge"] = df["bess_charge"]
     output_df["m:battDischarge"] = df["bess_discharge"]
-    # output_df["c:battLosses"] = df["bess_losses"]
+    output_df["c:battLosses"] = df["bess_losses"]
     output_df["c:limitMaxBattCharge"] = df["bess_max_charge"]
     output_df["c:limitMaxBattDischarge"] = df["bess_max_discharge"]
 

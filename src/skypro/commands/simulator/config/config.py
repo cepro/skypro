@@ -138,7 +138,8 @@ class PriceCurveAlgo:
 
 @dataclass
 class SpreadAlgo:
-    full_discharge_period: DayedPeriodType = name_in_json("doFullDischargeInPeriod")
+    min_spread: float = name_in_json("minSpread")
+    peak: Peak = name_in_json("peak")
 
 
 @dataclass

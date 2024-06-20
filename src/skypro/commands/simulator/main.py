@@ -11,8 +11,8 @@ from simt_common.rates.microgrid import get_rates_dfs
 from simt_common.timeutils.hh_math import floor_hh
 
 from skypro.cli_utils.cli_utils import substitute_vars, read_json_file
-from skypro.commands.simulator.algorithms.price_curve import run_price_curve_imbalance_algorithm
-from skypro.commands.simulator.algorithms.spread.algo_2 import run_spread_based_algo_2
+from skypro.commands.simulator.algorithms.price_curve.algo import run_price_curve_imbalance_algo
+from skypro.commands.simulator.algorithms.spread.algo import run_spread_based_algo
 from skypro.commands.simulator.config import parse_config
 from skypro.commands.simulator.output import save_output
 from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data
@@ -170,7 +170,7 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
         "prev_sp_rate_final_load_from_grid",
     ]
     if config.simulation.strategy.price_curve_algo:
-        df_algo = run_price_curve_imbalance_algorithm(
+        df_algo = run_price_curve_imbalance_algo(
             df_in=df[cols_to_share_with_algo],
             battery_energy_capacity=config.simulation.site.bess.energy_capacity,
             battery_charge_efficiency=config.simulation.site.bess.charge_efficiency,
@@ -184,11 +184,11 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
         df["rate_bess_discharge_to_grid_non_imbalance"] = df["rate_final_bess_discharge_to_grid"] + df["imbalance_price_final"]
 
         cols_to_share_with_algo.extend(["rate_bess_charge_from_grid_non_imbalance", "rate_bess_discharge_to_grid_non_imbalance"])
-        df_algo = run_spread_based_algo_2(
+        df_algo = run_spread_based_algo(
             df_in=df[cols_to_share_with_algo],
             battery_energy_capacity=config.simulation.site.bess.energy_capacity,
             battery_charge_efficiency=config.simulation.site.bess.charge_efficiency,
-            peak_config=config.simulation.strategy.price_curve_algo.peak,
+            config=config.simulation.strategy.spread_algo,
         )
 
     else:

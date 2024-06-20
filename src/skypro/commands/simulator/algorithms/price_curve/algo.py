@@ -12,7 +12,7 @@ from skypro.commands.simulator.config.config import get_relevant_niv_config, Pea
 import skypro.commands.simulator.config as config
 
 
-def run_price_curve_imbalance_algorithm(
+def run_price_curve_imbalance_algo(
         df_in: pd.DataFrame,
         battery_energy_capacity: float,
         battery_charge_efficiency: float,
