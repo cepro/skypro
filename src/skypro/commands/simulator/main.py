@@ -178,12 +178,15 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
             peak_config=config.simulation.strategy.price_curve_algo.peak,
         )
     elif config.simulation.strategy.spread_algo:
-        # TODO: make this more elegant and check the numbers - particularly not certain on the discharge side, although
-        #       the numbers are small
+        # TODO: there should be a more elegant way of doing this - but at the moment the spread based algo needs to know
+        #  the "non imbalance" rates, seperated from the imbalance rates. These are calculated here, because if the algo
+        #  did these calculations itself then we would need to share 'final' rates with it which is best avoided as it
+        #  shouldn't know about final rates.
+
         df["rate_bess_charge_from_grid_non_imbalance"] = df["rate_final_bess_charge_from_grid"] - df["imbalance_price_final"]
         df["rate_bess_discharge_to_grid_non_imbalance"] = df["rate_final_bess_discharge_to_grid"] + df["imbalance_price_final"]
-
         cols_to_share_with_algo.extend(["rate_bess_charge_from_grid_non_imbalance", "rate_bess_discharge_to_grid_non_imbalance"])
+
         df_algo = run_spread_based_algo(
             df_in=df[cols_to_share_with_algo],
             battery_energy_capacity=config.simulation.site.bess.energy_capacity,

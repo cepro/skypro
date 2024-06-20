@@ -107,7 +107,7 @@ def run_spread_based_algo(
 
             spread_algo_energy = get_spread_algo_energy(
                 t=t,
-                df_out=df,
+                df=df,
                 min_spread=config.min_spread,
                 imbalance_volume_assumed=imbalance_volume_assumed
             )
@@ -157,15 +157,15 @@ def run_spread_based_algo(
     return df[["soe", "energy_delta", "bess_losses", "notional_spread", "red_approach_distance", "amber_approach_distance", "spread_algo_energy"]]
 
 
-def get_spread_algo_energy(t, df_out, min_spread: float, imbalance_volume_assumed: float) -> float:
+def get_spread_algo_energy(t, df, min_spread: float, imbalance_volume_assumed: float) -> float:
 
     if np.isnan(imbalance_volume_assumed):
         return 0
 
     is_currently_short = imbalance_volume_assumed > 0
-    notional_spread_assumed = df_out.loc[t, "notional_spread"]
+    notional_spread_assumed = df.loc[t, "notional_spread"]
     if np.isnan(notional_spread_assumed):
-        notional_spread_assumed = df_out.loc[t, "prev_sp_notional_spread"]
+        notional_spread_assumed = df.loc[t, "prev_sp_notional_spread"]
     if np.isnan(notional_spread_assumed):
         notional_spread_assumed = np.nan
 

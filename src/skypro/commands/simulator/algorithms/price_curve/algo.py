@@ -32,6 +32,8 @@ def run_price_curve_imbalance_algo(
 
     time_step = pd.to_timedelta(df_in.index.freq)
 
+    # TODO: the surrounding 'harness' code should be brought out to be shared with all algos
+
     # Run through each row (where each row represents a time step) and apply the strategy
     for t in df_in.index:
 
