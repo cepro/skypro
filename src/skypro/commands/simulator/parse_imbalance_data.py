@@ -173,7 +173,7 @@ def split_modo_data_by_settlement_period(
             try:
                 predictive_val = sub_df[sub_df["predictionUTCTime"] <= prediction_cutoff_time].iloc[-1][col]
             except IndexError:
-                predictive_val = np.NaN
+                predictive_val = np.nan
 
             df.loc[time, col_prediction] = predictive_val
             df.loc[time, col_final] = final_val

@@ -37,7 +37,7 @@ class Profiler:
         # We have profile data at half-hour / 30minute granularity, but the requested times may be at a finer resolution
         # so round the times down to the nearest half-hour (floor_hh) to extract the relevant value from the profile
         df_hh = pd.DataFrame(index=pd.Series(times.to_series().apply(lambda t: floor_hh(t)).unique()))
-        df_hh["values"] = np.NaN
+        df_hh["values"] = np.nan
 
         # Search the profile by offsetting the year by increasing degrees
         for year_offset in range(0, -5, -1):
