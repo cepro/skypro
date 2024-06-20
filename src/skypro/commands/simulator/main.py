@@ -4,6 +4,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+import pytz
 
 from simt_common.jsonconfig.rates import parse_supply_points, process_rates_for_all_energy_flows
 from simt_common.rates.microgrid import get_rates_dfs
@@ -40,7 +41,11 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
     )
 
     # Run the simulation at 10 minute granularity
-    time_index = pd.date_range(config.simulation.start, config.simulation.end, freq=STEP_SIZE)
+    time_index = pd.date_range(
+        start=config.simulation.start.astimezone(pytz.UTC),
+        end=config.simulation.end.astimezone(pytz.UTC),
+        freq=STEP_SIZE
+    )
     time_index = time_index.tz_convert("UTC")
 
     # Imbalance pricing/volume data can come from either Modo or Elexon, Modo is 'predictive' and it's predictions
