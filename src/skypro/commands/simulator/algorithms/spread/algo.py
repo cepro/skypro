@@ -33,10 +33,14 @@ def run_spread_based_algo(
     df_out["prev_sp_imbalance_price_long"] = df_in["prev_sp_imbalance_price_final"][df_in["prev_sp_imbalance_volume_final"] < 0]
     df_out["prev_sp_imbalance_price_short"] = df_in["prev_sp_imbalance_price_final"][df_in["prev_sp_imbalance_volume_final"] > 0]
 
-    RECENT_SPAN = 4
-
-    df_out["recent_imbalance_price_long"] = df_out["prev_sp_imbalance_price_long"].rolling(window=RECENT_SPAN, min_periods=1).mean().ffill()
-    df_out["recent_imbalance_price_short"] = df_out["prev_sp_imbalance_price_short"].rolling(window=RECENT_SPAN, min_periods=1).mean().ffill()
+    df_out["recent_imbalance_price_long"] = df_out["prev_sp_imbalance_price_long"].rolling(
+        window=config.recent_pricing_span,
+        min_periods=1
+    ).mean().ffill()
+    df_out["recent_imbalance_price_short"] = df_out["prev_sp_imbalance_price_short"].rolling(
+        window=config.recent_pricing_span,
+        min_periods=1
+    ).mean().ffill()
 
     df_out["rate_bess_charge_from_grid_non_imbalance"] = df_in["rate_bess_charge_from_grid_non_imbalance"]
     df_out["rate_bess_discharge_to_grid_non_imbalance"] = df_in["rate_bess_discharge_to_grid_non_imbalance"]

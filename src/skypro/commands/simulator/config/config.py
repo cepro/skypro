@@ -139,6 +139,7 @@ class PriceCurveAlgo:
 @dataclass
 class SpreadAlgo:
     min_spread: float = name_in_json("minSpread")
+    recent_pricing_span: int = name_in_json("recentPricingSpan")
     peak: Peak = name_in_json("peak")
 
 
