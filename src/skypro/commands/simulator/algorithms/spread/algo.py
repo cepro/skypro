@@ -7,6 +7,7 @@ import plotly.express as px
 
 
 from skypro.commands.simulator.algorithms.approach import get_peak_approach_energies
+from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy
 from skypro.commands.simulator.config.config import Peak, SpreadAlgo
 
 
@@ -74,18 +75,12 @@ def run_spread_based_algo(
         soe = last_soe + last_energy_delta - last_bess_losses
         df_out.loc[t, "soe"] = soe
 
-        # if t > datetime.fromisoformat("2024-05-01T15:00:00+00:00"):
-        #     breakpoint()
-
         if config.peak.period and config.peak.period.contains(t):
             # The configuration may specify that we ignore the charge/discharge curves and do a full discharge
             # for a certain period - probably a DUoS red band
             power = -df_in.loc[t, "bess_max_power_discharge"]
 
         else:
-            target_energy_delta = 0
-
-            # ALGO ALGO ALGO ALGO ALGO ALGO ALGO ALGO ALGO
 
             imbalance_volume_assumed = df_in.loc[t, "imbalance_volume_predicted"]
             # TODO: optionally only allow this for the first 10mins? df_in.loc[t, "time_into_sp"] < timedelta(minutes=10) and
@@ -94,9 +89,6 @@ def run_spread_based_algo(
                 imbalance_volume_assumed = df_in.loc[t, "prev_sp_imbalance_volume_final"]
 
             df_out.loc[t, "imbalance_volume_assumed"] = imbalance_volume_assumed
-
-            # if np.isnan(imbalance_volume_assumed):
-            #     imbalance_volume_assumed = np.nan
 
             red_approach_energy, amber_approach_energy = get_peak_approach_energies(
                 t=t,
@@ -124,9 +116,6 @@ def run_spread_based_algo(
                 target_energy_delta = max(amber_approach_energy, spread_algo_energy)
             else:
                 target_energy_delta = spread_algo_energy
-
-
-            # END END END END END END END END END
 
             power = get_power(target_energy_delta, time_step)
 
@@ -200,44 +189,3 @@ def get_spread_algo_energy(t, df_out, min_spread: float, imbalance_volume_assume
         else:
             return 100
     return 0
-
-def get_capped_power(target_energy_delta: float, df_in, df_out, t) -> float:
-    """
-    Returns the power level for the given target energy delta, accounting for the charge and discharge power constraints
-    that apply to the given timestep
-    """
-    power = get_power(target_energy_delta, df_out.loc[t, "time_left_of_sp"])
-    power = cap_power(power, df_in.loc[t, "bess_max_power_charge"], df_in.loc[t, "bess_max_power_discharge"])
-    return power
-
-
-def get_energy(power: float, duration: timedelta) -> float:
-    """
-    Returns the energy, in kWh, given a power in kW and duration.
-    """
-    return power * get_hours(duration)
-
-
-def get_power(energy: float, duration: timedelta) -> float:
-    """
-    Returns the power, in kW, given an energy in kWh and duration.
-    """
-    return energy / get_hours(duration)
-
-
-def cap_power(power: float, max_charge: float, max_discharge) -> float:
-    """
-    Caps the power at the batteries capabilities
-    """
-    if power > max_charge:
-        return max_charge
-    elif power < -max_discharge:
-        return -max_discharge
-    return power
-
-
-def get_hours(duration: timedelta) -> float:
-    """
-    Returns the duration in number of hours, with decimal places if required.
-    """
-    return duration.total_seconds() / 3600

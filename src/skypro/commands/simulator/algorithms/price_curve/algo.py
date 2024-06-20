@@ -7,6 +7,7 @@ import pandas as pd
 
 from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
 from skypro.commands.simulator.algorithms.approach import get_peak_approach_energies
+from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy
 from skypro.commands.simulator.cartesian import Curve, Point
 from skypro.commands.simulator.config.config import get_relevant_niv_config, Peak
 import skypro.commands.simulator.config as config
@@ -231,45 +232,3 @@ def get_target_energy_delta_from_curves(
             target_energy_delta = discharge_distance
 
     return target_energy_delta
-
-
-def get_capped_power(target_energy_delta: float, df_in, df_out, t) -> float:
-    """
-    Returns the power level for the given target energy delta, accounting for the charge and discharge power constraints
-    that apply to the given timestep
-    """
-    power = get_power(target_energy_delta, df_in.loc[t, "time_left_of_sp"])
-    power = cap_power(power, df_in.loc[t, "bess_max_power_charge"], df_in.loc[t, "bess_max_power_discharge"])
-    return power
-
-
-def get_energy(power: float, duration: timedelta) -> float:
-    """
-    Returns the energy, in kWh, given a power in kW and duration.
-    """
-    return power * get_hours(duration)
-
-
-def get_power(energy: float, duration: timedelta) -> float:
-    """
-    Returns the power, in kW, given an energy in kWh and duration.
-    """
-    return energy / get_hours(duration)
-
-
-def cap_power(power: float, max_charge: float, max_discharge) -> float:
-    """
-    Caps the power at the batteries capabilities
-    """
-    if power > max_charge:
-        return max_charge
-    elif power < -max_discharge:
-        return -max_discharge
-    return power
-
-
-def get_hours(duration: timedelta) -> float:
-    """
-    Returns the duration in number of hours, with decimal places if required.
-    """
-    return duration.total_seconds() / 3600
