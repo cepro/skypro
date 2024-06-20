@@ -64,7 +64,7 @@ def run_price_curve_imbalance_algo(
 
             red_approach_energy, amber_approach_energy = get_peak_approach_energies(
                 t=t,
-                time_step=timedelta(minutes=10),  # TODO: this shouldn't be hard-coded, but time_step pd type doesn't seem to work
+                time_step=time_step,
                 soe=soe,
                 charge_efficiency=battery_charge_efficiency,
                 peak_config=peak_config,
