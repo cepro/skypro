@@ -26,12 +26,17 @@ def run_spread_based_algo(
     num_skipped_periods = 0
 
     time_step = pd.to_timedelta(df_in.index.freq)
+    steps_per_sp = int(timedelta(minutes=30) / time_step)
 
     # TODO: the surrounding 'harness' code should be brought out to be shared with all algos
 
     # Calculate the "notional spread" for each time period
-    df["prev_sp_imbalance_price_long"] = df_in["prev_sp_imbalance_price_final"][df_in["prev_sp_imbalance_volume_final"] < 0]
-    df["prev_sp_imbalance_price_short"] = df_in["prev_sp_imbalance_price_final"][df_in["prev_sp_imbalance_volume_final"] > 0]
+    df["prev_sp_imbalance_price_long"] = df_in["prev_sp_imbalance_price_final"][
+        df_in["prev_sp_imbalance_volume_final"] < 0
+    ]
+    df["prev_sp_imbalance_price_short"] = df_in["prev_sp_imbalance_price_final"][
+        df_in["prev_sp_imbalance_volume_final"] > 0
+    ]
 
     df["recent_imbalance_price_long"] = df["prev_sp_imbalance_price_long"].rolling(
         window=config.recent_pricing_span,
@@ -47,7 +52,10 @@ def run_spread_based_algo(
 
     notional_spread_short = (
             df_in[f"rate_predicted_bess_charge_from_grid"] -
-            ((df[f"recent_imbalance_price_long"] + df_in["rate_bess_charge_from_grid_non_imbalance"]) / battery_charge_efficiency)
+            (
+                    (df[f"recent_imbalance_price_long"] + df_in["rate_bess_charge_from_grid_non_imbalance"])
+                    / battery_charge_efficiency
+            )
     )[df_in[f"imbalance_volume_predicted"] > 0]
 
     notional_spread_long = -(
@@ -59,8 +67,7 @@ def run_spread_based_algo(
     df["notional_spread_short"] = notional_spread_short
     df["notional_spread_long"] = notional_spread_long
 
-    STEPS_PER_SP = 3  # TODO: link up
-    df["prev_sp_notional_spread"] = df["notional_spread"].shift(STEPS_PER_SP).bfill(limit=STEPS_PER_SP-1)
+    df["prev_sp_notional_spread"] = df["notional_spread"].shift(steps_per_sp).bfill(limit=steps_per_sp-1)
 
     # Run through each row (where each row represents a time step) and apply the strategy
     for t in df_in.index:
@@ -82,7 +89,7 @@ def run_spread_based_algo(
         else:
 
             imbalance_volume_assumed = df_in.loc[t, "imbalance_volume_predicted"]
-            # TODO: optionally only allow this for the first 10mins? df_in.loc[t, "time_into_sp"] < timedelta(minutes=10) and
+            # TODO: optionally only allow this for the first 10m? df_in.loc[t, "time_into_sp"]<timedelta(minutes=10)
             if np.isnan(imbalance_volume_assumed) and \
                     abs(df_in.loc[t, "prev_sp_imbalance_volume_final"]) > 150:
                 imbalance_volume_assumed = df_in.loc[t, "prev_sp_imbalance_volume_final"]
