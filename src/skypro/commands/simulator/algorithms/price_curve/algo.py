@@ -1,17 +1,14 @@
 import logging
 from datetime import timedelta, datetime
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 import pandas as pd
-from simt_common.timeutils import ClockTimePeriod
-from simt_common.timeutils.hh_math import floor_hh
 
 from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
-from skypro.commands.simulator.algorithms.approach import get_red_approach_energy, get_amber_approach_energy
-from skypro.commands.simulator.algorithms.spread.algo_2 import get_spread_algo_energy
+from skypro.commands.simulator.algorithms.approach import get_peak_approach_energies
 from skypro.commands.simulator.cartesian import Curve, Point
-from skypro.commands.simulator.config.config import get_relevant_niv_config
+from skypro.commands.simulator.config.config import get_relevant_niv_config, Peak
 import skypro.commands.simulator.config as config
 
 
@@ -20,7 +17,7 @@ def run_price_curve_imbalance_algorithm(
         battery_energy_capacity: float,
         battery_charge_efficiency: float,
         niv_chase_periods: List[config.NivPeriod],
-        full_discharge_period: Optional[ClockTimePeriod],
+        peak_config: Peak,
 ) -> pd.DataFrame:
 
     # Create a separate dataframe for outputs
@@ -49,7 +46,7 @@ def run_price_curve_imbalance_algorithm(
         # Select the appropriate NIV chasing configuration for this time of day
         niv_config = get_relevant_niv_config(niv_chase_periods, t).niv
 
-        if full_discharge_period and full_discharge_period.contains(t):
+        if peak_config.period and peak_config.period.contains(t):
             # The configuration may specify that we ignore the charge/discharge curves and do a full discharge
             # for a certain period - probably a DUoS red band
             power = -df_in.loc[t, "bess_max_power_discharge"]
@@ -64,8 +61,14 @@ def run_price_curve_imbalance_algorithm(
             if np.isnan(imbalance_volume_assumed):
                 imbalance_volume_assumed = np.nan
 
-            red_approach_energy = get_red_approach_energy(t, soe)
-            amber_approach_energy = get_amber_approach_energy(t, soe, imbalance_volume_assumed)
+            red_approach_energy, amber_approach_energy = get_peak_approach_energies(
+                t=t,
+                time_step=timedelta(minutes=10),  # TODO: this shouldn't be hard-coded, but time_step pd type doesn't seem to work
+                soe=soe,
+                charge_efficiency=battery_charge_efficiency,
+                peak_config=peak_config,
+                is_long=imbalance_volume_assumed < 0
+            )
 
             df_out.loc[t, "red_approach_distance"] = red_approach_energy
             df_out.loc[t, "amber_approach_distance"] = amber_approach_energy

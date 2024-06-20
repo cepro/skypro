@@ -1,89 +1,117 @@
-from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
-from typing import List
+from datetime import datetime, timedelta
+from typing import Tuple
 
 import numpy as np
-from simt_common.timeutils.days import Days
-
+import pytz
 from skypro.commands.simulator.cartesian import Curve, Point
+from skypro.commands.simulator.config.config import Peak
+
+TIMEZONE_STR = "Europe/London"
+REF_DATETIME = pytz.timezone(TIMEZONE_STR).localize(datetime(year=2000, month=1, day=1))
 
 
-@dataclass
-class TimePoint:
+def get_peak_approach_energies(
+        t: datetime,
+        time_step: timedelta,
+        soe: float,
+        charge_efficiency: float,
+        peak_config: Peak,
+        is_long: bool,
+) -> Tuple[float, float]:
     """
-    Represents are cartesian point.
+    Returns the charge energy required due to the "force" and "encourage" peak approach configuration
+    :param t: the time now
+    :param time_step: the size of the simulation time step
+    :param soe: the current battery soe
+    :param charge_efficiency:
+    :param peak_config:
+    :param is_long: indicates if the system is long or short - the encourage curve is only used when the system is long
+    :return:
     """
-    t: time
-    y: float
+    # TODO: this approach won't work if the approach curve crosses over a midnight boundary
 
+    if not peak_config.period:
+        return 0.0, 0.0
 
+    t = t.astimezone(pytz.timezone(TIMEZONE_STR))
 
-REF_DATE = date(1000, 1, 1)
-REF_DATETIME = datetime.combine(REF_DATE, time())
+    if not peak_config.period.days.is_on_day(t):
+        return 0.0, 0.0
 
+    peak_start = peak_config.period.period.start_absolute(t.date())
+    peak_end = peak_config.period.period.end_absolute(t.date())
 
-def time_curve_to_curve(time_curve: List[TimePoint]) -> Curve:
-
-    points = []
-    for time_point in time_curve:
-        dt = datetime.combine(REF_DATE, time_point.t)
-        duration = dt - REF_DATETIME
-        points.append(Point(
-            x=duration.total_seconds(),
-            y=time_point.y
-        ))
-
-    return Curve(points=points)
-
-
-# TODO: deal with DST properly
-red_curve = time_curve_to_curve([
-    TimePoint(time(10, 0), 0),
-    TimePoint(time(15, 30), 1000),  # The soe is currently allowed to get 'behind' the curve, so allow an extra 30 mins to 'catch up with the curve'
-    TimePoint(time(16, 0), 1000)
-])
-approach_days = Days(name="weekdays", tz_str="UTC")
-
-amber_curve = time_curve_to_curve([
-    TimePoint(time(0, 0), 0),
-    TimePoint(time(15, 0), 1000),
-    TimePoint(time(16, 0), 1000)
-])
-
-
-def get_red_approach_energy(t, soe) -> float:
-
-    if not approach_days.is_on_day(t):
-        return 0
-
-    # TODO: use time_step rather than hard-coding 10mins - but the addition didn't seem to work?!
-    target_time = datetime.combine(REF_DATE, time(t.hour, t.minute, t.second)) + timedelta(minutes=10)
-    now_point = Point(
-        x=(target_time - REF_DATETIME).total_seconds(),
+    reference_point = _datetime_point(
+        t=t + time_step,
         y=soe
     )
 
-    red_approach_distance = red_curve.vertical_distance(now_point)
-    if np.isnan(red_approach_distance) or red_approach_distance < 0:
-        return 0
+    force_curve = _get_approach_curve(
+        peak_start=peak_start,
+        peak_end=peak_end,
+        to_soe=peak_config.approach.to_soe,
+        charge_efficiency=charge_efficiency,
+        assumed_charge_power=peak_config.approach.assumed_charge_power,
+        charge_cushion=peak_config.approach.charge_cushion,
+        charge_duration_factor=peak_config.approach.force_charge_duration_factor
+    )
+    force_energy = force_curve.vertical_distance(reference_point)
+    if np.isnan(force_energy) or force_energy < 0:
+        force_energy = 0
 
-    return red_approach_distance
+    if is_long:
+        encourage_curve = _get_approach_curve(
+            peak_start=peak_start,
+            peak_end=peak_end,
+            to_soe=peak_config.approach.to_soe,
+            charge_efficiency=charge_efficiency,
+            assumed_charge_power=peak_config.approach.assumed_charge_power,
+            charge_cushion=peak_config.approach.charge_cushion,
+            charge_duration_factor=peak_config.approach.encourage_charge_duration_factor
+        )
+        encourage_energy = encourage_curve.vertical_distance(reference_point)
+        if np.isnan(encourage_energy) or encourage_energy < 0:
+            encourage_energy = 0
+    else:
+        encourage_energy = 0
+
+    return force_energy, encourage_energy
 
 
-def get_amber_approach_energy(t, soe, imbalance_volume_assumed) -> float:
-
-    if imbalance_volume_assumed > 0 or not approach_days.is_on_day(t):
-        return 0
-
-    # TODO: use time_step rather than hard-coding 10mins - but the addition didn't seem to work?!
-    target_time = datetime.combine(REF_DATE, time(t.hour, t.minute, t.second)) + timedelta(minutes=10)
-    now_point = Point(
-        x=(target_time - REF_DATETIME).total_seconds(),
-        y=soe
+def _get_approach_curve(
+        peak_start: datetime,
+        peak_end: datetime,
+        to_soe: float,
+        charge_efficiency: float,
+        assumed_charge_power: float,
+        charge_cushion: timedelta,
+        charge_duration_factor: float
+) -> Curve:
+    """
+    Returns a curve representing the boundary of the peak approach
+    """
+    # how long is the approach
+    approach_duration = timedelta(
+        hours=((to_soe / assumed_charge_power) / charge_efficiency) * charge_duration_factor
     )
 
-    amber_approach_distance = amber_curve.vertical_distance(now_point)
-    if np.isnan(amber_approach_distance) or amber_approach_distance < 0:
-        return 0
+    approach_curve = Curve(points=[
+        _datetime_point(t=peak_start - approach_duration - charge_cushion, y=0),
+        _datetime_point(t=peak_start - charge_cushion, y=to_soe),
+        _datetime_point(t=peak_end, y=to_soe),
+    ])
 
-    return amber_approach_distance
+    return approach_curve
+
+
+def _datetime_point(t: datetime, y: float) -> Point:
+    """
+    Returns a Point object that encodes a time of day.
+    This uses a reference datetime to convert a time into a float number of seconds, so may not work over midnight
+    boundaries.
+    """
+    duration = t - REF_DATETIME
+    return Point(
+        x=duration.total_seconds(),
+        y=y
+    )

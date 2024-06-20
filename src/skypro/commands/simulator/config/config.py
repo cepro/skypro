@@ -1,5 +1,5 @@
 from dataclasses import field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional, Dict
 
 import numpy as np
@@ -116,8 +116,23 @@ class Rates:
 
 
 @dataclass
+class Approach:
+    to_soe: float = name_in_json("toSoe")
+    assumed_charge_power: float = name_in_json("assumedChargePower")
+    encourage_charge_duration_factor: float = name_in_json("encourageChargeDurationFactor")
+    force_charge_duration_factor: float = name_in_json("forceChargeDurationFactor")
+    charge_cushion: timedelta = field(metadata={"precision": "minutes", "data_key": "chargeCushionMins"})
+
+
+@dataclass
+class Peak:
+    period: DayedPeriodType = name_in_json("period")
+    approach: Approach = name_in_json("approach")
+
+
+@dataclass
 class PriceCurveAlgo:
-    full_discharge_period: DayedPeriodType = name_in_json("doFullDischargeInPeriod")
+    peak: Peak = name_in_json("peak")
     niv_chase_periods: List[NivPeriod] = name_in_json("nivChasePeriods")
 
 

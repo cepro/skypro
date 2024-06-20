@@ -11,16 +11,16 @@ from simt_common.timeutils import ClockTimePeriod
 from simt_common.timeutils.days import Days
 from simt_common.timeutils.hh_math import floor_hh
 
-from skypro.commands.simulator.algorithms.approach import get_red_approach_energy, get_amber_approach_energy
+from skypro.commands.simulator.algorithms.approach import get_peak_approach_energies
 from skypro.commands.simulator.cartesian import Point, Curve
-
+from skypro.commands.simulator.config.config import Peak
 
 
 def run_spread_based_algo_2(
         df_in: pd.DataFrame,
         battery_energy_capacity: float,
         battery_charge_efficiency: float,
-        full_discharge_period: Optional[ClockTimePeriod],
+        peak_config: Peak,
 ) -> pd.DataFrame:
 
     # Create a separate dataframe for outputs
@@ -81,7 +81,7 @@ def run_spread_based_algo_2(
         # if t > datetime.fromisoformat("2024-05-01T15:00:00+00:00"):
         #     breakpoint()
 
-        if full_discharge_period and full_discharge_period.contains(t):
+        if peak_config.period and peak_config.period.contains(t):
             # The configuration may specify that we ignore the charge/discharge curves and do a full discharge
             # for a certain period - probably a DUoS red band
             power = -df_in.loc[t, "bess_max_power_discharge"]
@@ -102,8 +102,15 @@ def run_spread_based_algo_2(
             # if np.isnan(imbalance_volume_assumed):
             #     imbalance_volume_assumed = np.nan
 
-            red_approach_energy = get_red_approach_energy(t, soe)
-            amber_approach_energy = get_amber_approach_energy(t, soe, imbalance_volume_assumed)
+            red_approach_energy, amber_approach_energy = get_peak_approach_energies(
+                t=t,
+                time_step=timedelta(minutes=10),  # TODO: this shouldn't be hard-coded, but time_step pd type doesn't seem to work
+                soe=soe,
+                charge_efficiency=battery_charge_efficiency,
+                peak_config=peak_config,
+                is_long=imbalance_volume_assumed < 0
+            )
+
             spread_algo_energy = get_spread_algo_energy(t, df_out, imbalance_volume_assumed)
 
             df_out.loc[t, "red_approach_distance"] = red_approach_energy
@@ -154,6 +161,7 @@ def run_spread_based_algo_2(
             "notional_spread_short",
             "notional_spread_long",
             "notional_spread",
+            "imbalance_volume_assumed"
         ]],
         # markers=True,
         line_shape='hv',

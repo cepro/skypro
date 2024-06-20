@@ -175,7 +175,7 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
             battery_energy_capacity=config.simulation.site.bess.energy_capacity,
             battery_charge_efficiency=config.simulation.site.bess.charge_efficiency,
             niv_chase_periods=config.simulation.strategy.price_curve_algo.niv_chase_periods,
-            full_discharge_period=config.simulation.strategy.price_curve_algo.full_discharge_period,
+            peak_config=config.simulation.strategy.price_curve_algo.peak,
         )
     elif config.simulation.strategy.spread_algo:
         # TODO: make this more elegant and check the numbers - particularly not certain on the discharge side, although
@@ -188,7 +188,7 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
             df_in=df[cols_to_share_with_algo],
             battery_energy_capacity=config.simulation.site.bess.energy_capacity,
             battery_charge_efficiency=config.simulation.site.bess.charge_efficiency,
-            full_discharge_period=config.simulation.strategy.spread_algo.full_discharge_period,
+            peak_config=config.simulation.strategy.price_curve_algo.peak,
         )
 
     else:
