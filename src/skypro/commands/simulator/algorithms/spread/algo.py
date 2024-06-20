@@ -3,12 +3,10 @@ from datetime import timedelta
 
 import numpy as np
 import pandas as pd
-import plotly.express as px
-
 
 from skypro.commands.simulator.algorithms.approach import get_peak_approach_energies
 from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy
-from skypro.commands.simulator.config.config import Peak, SpreadAlgo
+from skypro.commands.simulator.config.config import SpreadAlgo
 
 
 def run_spread_based_algo(
@@ -18,8 +16,8 @@ def run_spread_based_algo(
         config: SpreadAlgo,
 ) -> pd.DataFrame:
 
-    # Create a separate dataframe for outputs
-    df_out = pd.DataFrame(index=df_in.index)
+    # Create a separate dataframe for working values
+    df = pd.DataFrame(index=df_in.index)
 
     # These vars keep track of the previous settlement periods values
     last_soe = battery_energy_capacity / 2  # initial SoE is 50%
@@ -31,37 +29,38 @@ def run_spread_based_algo(
 
     # TODO: the surrounding 'harness' code should be brought out to be shared with all algos
 
-    df_out["prev_sp_imbalance_price_long"] = df_in["prev_sp_imbalance_price_final"][df_in["prev_sp_imbalance_volume_final"] < 0]
-    df_out["prev_sp_imbalance_price_short"] = df_in["prev_sp_imbalance_price_final"][df_in["prev_sp_imbalance_volume_final"] > 0]
+    # Calculate the "notional spread" for each time period
+    df["prev_sp_imbalance_price_long"] = df_in["prev_sp_imbalance_price_final"][df_in["prev_sp_imbalance_volume_final"] < 0]
+    df["prev_sp_imbalance_price_short"] = df_in["prev_sp_imbalance_price_final"][df_in["prev_sp_imbalance_volume_final"] > 0]
 
-    df_out["recent_imbalance_price_long"] = df_out["prev_sp_imbalance_price_long"].rolling(
+    df["recent_imbalance_price_long"] = df["prev_sp_imbalance_price_long"].rolling(
         window=config.recent_pricing_span,
         min_periods=1
     ).mean().ffill()
-    df_out["recent_imbalance_price_short"] = df_out["prev_sp_imbalance_price_short"].rolling(
+    df["recent_imbalance_price_short"] = df["prev_sp_imbalance_price_short"].rolling(
         window=config.recent_pricing_span,
         min_periods=1
     ).mean().ffill()
 
-    df_out["rate_bess_charge_from_grid_non_imbalance"] = df_in["rate_bess_charge_from_grid_non_imbalance"]
-    df_out["rate_bess_discharge_to_grid_non_imbalance"] = df_in["rate_bess_discharge_to_grid_non_imbalance"]
+    df["rate_bess_charge_from_grid_non_imbalance"] = df_in["rate_bess_charge_from_grid_non_imbalance"]
+    df["rate_bess_discharge_to_grid_non_imbalance"] = df_in["rate_bess_discharge_to_grid_non_imbalance"]
 
     notional_spread_short = (
             df_in[f"rate_predicted_bess_charge_from_grid"] -
-            ((df_out[f"recent_imbalance_price_long"] + df_in["rate_bess_charge_from_grid_non_imbalance"]) / battery_charge_efficiency)
+            ((df[f"recent_imbalance_price_long"] + df_in["rate_bess_charge_from_grid_non_imbalance"]) / battery_charge_efficiency)
     )[df_in[f"imbalance_volume_predicted"] > 0]
 
     notional_spread_long = -(
-            (-df_out[f"recent_imbalance_price_short"] + df_in["rate_bess_discharge_to_grid_non_imbalance"]) -
+            (-df[f"recent_imbalance_price_short"] + df_in["rate_bess_discharge_to_grid_non_imbalance"]) -
             (df_in[f"rate_predicted_bess_discharge_to_grid"])
     )[df_in[f"imbalance_volume_predicted"] < 0]
 
-    df_out["notional_spread"] = pd.concat([notional_spread_long, notional_spread_short])
-    df_out["notional_spread_short"] = notional_spread_short
-    df_out["notional_spread_long"] = notional_spread_long
+    df["notional_spread"] = pd.concat([notional_spread_long, notional_spread_short])
+    df["notional_spread_short"] = notional_spread_short
+    df["notional_spread_long"] = notional_spread_long
 
     STEPS_PER_SP = 3  # TODO: link up
-    df_out["prev_sp_notional_spread"] = df_out["notional_spread"].shift(STEPS_PER_SP).bfill(limit=STEPS_PER_SP-1)
+    df["prev_sp_notional_spread"] = df["notional_spread"].shift(STEPS_PER_SP).bfill(limit=STEPS_PER_SP-1)
 
     # Run through each row (where each row represents a time step) and apply the strategy
     for t in df_in.index:
@@ -73,7 +72,7 @@ def run_spread_based_algo(
         # Set the `soe` column to the value at the start of this time step (the previous value plus the energy
         # transferred in the previous time step)
         soe = last_soe + last_energy_delta - last_bess_losses
-        df_out.loc[t, "soe"] = soe
+        df.loc[t, "soe"] = soe
 
         if config.peak.period and config.peak.period.contains(t):
             # The configuration may specify that we ignore the charge/discharge curves and do a full discharge
@@ -88,7 +87,7 @@ def run_spread_based_algo(
                     abs(df_in.loc[t, "prev_sp_imbalance_volume_final"]) > 150:
                 imbalance_volume_assumed = df_in.loc[t, "prev_sp_imbalance_volume_final"]
 
-            df_out.loc[t, "imbalance_volume_assumed"] = imbalance_volume_assumed
+            df.loc[t, "imbalance_volume_assumed"] = imbalance_volume_assumed
 
             red_approach_energy, amber_approach_energy = get_peak_approach_energies(
                 t=t,
@@ -101,14 +100,14 @@ def run_spread_based_algo(
 
             spread_algo_energy = get_spread_algo_energy(
                 t=t,
-                df_out=df_out,
+                df_out=df,
                 min_spread=config.min_spread,
                 imbalance_volume_assumed=imbalance_volume_assumed
             )
 
-            df_out.loc[t, "red_approach_distance"] = red_approach_energy
-            df_out.loc[t, "amber_approach_distance"] = amber_approach_energy
-            df_out.loc[t, "spread_algo_energy"] = spread_algo_energy
+            df.loc[t, "red_approach_distance"] = red_approach_energy
+            df.loc[t, "amber_approach_distance"] = amber_approach_energy
+            df.loc[t, "spread_algo_energy"] = spread_algo_energy
 
             if red_approach_energy > 0:
                 target_energy_delta = max(red_approach_energy, amber_approach_energy, spread_algo_energy)
@@ -134,9 +133,9 @@ def run_spread_based_algo(
         else:
             bess_losses = 0
 
-        df_out.loc[t, "power"] = power
-        df_out.loc[t, "energy_delta"] = energy_delta
-        df_out.loc[t, "bess_losses"] = bess_losses
+        df.loc[t, "power"] = power
+        df.loc[t, "energy_delta"] = energy_delta
+        df.loc[t, "bess_losses"] = bess_losses
 
         # Save for next iteration...
         last_soe = soe
@@ -148,27 +147,7 @@ def run_spread_based_algo(
         logging.info(f"Skipped {num_skipped_periods}/{len(df_in)} {time_step_minutes} minute periods (probably due to "
                      f"missing imbalance data)")
 
-    # fig = px.line(
-    #     df_out[[
-    #         "prev_sp_imbalance_price_long",
-    #         "prev_sp_imbalance_price_short",
-    #         "recent_imbalance_price_long",
-    #         "recent_imbalance_price_short",
-    #         "rate_bess_charge_from_grid_non_imbalance",
-    #         "rate_bess_discharge_to_grid_non_imbalance",
-    #         "notional_spread_short",
-    #         "notional_spread_long",
-    #         "notional_spread",
-    #         # "imbalance_volume_assumed"
-    #     ]],
-    #     # markers=True,
-    #     line_shape='hv',
-    # )
-    # fig.update_traces(connectgaps=True)
-    # fig.show()
-
-
-    return df_out[["soe", "energy_delta", "bess_losses", "notional_spread", "red_approach_distance", "amber_approach_distance", "spread_algo_energy"]]
+    return df[["soe", "energy_delta", "bess_losses", "notional_spread", "red_approach_distance", "amber_approach_distance", "spread_algo_energy"]]
 
 
 def get_spread_algo_energy(t, df_out, min_spread: float, imbalance_volume_assumed: float) -> float:

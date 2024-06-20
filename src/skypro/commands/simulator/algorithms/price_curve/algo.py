@@ -21,8 +21,8 @@ def run_price_curve_imbalance_algo(
         peak_config: Peak,
 ) -> pd.DataFrame:
 
-    # Create a separate dataframe for outputs
-    df_out = pd.DataFrame(index=df_in.index)
+    # Create a separate dataframe for working values
+    df = pd.DataFrame(index=df_in.index)
 
     # These vars keep track of the previous settlement periods values
     last_soe = battery_energy_capacity / 2  # initial SoE is 50%
@@ -42,7 +42,7 @@ def run_price_curve_imbalance_algo(
         # Set the `soe` column to the value at the start of this time step (the previous value plus the energy
         # transferred in the previous time step)
         soe = last_soe + last_energy_delta - last_bess_losses
-        df_out.loc[t, "soe"] = soe
+        df.loc[t, "soe"] = soe
 
         # Select the appropriate NIV chasing configuration for this time of day
         niv_config = get_relevant_niv_config(niv_chase_periods, t).niv
@@ -71,8 +71,8 @@ def run_price_curve_imbalance_algo(
                 is_long=imbalance_volume_assumed < 0
             )
 
-            df_out.loc[t, "red_approach_distance"] = red_approach_energy
-            df_out.loc[t, "amber_approach_distance"] = amber_approach_energy
+            df.loc[t, "red_approach_distance"] = red_approach_energy
+            df.loc[t, "amber_approach_distance"] = amber_approach_energy
 
             if not np.isnan(df_in.loc[t, "rate_predicted_bess_charge_from_grid"]) and \
                 not np.isnan(df_in.loc[t, "rate_predicted_bess_discharge_to_grid"]) and \
@@ -137,9 +137,9 @@ def run_price_curve_imbalance_algo(
         else:
             bess_losses = 0
 
-        df_out.loc[t, "power"] = power
-        df_out.loc[t, "energy_delta"] = energy_delta
-        df_out.loc[t, "bess_losses"] = bess_losses
+        df.loc[t, "power"] = power
+        df.loc[t, "energy_delta"] = energy_delta
+        df.loc[t, "bess_losses"] = bess_losses
 
         # Save for next iteration...
         last_soe = soe
@@ -151,7 +151,7 @@ def run_price_curve_imbalance_algo(
         logging.info(f"Skipped {num_skipped_periods}/{len(df_in)} {time_step_minutes} minute periods (probably due to "
                      f"missing imbalance data)")
 
-    return df_out[["soe", "energy_delta", "bess_losses", "red_approach_distance", "amber_approach_distance"]]
+    return df[["soe", "energy_delta", "bess_losses", "red_approach_distance", "amber_approach_distance"]]
 
 
 def get_target_energy_delta_from_shifted_curves(
