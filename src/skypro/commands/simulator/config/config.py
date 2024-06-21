@@ -15,7 +15,7 @@ Marshmallow (and marshmallow-dataclass) is used to validate and parse the JSON i
 """
 
 
-MAJOR_VERSION = 2
+MAJOR_VERSION = 3
 MINOR_VERSION = 0
 PATCH_VERSION = 0
 
