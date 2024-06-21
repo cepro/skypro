@@ -119,7 +119,7 @@ def normalise_non_predictive_imbalance_data(time_index: pd.DatetimeIndex, price_
     df["imbalance_price_final"] = df["imbalance_price_final"].ffill(limit=(steps_per_sp-1))
     df["imbalance_volume_final"] = df["imbalance_volume_final"].ffill(limit=(steps_per_sp-1))
 
-    df["imbalance_price_predicted"] = np.NAN
+    df["imbalance_price_predicted"] = np.nan
     df["sp"] = df.index.to_series().apply(lambda t: floor_hh(t))
     df["time_into_sp"] = df.index.to_series() - df["sp"]
 
@@ -173,7 +173,7 @@ def split_modo_data_by_settlement_period(
             try:
                 predictive_val = sub_df[sub_df["predictionUTCTime"] <= prediction_cutoff_time].iloc[-1][col]
             except IndexError:
-                predictive_val = np.NaN
+                predictive_val = np.nan
 
             df.loc[time, col_prediction] = predictive_val
             df.loc[time, col_final] = final_val

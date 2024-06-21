@@ -48,7 +48,7 @@ class Curve:
                 distance = curve_y - p.y
                 return float(distance)
 
-        return np.NaN
+        return np.nan
 
 
 # TODO: should be able to remove this if we specify Python 3.10

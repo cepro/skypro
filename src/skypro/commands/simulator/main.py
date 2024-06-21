@@ -4,12 +4,15 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+import pytz
 
 from simt_common.jsonconfig.rates import parse_supply_points, process_rates_for_all_energy_flows
 from simt_common.rates.microgrid import get_rates_dfs
+from simt_common.timeutils.hh_math import floor_hh
 
 from skypro.cli_utils.cli_utils import substitute_vars, read_json_file
-from skypro.commands.simulator.algorithms.price_curve import run_price_curve_imbalance_algorithm
+from skypro.commands.simulator.algorithms.price_curve.algo import run_price_curve_imbalance_algo
+from skypro.commands.simulator.algorithms.spread.algo import run_spread_based_algo
 from skypro.commands.simulator.config import parse_config
 from skypro.commands.simulator.output import save_output
 from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data
@@ -38,7 +41,11 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
     )
 
     # Run the simulation at 10 minute granularity
-    time_index = pd.date_range(config.simulation.start, config.simulation.end, freq=STEP_SIZE)
+    time_index = pd.date_range(
+        start=config.simulation.start.astimezone(pytz.UTC),
+        end=config.simulation.end.astimezone(pytz.UTC),
+        freq=STEP_SIZE
+    )
     time_index = time_index.tz_convert("UTC")
 
     # Imbalance pricing/volume data can come from either Modo or Elexon, Modo is 'predictive' and it's predictions
@@ -121,6 +128,7 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
     # previous SPs values available in each row/step.
     cols_to_shift = [
         "imbalance_volume_final",
+        "imbalance_price_final",
         "rate_final_bess_charge_from_solar",
         "rate_final_bess_charge_from_grid",
         "rate_final_bess_discharge_to_load",
@@ -131,36 +139,61 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
     for col in cols_to_shift:
         df[f"prev_sp_{col}"] = df[col].shift(STEPS_PER_SP)
 
-    if config.simulation.strategy.price_curve_algo:
+    # Calculate settlement period timings
+    df["sp"] = df.index.to_series().apply(lambda t: floor_hh(t))
+    df["time_into_sp"] = df.index.to_series() - df["sp"]
+    df["time_left_of_sp"] = timedelta(minutes=30) - df["time_into_sp"]
 
-        # Only share the columns that are relevant with the algo
-        cols = [
-            "load_power",
-            "solar_power",
-            "bess_max_power_charge",
-            "bess_max_power_discharge",
-            "imbalance_volume_predicted",
-            "rate_predicted_bess_charge_from_solar",
-            "rate_predicted_bess_charge_from_grid",
-            "rate_predicted_bess_discharge_to_load",
-            "rate_predicted_bess_discharge_to_grid",
-            "rate_predicted_solar_to_grid",
-            "rate_predicted_load_from_grid",
-            "prev_sp_imbalance_volume_final",
-            "prev_sp_rate_final_bess_charge_from_solar",
-            "prev_sp_rate_final_bess_charge_from_grid",
-            "prev_sp_rate_final_bess_discharge_to_load",
-            "prev_sp_rate_final_bess_discharge_to_grid",
-            "prev_sp_rate_final_solar_to_grid",
-            "prev_sp_rate_final_load_from_grid",
-        ]
-        df_algo = run_price_curve_imbalance_algorithm(
-            df_in=df[cols],
+    # Only share the columns that are relevant with the algo
+    cols_to_share_with_algo = [
+        "sp",
+        "time_into_sp",
+        "time_left_of_sp",
+        "load_power",
+        "solar_power",
+        "bess_max_power_charge",
+        "bess_max_power_discharge",
+        "imbalance_volume_predicted",
+        "rate_predicted_bess_charge_from_solar",
+        "rate_predicted_bess_charge_from_grid",
+        "rate_predicted_bess_discharge_to_load",
+        "rate_predicted_bess_discharge_to_grid",
+        "rate_predicted_solar_to_grid",
+        "rate_predicted_load_from_grid",
+        "prev_sp_imbalance_price_final",
+        "prev_sp_imbalance_volume_final",
+        "prev_sp_rate_final_bess_charge_from_solar",
+        "prev_sp_rate_final_bess_charge_from_grid",
+        "prev_sp_rate_final_bess_discharge_to_load",
+        "prev_sp_rate_final_bess_discharge_to_grid",
+        "prev_sp_rate_final_solar_to_grid",
+        "prev_sp_rate_final_load_from_grid",
+    ]
+    if config.simulation.strategy.price_curve_algo:
+        df_algo = run_price_curve_imbalance_algo(
+            df_in=df[cols_to_share_with_algo],
             battery_energy_capacity=config.simulation.site.bess.energy_capacity,
             battery_charge_efficiency=config.simulation.site.bess.charge_efficiency,
             niv_chase_periods=config.simulation.strategy.price_curve_algo.niv_chase_periods,
-            full_discharge_period=config.simulation.strategy.price_curve_algo.full_discharge_period,
+            peak_config=config.simulation.strategy.price_curve_algo.peak,
         )
+    elif config.simulation.strategy.spread_algo:
+        # TODO: there should be a more elegant way of doing this - but at the moment the spread based algo needs to know
+        #  the "non imbalance" rates, seperated from the imbalance rates. These are calculated here, because if the algo
+        #  did these calculations itself then we would need to share 'final' rates with it which is best avoided as it
+        #  shouldn't know about final rates.
+
+        df["rate_bess_charge_from_grid_non_imbalance"] = df["rate_final_bess_charge_from_grid"] - df["imbalance_price_final"]
+        df["rate_bess_discharge_to_grid_non_imbalance"] = df["rate_final_bess_discharge_to_grid"] + df["imbalance_price_final"]
+        cols_to_share_with_algo.extend(["rate_bess_charge_from_grid_non_imbalance", "rate_bess_discharge_to_grid_non_imbalance"])
+
+        df_algo = run_spread_based_algo(
+            df_in=df[cols_to_share_with_algo],
+            battery_energy_capacity=config.simulation.site.bess.energy_capacity,
+            battery_charge_efficiency=config.simulation.site.bess.charge_efficiency,
+            config=config.simulation.strategy.spread_algo,
+        )
+
     else:
         raise ValueError("Unknown algorithm chosen")
 

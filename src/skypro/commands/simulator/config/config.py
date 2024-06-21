@@ -1,5 +1,5 @@
 from dataclasses import field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional, Dict
 
 import numpy as np
@@ -15,7 +15,7 @@ Marshmallow (and marshmallow-dataclass) is used to validate and parse the JSON i
 """
 
 
-MAJOR_VERSION = 2
+MAJOR_VERSION = 3
 MINOR_VERSION = 0
 PATCH_VERSION = 0
 
@@ -40,7 +40,7 @@ class SolarProfile:
 
 @dataclass
 class Solar:
-    constant: Optional[float] = field(default=np.NaN)
+    constant: Optional[float] = field(default=np.nan)
     profile: Optional[SolarProfile] = field(default=None)
 
     def __post_init__(self):
@@ -56,7 +56,7 @@ class LoadProfile:
 
 @dataclass
 class Load:
-    constant: Optional[float] = field(default=np.NaN)
+    constant: Optional[float] = field(default=np.nan)
     profile: Optional[LoadProfile] = field(default=None)
 
     def __post_init__(self):
@@ -116,18 +116,47 @@ class Rates:
 
 
 @dataclass
+class Approach:
+    to_soe: float = name_in_json("toSoe")
+    assumed_charge_power: float = name_in_json("assumedChargePower")
+    encourage_charge_duration_factor: float = name_in_json("encourageChargeDurationFactor")
+    force_charge_duration_factor: float = name_in_json("forceChargeDurationFactor")
+    charge_cushion: timedelta = field(metadata={"precision": "minutes", "data_key": "chargeCushionMins"})
+
+
+@dataclass
+class Peak:
+    period: DayedPeriodType = name_in_json("period")
+    approach: Approach = name_in_json("approach")
+
+
+@dataclass
 class PriceCurveAlgo:
-    full_discharge_period: DayedPeriodType = name_in_json("doFullDischargeInPeriod")
+    peak: Peak = name_in_json("peak")
     niv_chase_periods: List[NivPeriod] = name_in_json("nivChasePeriods")
 
 
 @dataclass
+class SpreadAlgoFixedAction:
+    charge_power: float = name_in_json("chargePower")
+    discharge_power: float = name_in_json("dischargePower")
+
+
+@dataclass
+class SpreadAlgo:
+    min_spread: float = name_in_json("minSpread")
+    recent_pricing_span: int = name_in_json("recentPricingSpan")
+    fixed_action: SpreadAlgoFixedAction = name_in_json("fixedAction")
+    peak: Peak = name_in_json("peak")
+
+
+@dataclass
 class Strategy:
-    price_curve_algo: PriceCurveAlgo = name_in_json("priceCurveAlgo")
+    price_curve_algo: Optional[PriceCurveAlgo] = name_in_json("priceCurveAlgo")
+    spread_algo: Optional[SpreadAlgo] = name_in_json("spreadAlgo")
 
     def __post_init__(self):
-        # There is currently only one option - but this is here as a placeholder for when other algos are available
-        enforce_one_option([self.price_curve_algo], "'priceCurveAlgo'")
+        enforce_one_option([self.price_curve_algo, self.spread_algo], "'priceCurveAlgo', 'spreadAlgo'")
 
 @dataclass
 class Simulation:
