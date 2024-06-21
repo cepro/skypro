@@ -16,6 +16,8 @@ def run_spread_based_algo(
         config: SpreadAlgo,
 ) -> pd.DataFrame:
 
+    # TODO: the surrounding 'harness' code should be brought out to be shared with all algos
+
     # Create a separate dataframe for working values
     df = pd.DataFrame(index=df_in.index)
 
@@ -26,9 +28,12 @@ def run_spread_based_algo(
     num_skipped_periods = 0
 
     time_step = pd.to_timedelta(df_in.index.freq)
+    time_step_hours = time_step.total_seconds() / 3600
     steps_per_sp = int(timedelta(minutes=30) / time_step)
 
-    # TODO: the surrounding 'harness' code should be brought out to be shared with all algos
+    # The energy that the spread algo tries to charge/discharge when the spread is good
+    charge_energy = config.fixed_action.charge_power * time_step_hours
+    discharge_energy = config.fixed_action.discharge_power * time_step_hours
 
     # Calculate the "notional spread" for each time period
     df["prev_sp_imbalance_price_long"] = df_in["prev_sp_imbalance_price_final"][
@@ -109,6 +114,8 @@ def run_spread_based_algo(
                 t=t,
                 df=df,
                 min_spread=config.min_spread,
+                short_energy=discharge_energy,
+                long_energy=charge_energy,
                 imbalance_volume_assumed=imbalance_volume_assumed
             )
 
@@ -157,7 +164,14 @@ def run_spread_based_algo(
     return df[["soe", "energy_delta", "bess_losses", "notional_spread", "red_approach_distance", "amber_approach_distance", "spread_algo_energy"]]
 
 
-def get_spread_algo_energy(t, df, min_spread: float, imbalance_volume_assumed: float) -> float:
+def get_spread_algo_energy(
+        t,
+        df,
+        min_spread: float,
+        short_energy: float,
+        long_energy: float,
+        imbalance_volume_assumed: float
+) -> float:
 
     if np.isnan(imbalance_volume_assumed):
         return 0
@@ -171,7 +185,7 @@ def get_spread_algo_energy(t, df, min_spread: float, imbalance_volume_assumed: f
 
     if notional_spread_assumed > min_spread:
         if is_currently_short:
-            return -50
+            return -short_energy
         else:
-            return 100
+            return long_energy
     return 0

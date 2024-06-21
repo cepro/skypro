@@ -137,9 +137,16 @@ class PriceCurveAlgo:
 
 
 @dataclass
+class SpreadAlgoFixedAction:
+    charge_power: float = name_in_json("chargePower")
+    discharge_power: float = name_in_json("dischargePower")
+
+
+@dataclass
 class SpreadAlgo:
     min_spread: float = name_in_json("minSpread")
     recent_pricing_span: int = name_in_json("recentPricingSpan")
+    fixed_action: SpreadAlgoFixedAction = name_in_json("fixedAction")
     peak: Peak = name_in_json("peak")
 
 
