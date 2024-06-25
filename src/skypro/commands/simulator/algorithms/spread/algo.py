@@ -55,7 +55,7 @@ def run_spread_based_algo(
     df["rate_bess_charge_from_grid_non_imbalance"] = df_in["rate_bess_charge_from_grid_non_imbalance"]
     df["rate_bess_discharge_to_grid_non_imbalance"] = df_in["rate_bess_discharge_to_grid_non_imbalance"]
 
-    notional_spread_short = (
+    notional_spread_short_ng = (
             df_in[f"rate_predicted_bess_charge_from_grid"] -
             (
                     (df[f"recent_imbalance_price_long"] + df_in["rate_bess_charge_from_grid_non_imbalance"])
@@ -63,16 +63,28 @@ def run_spread_based_algo(
             )
     )[df_in[f"imbalance_volume_predicted"] > 0]
 
-    notional_spread_long = -(
+    notional_spread_long_ng = -(
             (-df[f"recent_imbalance_price_short"] + df_in["rate_bess_discharge_to_grid_non_imbalance"]) -
             (df_in[f"rate_predicted_bess_discharge_to_grid"])
     )[df_in[f"imbalance_volume_predicted"] < 0]
 
-    df["notional_spread"] = pd.concat([notional_spread_long, notional_spread_short])
-    df["notional_spread_short"] = notional_spread_short
-    df["notional_spread_long"] = notional_spread_long
+    df["notional_spread_ng"] = pd.concat([notional_spread_long_ng, notional_spread_short_ng])
+    # df["notional_spread_mg"] = df["notional_spread_ng"] + 2*(df_in["rate_bess_charge_from_grid_non_imbalance"] + df_in["rate_bess_discharge_to_grid_non_imbalance"])
+    #
+    df["microgrid_residual_power"] = df_in["load_power"] - df_in["solar_power"]
+    # import plotly.express as px
+    # df_fig = pd.DataFrame(index=df.index)
+    # df_fig["notional_spread_ng"] = df["notional_spread_ng"]
+    # df_fig["notional_spread_mg"] = df["notional_spread_mg"]
+    # df_fig["microgrid_residual_power"] = df["microgrid_residual_power"]
+    # df_fig["rate_predicted_bess_charge_from_grid"] = df_in["rate_predicted_bess_charge_from_grid"]
+    # df_fig["rate_predicted_bess_discharge_to_grid"] = -df_in["rate_predicted_bess_discharge_to_grid"]
+    # fig = px.line(df_fig, line_shape="hv")
+    # fig.update_traces(connectgaps=True)
+    # fig.show()
 
-    df["prev_sp_notional_spread"] = df["notional_spread"].shift(steps_per_sp).bfill(limit=steps_per_sp-1)
+    df["prev_sp_notional_spread_ng"] = df["notional_spread_ng"].shift(steps_per_sp).bfill(limit=steps_per_sp-1)
+    # df["prev_sp_notional_spread_mg"] = df["notional_spread_mg"].shift(steps_per_sp).bfill(limit=steps_per_sp-1)
 
     # Run through each row (where each row represents a time step) and apply the strategy
     for t in df_in.index:
@@ -96,7 +108,7 @@ def run_spread_based_algo(
             imbalance_volume_assumed = df_in.loc[t, "imbalance_volume_predicted"]
             # TODO: optionally only allow this for the first 10m? df_in.loc[t, "time_into_sp"]<timedelta(minutes=10)
             if np.isnan(imbalance_volume_assumed) and \
-                    abs(df_in.loc[t, "prev_sp_imbalance_volume_final"]) > 150:
+                    abs(df_in.loc[t, "prev_sp_imbalance_volume_final"]) * 1e3 >= config.volume_cutoff_for_prediction:
                 imbalance_volume_assumed = df_in.loc[t, "prev_sp_imbalance_volume_final"]
 
             df.loc[t, "imbalance_volume_assumed"] = imbalance_volume_assumed
@@ -110,17 +122,61 @@ def run_spread_based_algo(
                 is_long=imbalance_volume_assumed < 0
             )
 
-            spread_algo_energy = get_spread_algo_energy(
-                t=t,
-                df=df,
+            spread_algo_energy_ng = get_spread_algo_energy(
+                notional_spread=df.loc[t, "notional_spread_ng"],
+                prev_sp_notional_spread=df.loc[t, "prev_sp_notional_spread_ng"],
                 min_spread=config.min_spread,
                 short_energy=discharge_energy,
                 long_energy=charge_energy,
                 imbalance_volume_assumed=imbalance_volume_assumed
             )
 
+            # spread_algo_energy_mg = get_spread_algo_energy(
+            #     notional_spread=df.loc[t, "notional_spread_mg"],
+            #     prev_sp_notional_spread=df.loc[t, "prev_sp_notional_spread_mg"],
+            #     min_spread=config.min_spread,
+            #     short_energy=discharge_energy,
+            #     long_energy=charge_energy,
+            #     imbalance_volume_assumed=imbalance_volume_assumed
+            # )
+            #
+            # microgrid_residual_energy = df.loc[t, "microgrid_residual_power"] * time_step_hours
+            # if spread_algo_energy_mg > 0:
+            #     # The algo wants us to charge the battery from surplus microgrid power - but we can only do that if there
+            #     # is indeed a surplus
+            #     if microgrid_residual_energy < 0:
+            #         # TODO: this should be max of microgrid_residual_power and spread_algo_energy_mg
+            #         spread_algo_energy_mg = -microgrid_residual_energy
+            #     else:
+            #         spread_algo_energy_mg = 0
+            # elif spread_algo_energy_mg < 0:
+            #     # The algo wants us to discharge the battery to cover the load - but we can only do that if there
+            #     # is indeed a residual load
+            #     if microgrid_residual_energy > 0:
+            #         # TODO: this should be max of microgrid_residual_power and spread_algo_energy_mg
+            #         spread_algo_energy_mg = microgrid_residual_energy
+            #     else:
+            #         spread_algo_energy_mg = 0
+
+            microgrid_algo_energy = 0
+            microgrid_residual_energy = df.loc[t, "microgrid_residual_power"] * time_step_hours
+            is_short = imbalance_volume_assumed > 0
+            if config.microgrid.discharge_into_load_when_short and is_short and microgrid_residual_energy > 0:
+                # The system is short (so prices are high) and the microgrid is importing from the grid, so we should
+                # try to discharge the battery to cover the load
+                microgrid_algo_energy = -microgrid_residual_energy
+            elif config.microgrid.charge_from_solar_when_long and not is_short and microgrid_residual_energy < 0:
+                # The system is long (so prices are low) and the microgrid is exporting to the grid, so we should
+                # try to charge the battery to stop the export
+                microgrid_algo_energy = -microgrid_residual_energy
+
+
+            # TODO: this should not be purely additive
+            spread_algo_energy = spread_algo_energy_ng # + spread_algo_energy_mg
+
             df.loc[t, "red_approach_distance"] = red_approach_energy
             df.loc[t, "amber_approach_distance"] = amber_approach_energy
+            df.loc[t, "microgrid_algo_energy"] = microgrid_algo_energy
             df.loc[t, "spread_algo_energy"] = spread_algo_energy
 
             if red_approach_energy > 0:
@@ -128,7 +184,7 @@ def run_spread_based_algo(
             elif amber_approach_energy > 0:
                 target_energy_delta = max(amber_approach_energy, spread_algo_energy)
             else:
-                target_energy_delta = spread_algo_energy
+                target_energy_delta = spread_algo_energy + microgrid_algo_energy
 
             power = get_power(target_energy_delta, time_step)
 
@@ -161,12 +217,12 @@ def run_spread_based_algo(
         logging.info(f"Skipped {num_skipped_periods}/{len(df_in)} {time_step_minutes} minute periods (probably due to "
                      f"missing imbalance data)")
 
-    return df[["soe", "energy_delta", "bess_losses", "notional_spread", "red_approach_distance", "amber_approach_distance", "spread_algo_energy"]]
+    return df[["soe", "energy_delta", "bess_losses", "notional_spread_ng", "red_approach_distance", "amber_approach_distance", "spread_algo_energy", "microgrid_algo_energy"]]
 
 
 def get_spread_algo_energy(
-        t,
-        df,
+        notional_spread: float,
+        prev_sp_notional_spread: float,
         min_spread: float,
         short_energy: float,
         long_energy: float,
@@ -177,15 +233,16 @@ def get_spread_algo_energy(
         return 0
 
     is_currently_short = imbalance_volume_assumed > 0
-    notional_spread_assumed = df.loc[t, "notional_spread"]
+    notional_spread_assumed = notional_spread
     if np.isnan(notional_spread_assumed):
-        notional_spread_assumed = df.loc[t, "prev_sp_notional_spread"]
+        notional_spread_assumed = prev_sp_notional_spread
     if np.isnan(notional_spread_assumed):
-        notional_spread_assumed = np.nan
+        return 0
 
     if notional_spread_assumed > min_spread:
         if is_currently_short:
             return -short_energy
         else:
             return long_energy
+
     return 0
