@@ -5,8 +5,9 @@ import numpy as np
 import pandas as pd
 
 from skypro.commands.simulator.algorithms.approach import get_peak_approach_energies
+from skypro.commands.simulator.algorithms.spread.system_state import SystemState, get_system_state
 from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy
-from skypro.commands.simulator.config.config import SpreadAlgo
+from skypro.commands.simulator.config.config import SpreadAlgo, BasicMicrogrid
 
 
 def run_spread_based_algo(
@@ -55,7 +56,7 @@ def run_spread_based_algo(
     df["rate_bess_charge_from_grid_non_imbalance"] = df_in["rate_bess_charge_from_grid_non_imbalance"]
     df["rate_bess_discharge_to_grid_non_imbalance"] = df_in["rate_bess_discharge_to_grid_non_imbalance"]
 
-    notional_spread_short_ng = (
+    notional_spread_short = (
             df_in[f"rate_predicted_bess_charge_from_grid"] -
             (
                     (df[f"recent_imbalance_price_long"] + df_in["rate_bess_charge_from_grid_non_imbalance"])
@@ -63,28 +64,14 @@ def run_spread_based_algo(
             )
     )[df_in[f"imbalance_volume_predicted"] > 0]
 
-    notional_spread_long_ng = -(
+    notional_spread_long = -(
             (-df[f"recent_imbalance_price_short"] + df_in["rate_bess_discharge_to_grid_non_imbalance"]) -
             (df_in[f"rate_predicted_bess_discharge_to_grid"])
     )[df_in[f"imbalance_volume_predicted"] < 0]
 
-    df["notional_spread_ng"] = pd.concat([notional_spread_long_ng, notional_spread_short_ng])
-    # df["notional_spread_mg"] = df["notional_spread_ng"] + 2*(df_in["rate_bess_charge_from_grid_non_imbalance"] + df_in["rate_bess_discharge_to_grid_non_imbalance"])
-    #
+    df["notional_spread"] = pd.concat([notional_spread_long, notional_spread_short])
+    df["prev_sp_notional_spread"] = df["notional_spread"].shift(steps_per_sp).bfill(limit=steps_per_sp-1)
     df["microgrid_residual_power"] = df_in["load_power"] - df_in["solar_power"]
-    # import plotly.express as px
-    # df_fig = pd.DataFrame(index=df.index)
-    # df_fig["notional_spread_ng"] = df["notional_spread_ng"]
-    # df_fig["notional_spread_mg"] = df["notional_spread_mg"]
-    # df_fig["microgrid_residual_power"] = df["microgrid_residual_power"]
-    # df_fig["rate_predicted_bess_charge_from_grid"] = df_in["rate_predicted_bess_charge_from_grid"]
-    # df_fig["rate_predicted_bess_discharge_to_grid"] = -df_in["rate_predicted_bess_discharge_to_grid"]
-    # fig = px.line(df_fig, line_shape="hv")
-    # fig.update_traces(connectgaps=True)
-    # fig.show()
-
-    df["prev_sp_notional_spread_ng"] = df["notional_spread_ng"].shift(steps_per_sp).bfill(limit=steps_per_sp-1)
-    # df["prev_sp_notional_spread_mg"] = df["notional_spread_mg"].shift(steps_per_sp).bfill(limit=steps_per_sp-1)
 
     # Run through each row (where each row represents a time step) and apply the strategy
     for t in df_in.index:
@@ -105,13 +92,7 @@ def run_spread_based_algo(
 
         else:
 
-            imbalance_volume_assumed = df_in.loc[t, "imbalance_volume_predicted"]
-            # TODO: optionally only allow this for the first 10m? df_in.loc[t, "time_into_sp"]<timedelta(minutes=10)
-            if np.isnan(imbalance_volume_assumed) and \
-                    abs(df_in.loc[t, "prev_sp_imbalance_volume_final"]) * 1e3 >= config.volume_cutoff_for_prediction:
-                imbalance_volume_assumed = df_in.loc[t, "prev_sp_imbalance_volume_final"]
-
-            df.loc[t, "imbalance_volume_assumed"] = imbalance_volume_assumed
+            system_state = get_system_state(df_in, t, config.niv_cutoff_for_system_state_assumption)
 
             red_approach_energy, amber_approach_energy = get_peak_approach_energies(
                 t=t,
@@ -119,65 +100,28 @@ def run_spread_based_algo(
                 soe=soe,
                 charge_efficiency=battery_charge_efficiency,
                 peak_config=config.peak,
-                is_long=imbalance_volume_assumed < 0
+                is_long=system_state == SystemState.LONG  # TODO: this doesn't account for SystemState.UNKNOWN
             )
 
-            spread_algo_energy_ng = get_spread_algo_energy(
-                notional_spread=df.loc[t, "notional_spread_ng"],
-                prev_sp_notional_spread=df.loc[t, "prev_sp_notional_spread_ng"],
+            spread_algo_energy = get_spread_algo_energy(
+                notional_spread=df.loc[t, "notional_spread"],
+                prev_sp_notional_spread=df.loc[t, "prev_sp_notional_spread"],
                 min_spread=config.min_spread,
                 short_energy=discharge_energy,
                 long_energy=charge_energy,
-                imbalance_volume_assumed=imbalance_volume_assumed
+                system_state=system_state
             )
 
-            # spread_algo_energy_mg = get_spread_algo_energy(
-            #     notional_spread=df.loc[t, "notional_spread_mg"],
-            #     prev_sp_notional_spread=df.loc[t, "prev_sp_notional_spread_mg"],
-            #     min_spread=config.min_spread,
-            #     short_energy=discharge_energy,
-            #     long_energy=charge_energy,
-            #     imbalance_volume_assumed=imbalance_volume_assumed
-            # )
-            #
-            # microgrid_residual_energy = df.loc[t, "microgrid_residual_power"] * time_step_hours
-            # if spread_algo_energy_mg > 0:
-            #     # The algo wants us to charge the battery from surplus microgrid power - but we can only do that if there
-            #     # is indeed a surplus
-            #     if microgrid_residual_energy < 0:
-            #         # TODO: this should be max of microgrid_residual_power and spread_algo_energy_mg
-            #         spread_algo_energy_mg = -microgrid_residual_energy
-            #     else:
-            #         spread_algo_energy_mg = 0
-            # elif spread_algo_energy_mg < 0:
-            #     # The algo wants us to discharge the battery to cover the load - but we can only do that if there
-            #     # is indeed a residual load
-            #     if microgrid_residual_energy > 0:
-            #         # TODO: this should be max of microgrid_residual_power and spread_algo_energy_mg
-            #         spread_algo_energy_mg = microgrid_residual_energy
-            #     else:
-            #         spread_algo_energy_mg = 0
-
-            microgrid_algo_energy = 0
-            microgrid_residual_energy = df.loc[t, "microgrid_residual_power"] * time_step_hours
-            is_short = imbalance_volume_assumed > 0
-            if config.microgrid.discharge_into_load_when_short and is_short and microgrid_residual_energy > 0:
-                # The system is short (so prices are high) and the microgrid is importing from the grid, so we should
-                # try to discharge the battery to cover the load
-                microgrid_algo_energy = -microgrid_residual_energy
-            elif config.microgrid.charge_from_solar_when_long and not is_short and microgrid_residual_energy < 0:
-                # The system is long (so prices are low) and the microgrid is exporting to the grid, so we should
-                # try to charge the battery to stop the export
-                microgrid_algo_energy = -microgrid_residual_energy
-
-
-            # TODO: this should not be purely additive
-            spread_algo_energy = spread_algo_energy_ng # + spread_algo_energy_mg
+            microgrid_algo_energy = get_microgrid_algo_energy(
+                system_state=get_system_state(df_in, t, config.microgrid.niv_cutoff_for_system_state_assumption),
+                microgrid_residual_energy=df.loc[t, "microgrid_residual_power"] * time_step_hours,
+                config=config.microgrid
+            )
 
             df.loc[t, "red_approach_distance"] = red_approach_energy
             df.loc[t, "amber_approach_distance"] = amber_approach_energy
-            df.loc[t, "microgrid_algo_energy"] = microgrid_algo_energy
             df.loc[t, "spread_algo_energy"] = spread_algo_energy
+            df.loc[t, "microgrid_algo_energy"] = microgrid_algo_energy
 
             if red_approach_energy > 0:
                 target_energy_delta = max(red_approach_energy, amber_approach_energy, spread_algo_energy)
@@ -217,7 +161,7 @@ def run_spread_based_algo(
         logging.info(f"Skipped {num_skipped_periods}/{len(df_in)} {time_step_minutes} minute periods (probably due to "
                      f"missing imbalance data)")
 
-    return df[["soe", "energy_delta", "bess_losses", "notional_spread_ng", "red_approach_distance", "amber_approach_distance", "spread_algo_energy", "microgrid_algo_energy"]]
+    return df[["soe", "energy_delta", "bess_losses", "notional_spread", "red_approach_distance", "amber_approach_distance", "spread_algo_energy", "microgrid_algo_energy"]]
 
 
 def get_spread_algo_energy(
@@ -226,13 +170,12 @@ def get_spread_algo_energy(
         min_spread: float,
         short_energy: float,
         long_energy: float,
-        imbalance_volume_assumed: float
+        system_state: SystemState
 ) -> float:
 
-    if np.isnan(imbalance_volume_assumed):
+    if system_state == SystemState.UNKNOWN:
         return 0
 
-    is_currently_short = imbalance_volume_assumed > 0
     notional_spread_assumed = notional_spread
     if np.isnan(notional_spread_assumed):
         notional_spread_assumed = prev_sp_notional_spread
@@ -240,9 +183,32 @@ def get_spread_algo_energy(
         return 0
 
     if notional_spread_assumed > min_spread:
-        if is_currently_short:
+        if system_state == SystemState.SHORT:
             return -short_energy
         else:
             return long_energy
 
     return 0
+
+
+def get_microgrid_algo_energy(
+    system_state: SystemState,
+    microgrid_residual_energy: float,
+    config: BasicMicrogrid
+) -> float:
+
+    if system_state == SystemState.UNKNOWN:
+        return 0
+
+    microgrid_algo_energy = 0
+    if config.discharge_into_load_when_short and system_state == SystemState.SHORT and microgrid_residual_energy > 0:
+        # The system is short (so prices are high) and the microgrid is importing from the grid, so we should
+        # try to discharge the battery to cover the load
+        microgrid_algo_energy = -microgrid_residual_energy
+    elif config.charge_from_solar_when_long and system_state == SystemState.LONG and microgrid_residual_energy < 0:
+        # The system is long (so prices are low) and the microgrid is exporting to the grid, so we should
+        # try to charge the battery to stop the export
+        microgrid_algo_energy = -microgrid_residual_energy
+
+    return microgrid_algo_energy
+

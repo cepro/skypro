@@ -143,10 +143,19 @@ class SpreadAlgoFixedAction:
 
 
 @dataclass
+class BasicMicrogrid:
+    discharge_into_load_when_short: bool = name_in_json("dischargeIntoLoadWhenShort")
+    charge_from_solar_when_long: bool = name_in_json("chargeFromSolarWhenLong")
+    niv_cutoff_for_system_state_assumption: float = field(metadata={"data_key": "nivCutoffForSystemStateAssumption", "allow_nan": True})
+
+
+@dataclass
 class SpreadAlgo:
     min_spread: float = name_in_json("minSpread")
     recent_pricing_span: int = name_in_json("recentPricingSpan")
+    niv_cutoff_for_system_state_assumption: float = field(metadata={"data_key": "nivCutoffForSystemStateAssumption", "allow_nan": True})
     fixed_action: SpreadAlgoFixedAction = name_in_json("fixedAction")
+    microgrid: BasicMicrogrid = name_in_json("basicMicrogrid")
     peak: Peak = name_in_json("peak")
 
 
