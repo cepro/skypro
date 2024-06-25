@@ -100,7 +100,7 @@ def run_spread_based_algo(
                 soe=soe,
                 charge_efficiency=battery_charge_efficiency,
                 peak_config=config.peak,
-                is_long=system_state == SystemState.LONG  # TODO: this doesn't account for SystemState.UNKNOWN
+                is_long=system_state == SystemState.LONG
             )
 
             spread_algo_energy = get_spread_algo_energy(
