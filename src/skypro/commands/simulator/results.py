@@ -95,6 +95,17 @@ def explore_results(
     print(f"Total cycles over simulation: {total_cycles:.2f} cycles")
     print(f"Average cycles per day: {cycles_per_day:.2f} cycles/day")
 
+    print("")
+    print("- - HINXTON - - ")
+    total_load = df["load"].sum()
+    total_solar = df["solar"].sum()
+    total_solar_exports = df["solar_to_grid"].sum()
+    self_use = total_solar - total_solar_exports
+
+    print(f"Total load: {total_load:.2f} kWh")
+    print(f"Total solar generation: {total_solar:.2f} kWh")
+    print(f"Total solar exports: {total_solar_exports:.2f} kWh")
+    print(f"Total solar self-use (inc batt losses): {self_use:.2f} kWh, {(self_use/total_solar)*100:.1f}%")
     # TODO: print warning if cycling is low - charge efficiency changes
 
     # Plot energy flows with charge / discharge limits
@@ -103,7 +114,7 @@ def explore_results(
         plot_microgrid_energy_flows(
             df, site_import_limit, site_export_limit, battery_nameplate_power
         )
-        plot_costs_by_grouping(costs_dfs["bess_charge"], costs_dfs["bess_discharge"])
+        # plot_costs_by_grouping(costs_dfs["bess_charge"], costs_dfs["bess_discharge"])
         plot_daily_gains(costs_dfs)
 
 
@@ -124,23 +135,29 @@ def plot_hh_strategy(df: pd.DataFrame):
     #         go.Scatter(x=df.index, y=df["notional_spread"], name="Notional Spread", mode="markers", line=dict(color="green"))
     #     )
     #
-    # if "red_approach_distance" in df.columns:
-    #     fig.add_trace(
-    #         go.Scatter(x=df.index, y=df["red_approach_distance"], name="red_approach_distance", mode="markers", line=dict(color="red")),
-    #         secondary_y=True
-    #     )
-    #
-    # if "amber_approach_distance" in df.columns:
-    #     fig.add_trace(
-    #         go.Scatter(x=df.index, y=df["amber_approach_distance"], name="amber_approach_distance", mode="markers", line=dict(color="orange")),
-    #         secondary_y=True
-    #     )
-    #
-    # if "spread_algo_energy" in df.columns:
-    #     fig.add_trace(
-    #         go.Scatter(x=df.index, y=df["spread_algo_energy"], name="spread_algo_energy", mode="markers", line=dict(color="yellow")),
-    #         secondary_y=True
-    #     )
+    if "red_approach_distance" in df.columns:
+        fig.add_trace(
+            go.Scatter(x=df.index, y=df["red_approach_distance"], name="red_approach_distance", mode="markers", line=dict(color="red")),
+            secondary_y=True
+        )
+
+    if "amber_approach_distance" in df.columns:
+        fig.add_trace(
+            go.Scatter(x=df.index, y=df["amber_approach_distance"], name="amber_approach_distance", mode="markers", line=dict(color="orange")),
+            secondary_y=True
+        )
+
+    if "spread_algo_energy" in df.columns:
+        fig.add_trace(
+            go.Scatter(x=df.index, y=df["spread_algo_energy"], name="spread_algo_energy", mode="markers", line=dict(color="yellow")),
+            secondary_y=True
+        )
+
+    if "microgrid_algo_energy" in df.columns:
+        fig.add_trace(
+            go.Scatter(x=df.index, y=df["microgrid_algo_energy"], name="microgrid_algo_energy", mode="markers", line=dict(color="green")),
+            secondary_y=True
+        )
 
     # fig.add_trace(go.Scatter(x=df.index, y=df["imbalance_volume_final"], name="Imbalance volume final", line=dict(color="red")), secondary_y=True)
     fig.add_trace(go.Scatter(x=df.index, y=df["soe"], name="Battery SoE", line=dict(color="orange")),
