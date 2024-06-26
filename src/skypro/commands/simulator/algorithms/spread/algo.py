@@ -5,7 +5,8 @@ import numpy as np
 import pandas as pd
 
 from skypro.commands.simulator.algorithms.approach import get_peak_approach_energies
-from skypro.commands.simulator.algorithms.spread.system_state import SystemState, get_system_state
+from skypro.commands.simulator.algorithms.microgrid import get_microgrid_algo_energy
+from skypro.commands.simulator.algorithms.system_state import SystemState, get_system_state
 from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy
 from skypro.commands.simulator.config.config import SpreadAlgo, BasicMicrogrid
 
@@ -71,7 +72,6 @@ def run_spread_based_algo(
 
     df["notional_spread"] = pd.concat([notional_spread_long, notional_spread_short])
     df["prev_sp_notional_spread"] = df["notional_spread"].shift(steps_per_sp).bfill(limit=steps_per_sp-1)
-    df["microgrid_residual_power"] = df_in["load_power"] - df_in["solar_power"]
 
     # Run through each row (where each row represents a time step) and apply the strategy
     for t in df_in.index:
@@ -112,11 +112,14 @@ def run_spread_based_algo(
                 system_state=system_state
             )
 
-            microgrid_algo_energy = get_microgrid_algo_energy(
-                system_state=get_system_state(df_in, t, config.microgrid.niv_cutoff_for_system_state_assumption),
-                microgrid_residual_energy=df.loc[t, "microgrid_residual_power"] * time_step_hours,
-                config=config.microgrid
-            )
+            if config.microgrid:
+                microgrid_algo_energy = get_microgrid_algo_energy(
+                    system_state=get_system_state(df_in, t, config.microgrid.niv_cutoff_for_system_state_assumption),
+                    microgrid_residual_energy=df_in.loc[t, "microgrid_residual_power"] * time_step_hours,
+                    config=config.microgrid
+                )
+            else:
+                microgrid_algo_energy = 0.0
 
             df.loc[t, "red_approach_distance"] = red_approach_energy
             df.loc[t, "amber_approach_distance"] = amber_approach_energy
@@ -189,26 +192,3 @@ def get_spread_algo_energy(
             return long_energy
 
     return 0
-
-
-def get_microgrid_algo_energy(
-    system_state: SystemState,
-    microgrid_residual_energy: float,
-    config: BasicMicrogrid
-) -> float:
-
-    if system_state == SystemState.UNKNOWN:
-        return 0
-
-    microgrid_algo_energy = 0
-    if config.discharge_into_load_when_short and system_state == SystemState.SHORT and microgrid_residual_energy > 0:
-        # The system is short (so prices are high) and the microgrid is importing from the grid, so we should
-        # try to discharge the battery to cover the load
-        microgrid_algo_energy = -microgrid_residual_energy
-    elif config.charge_from_solar_when_long and system_state == SystemState.LONG and microgrid_residual_energy < 0:
-        # The system is long (so prices are low) and the microgrid is exporting to the grid, so we should
-        # try to charge the battery to stop the export
-        microgrid_algo_energy = -microgrid_residual_energy
-
-    return microgrid_algo_energy
-

@@ -118,10 +118,10 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
     # Calculate the BESS charge and discharge limits based on how much solar generation and housing load
     # there is. We need to abide by the overall site import/export limits. And stay within the nameplate inverter
     # capabilities of the BESS
-    non_bess_power = df["load_power"] - df["solar_power"]
-    df["bess_max_power_charge"] = ((config.simulation.site.grid_connection.import_limit - non_bess_power).
+    df["microgrid_residual_power"] = df["load_power"] - df["solar_power"]
+    df["bess_max_power_charge"] = ((config.simulation.site.grid_connection.import_limit - df["microgrid_residual_power"]).
                                     clip(upper=config.simulation.site.bess.nameplate_power))
-    df["bess_max_power_discharge"] = ((config.simulation.site.grid_connection.export_limit + non_bess_power).
+    df["bess_max_power_discharge"] = ((config.simulation.site.grid_connection.export_limit + df["microgrid_residual_power"]).
                                        clip(upper=config.simulation.site.bess.nameplate_power))
 
     # The algo sometimes needs the previous SP's final rates. The algo processes each step as a row, so make the
@@ -151,6 +151,7 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
         "time_left_of_sp",
         "load_power",
         "solar_power",
+        "microgrid_residual_power",
         "bess_max_power_charge",
         "bess_max_power_discharge",
         "imbalance_volume_predicted",
@@ -174,8 +175,7 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
             df_in=df[cols_to_share_with_algo],
             battery_energy_capacity=config.simulation.site.bess.energy_capacity,
             battery_charge_efficiency=config.simulation.site.bess.charge_efficiency,
-            niv_chase_periods=config.simulation.strategy.price_curve_algo.niv_chase_periods,
-            peak_config=config.simulation.strategy.price_curve_algo.peak,
+            config=config.simulation.strategy.price_curve_algo
         )
     elif config.simulation.strategy.spread_algo:
         # TODO: there should be a more elegant way of doing this - but at the moment the spread based algo needs to know
