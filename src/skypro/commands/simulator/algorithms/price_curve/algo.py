@@ -115,9 +115,9 @@ def run_price_curve_imbalance_algo(
 
             if config.microgrid:
                 microgrid_algo_energy = get_microgrid_algo_energy(
-                    system_state=get_system_state(df_in, t, config.microgrid.niv_cutoff_for_system_state_assumption),
+                    config=config.microgrid,
                     microgrid_residual_energy=df_in.loc[t, "microgrid_residual_power"] * time_step_hours,
-                    config=config.microgrid
+                    system_state=get_system_state(df_in, t, config.microgrid.imbalance_control.niv_cutoff_for_system_state_assumption),
                 )
             else:
                 microgrid_algo_energy = 0.0

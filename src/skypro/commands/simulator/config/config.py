@@ -131,15 +131,27 @@ class Peak:
 
 
 @dataclass
-class BasicMicrogrid:
+class MicrogridLocalControl:
+    import_avoidance: bool = name_in_json("importAvoidance")
+    export_avoidance: bool = name_in_json("exportAvoidance")
+
+
+@dataclass
+class MicrogridImbalanceControl:
     discharge_into_load_when_short: bool = name_in_json("dischargeIntoLoadWhenShort")
     charge_from_solar_when_long: bool = name_in_json("chargeFromSolarWhenLong")
     niv_cutoff_for_system_state_assumption: float = field(metadata={"data_key": "nivCutoffForSystemStateAssumption", "allow_nan": True})
 
 
 @dataclass
+class Microgrid:
+    local_control: Optional[MicrogridLocalControl] = name_in_json("localControl")
+    imbalance_control: Optional[MicrogridImbalanceControl] = name_in_json("imbalanceControl")
+
+
+@dataclass
 class PriceCurveAlgo:
-    microgrid: Optional[BasicMicrogrid] = name_in_json("basicMicrogrid")
+    microgrid: Optional[Microgrid] = name_in_json("microgrid")
     peak: Peak = name_in_json("peak")
     niv_chase_periods: List[NivPeriod] = name_in_json("nivChasePeriods")
 
@@ -156,7 +168,7 @@ class SpreadAlgo:
     recent_pricing_span: int = name_in_json("recentPricingSpan")
     niv_cutoff_for_system_state_assumption: float = field(metadata={"data_key": "nivCutoffForSystemStateAssumption", "allow_nan": True})
     fixed_action: SpreadAlgoFixedAction = name_in_json("fixedAction")
-    microgrid: Optional[BasicMicrogrid] = name_in_json("basicMicrogrid")
+    microgrid: Optional[Microgrid] = name_in_json("microgrid")
     peak: Peak = name_in_json("peak")
 
 

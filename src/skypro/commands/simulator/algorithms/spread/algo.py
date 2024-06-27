@@ -8,7 +8,7 @@ from skypro.commands.simulator.algorithms.approach import get_peak_approach_ener
 from skypro.commands.simulator.algorithms.microgrid import get_microgrid_algo_energy
 from skypro.commands.simulator.algorithms.system_state import SystemState, get_system_state
 from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy
-from skypro.commands.simulator.config.config import SpreadAlgo, BasicMicrogrid
+from skypro.commands.simulator.config.config import SpreadAlgo
 
 
 def run_spread_based_algo(
@@ -114,9 +114,9 @@ def run_spread_based_algo(
 
             if config.microgrid:
                 microgrid_algo_energy = get_microgrid_algo_energy(
-                    system_state=get_system_state(df_in, t, config.microgrid.niv_cutoff_for_system_state_assumption),
+                    config=config.microgrid,
                     microgrid_residual_energy=df_in.loc[t, "microgrid_residual_power"] * time_step_hours,
-                    config=config.microgrid
+                    system_state=get_system_state(df_in, t, config.microgrid.imbalance_control.niv_cutoff_for_system_state_assumption),
                 )
             else:
                 microgrid_algo_energy = 0.0
