@@ -1,9 +1,11 @@
 import logging
 from datetime import timedelta
-from typing import Optional
+from functools import reduce
+from typing import Optional, List
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import pytz
 
 from simt_common.jsonconfig.rates import parse_supply_points, process_rates_for_all_energy_flows
@@ -14,6 +16,7 @@ from skypro.cli_utils.cli_utils import substitute_vars, read_json_file
 from skypro.commands.simulator.algorithms.price_curve.algo import run_price_curve_imbalance_algo
 from skypro.commands.simulator.algorithms.spread.algo import run_spread_based_algo
 from skypro.commands.simulator.config import parse_config
+from skypro.commands.simulator.config.config import LoadProfile
 from skypro.commands.simulator.output import save_output
 from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data
 from skypro.commands.simulator.profiler import Profiler
@@ -100,16 +103,23 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
     else:
         raise ValueError("Solar configuration must be either 'profile' or 'constant'")
 
-    # Create domestic load data
-    logging.info("Generating domestic load profile...")
+    # Create load data
+    logging.info("Generating load profile...")
     load_config = config.simulation.site.load
-    if load_config.profile is not None:
-        loadProfiler = Profiler(
-            profile_csv_dir=substitute_vars(load_config.profile.profile_dir, env_vars),
-            scaling_factor=(load_config.profile.scaled_num_plots / load_config.profile.profiled_num_plots)
+    if load_config.profile:
+        df["load_power"] = generate_load_profile(
+            time_index=time_index,
+            profile_configs=[load_config.profile],
+            env_vars=env_vars,
+            do_plots=do_plots
         )
-        load_energy = loadProfiler.get_for(time_index)
-        df["load_power"] = load_energy / (STEP_SIZE.total_seconds()/3600)
+    elif load_config.profiles:
+        df["load_power"] = generate_load_profile(
+            time_index=time_index,
+            profile_configs=load_config.profiles,
+            env_vars=env_vars,
+            do_plots=do_plots
+        )
     elif not np.isnan(load_config.constant):
         df["load_power"] = load_config.constant
     else:
@@ -246,3 +256,39 @@ def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
     df["solar_to_grid"] = df["solar_not_supplying_load"] - df["bess_charge_from_solar"]
 
     return df
+
+
+def generate_load_profile(
+        time_index: pd.DatetimeIndex,
+        profile_configs: List[LoadProfile],
+        env_vars,
+        do_plots: bool
+) -> pd.Series:
+
+    all_power_series = []
+    for profile_config in profile_configs:
+        logging.info(f"Generating load profile for {profile_config.profile_dir}...")
+        loadProfiler = Profiler(
+            profile_csv_dir=substitute_vars(profile_config.profile_dir, env_vars),
+            scaling_factor=(profile_config.scaled_num_plots / profile_config.profiled_num_plots)
+        )
+        load_energy = loadProfiler.get_for(time_index)
+        load_power = load_energy / (STEP_SIZE.total_seconds() / 3600)
+        all_power_series.append(load_power)
+
+    total_load_power = reduce(lambda x, y: x.add(y, fill_value=0), all_power_series)
+    if do_plots:
+        fig = go.Figure()
+        for i, series in enumerate(all_power_series):
+            fig.add_trace(
+                go.Scatter(
+                    x=series.index,
+                    y=series,
+                    mode='lines',
+                    name=f"profile-{i}"
+                )
+            )
+        fig.add_trace(go.Scatter(x=total_load_power.index, y=total_load_power, name="total"))
+        fig.update_layout(title="Load profile(s)")
+        fig.show()
+    return total_load_power

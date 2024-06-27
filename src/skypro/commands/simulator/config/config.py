@@ -58,9 +58,13 @@ class LoadProfile:
 class Load:
     constant: Optional[float] = field(default=np.nan)
     profile: Optional[LoadProfile] = field(default=None)
+    profiles: Optional[List[LoadProfile]] = field(default=None)
 
     def __post_init__(self):
-        enforce_one_option([self.constant, self.profile], "'constant' or 'profile' load")
+        enforce_one_option(
+            [self.constant, self.profile, self.profiles],
+            "'constant', 'profile' or 'profiles' load"
+        )
 
 
 @dataclass
@@ -179,6 +183,7 @@ class Strategy:
 
     def __post_init__(self):
         enforce_one_option([self.price_curve_algo, self.spread_algo], "'priceCurveAlgo', 'spreadAlgo'")
+
 
 @dataclass
 class Simulation:

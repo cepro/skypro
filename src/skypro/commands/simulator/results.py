@@ -165,7 +165,7 @@ def plot_hh_strategy(df: pd.DataFrame):
 
     fig.update_yaxes(title_text="Price (p/kW)", range=[-10, 40], secondary_y=False, row=1, col=1)
     fig.update_yaxes(title_text="SoE (kWh)", range=[0, 200], secondary_y=True, row=1, col=1)
-    fig.update_layout(title="Typical optimisation strategy")
+    fig.update_layout(title="Optimisation strategy")
     fig.show()
 
 
@@ -186,6 +186,7 @@ def plot_microgrid_energy_flows(df, site_import_limit, site_export_limit, batter
     fig.add_hline(y=-site_export_limit, line_dash="dot", annotation_text="Site export limit")
     fig.add_hline(y=battery_nameplate_power, line_dash="dot", annotation_text="Battery nameplate power")
     fig.add_hline(y=-battery_nameplate_power, line_dash="dot", annotation_text="Battery nameplate power")
+    fig.update_layout(title="Constraints and powers")
     fig.show()
 
 
