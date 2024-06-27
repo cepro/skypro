@@ -173,18 +173,12 @@ class SpreadAlgo:
 
 
 @dataclass
-class HinxtonAlgo:
-    pass
-
-
-@dataclass
 class Strategy:
     price_curve_algo: Optional[PriceCurveAlgo] = name_in_json("priceCurveAlgo")
     spread_algo: Optional[SpreadAlgo] = name_in_json("spreadAlgo")
-    hinxton_algo: Optional[HinxtonAlgo] = name_in_json("hinxtonAlgo")
 
     def __post_init__(self):
-        enforce_one_option([self.price_curve_algo, self.spread_algo, self.hinxton_algo], "'priceCurveAlgo', 'spreadAlgo', 'hinxtonAlgo'")
+        enforce_one_option([self.price_curve_algo, self.spread_algo], "'priceCurveAlgo', 'spreadAlgo'")
 
 @dataclass
 class Simulation:

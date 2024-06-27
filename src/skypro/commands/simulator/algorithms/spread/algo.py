@@ -113,10 +113,13 @@ def run_spread_based_algo(
             )
 
             if config.microgrid:
+                system_state = SystemState.UNKNOWN
+                if config.microgrid.imbalance_control:
+                    system_state = get_system_state(df_in, t, config.microgrid.imbalance_control.niv_cutoff_for_system_state_assumption)
                 microgrid_algo_energy = get_microgrid_algo_energy(
                     config=config.microgrid,
                     microgrid_residual_energy=df_in.loc[t, "microgrid_residual_power"] * time_step_hours,
-                    system_state=get_system_state(df_in, t, config.microgrid.imbalance_control.niv_cutoff_for_system_state_assumption),
+                    system_state=system_state,
                 )
             else:
                 microgrid_algo_energy = 0.0
