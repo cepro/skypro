@@ -28,7 +28,14 @@ STEPS_PER_SP = int(timedelta(minutes=30) / STEP_SIZE)
 assert((timedelta(minutes=30) / STEP_SIZE) == STEPS_PER_SP)  # Check that we have an exact number of steps per SP
 
 
-def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_file_path: Optional[str] = None, output_aggregate: Optional[str] = None):
+def simulate(
+        config_file_path: str,
+        env_file_path: str,
+        do_plots: bool,
+        output_file_path: Optional[str] = None,
+        output_aggregate: Optional[str] = None,
+        output_rate_detail: Optional[bool] = False,
+):
 
     logging.info("Simulator - - - - - - - - - - - - -")
 
@@ -213,9 +220,11 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
     if output_file_path:
         save_output(
             df=df,
+            final_rates_dfs=final_rates_dfs,
             config=config,
             output_file_path=output_file_path,
             aggregate=output_aggregate,
+            rate_detail=output_rate_detail,
         )
 
     explore_results(

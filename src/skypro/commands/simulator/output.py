@@ -1,6 +1,6 @@
 import importlib.metadata
 import logging
-from typing import List, Tuple, Any, Optional
+from typing import List, Tuple, Any, Optional, Dict
 
 import pandas as pd
 
@@ -16,7 +16,16 @@ def with_config_entries(df: pd.DataFrame, entries: List[Tuple[str, Any]]) -> pd.
     return df
 
 
-def save_output(df: pd.DataFrame, config: Config, output_file_path: str, aggregate: Optional[str] = None):
+def save_output(
+        df: pd.DataFrame,
+        final_rates_dfs: Dict[str, pd.DataFrame],
+        config: Config,
+        output_file_path: str,
+        aggregate: Optional[str] = None,
+        rate_detail: Optional[str] = None,
+):
+
+    # TODO: this could do with a bit of a refactor to make it cleaner, but waiting on finalized column naming from Damon
 
     output_df = pd.DataFrame(index=df.index)
 
@@ -44,6 +53,7 @@ def save_output(df: pd.DataFrame, config: Config, output_file_path: str, aggrega
     output_df["other:imbalanceVolume.final"] = df["imbalance_volume_final"]
     output_df["other:imbalanceVolume.predicted"] = df["imbalance_volume_predicted"]
 
+    # Put the total predicted/final rate for each energy flow into the CSV
     for col in df.columns:
         if col.startswith("rate_final_"):
             flow_name = col.removeprefix("rate_final_")
@@ -52,38 +62,52 @@ def save_output(df: pd.DataFrame, config: Config, output_file_path: str, aggrega
             flow_name = col.removeprefix("rate_predicted_")
             output_df[f"rate:{flow_name}.predicted"] = df[col]
 
+    # If the command-line option for detailed rate info is specified then put each individual rate in the CSV
+    if rate_detail:
+
+        rates_of_interest = []
+        if rate_detail != "all":
+            # parse the string like a comma-seperated list of rates to include detail for
+            rates_of_interest = rate_detail.split(",")
+
+        for flow_name, rates_df in final_rates_dfs.items():
+            for col in rates_df.columns:
+                if rate_detail == "all" or col in rates_of_interest:
+                    output_df[f"rate:{flow_name}.{col}.final"] = rates_df[col]
+
     if aggregate:
         if aggregate == "30min":
-            output_df = output_df.resample("30min").agg(
-                {
-                    "clocktime": "first",
-                    "m:battSoe": "first",
-                    "m:battCharge": "sum",
-                    "m:battDischarge": "sum",
-                    "c:battLosses": "sum",
-                    "c:limitMaxBattCharge": "sum",
-                    "c:limitMaxBattDischarge": "sum",
-                    "agd:solar": "sum",
-                    "agd:load": "sum",
-                    "solarToLoad": "sum",
-                    "loadNotSuppliedBySolar": "sum",
-                    "solarNotSupplyingLoad": "sum",
-                    "battDischargeToLoad": "sum",
-                    "battDischargeToGrid": "sum",
-                    "battChargeFromSolar": "sum",
-                    "battChargeFromGrid": "sum",
-                    "loadFromGrid": "sum",
-                    "solarToGrid": "sum",
-                    "other:imbalanceVolume.final": first_ensure_equal,
-                    "rate:bess_charge_from_solar.final": first_ensure_equal,
-                    "rate:bess_charge_from_grid.final": first_ensure_equal,
-                    "rate:bess_discharge_to_load.final": first_ensure_equal,
-                    "rate:bess_discharge_to_grid.final": first_ensure_equal,
-                    "rate:solar_to_grid.final": first_ensure_equal,
-                    "rate:load_from_grid.final": first_ensure_equal,
-                    # There doesn't seem to be a sensible way to aggregate predicted rates or volumes, so leave them out
-                }
-            )
+
+            agg_rules = {  # defines how to aggregate 10minutely data to 30minutely
+                "clocktime": "first",
+                "m:battSoe": "first",
+                "m:battCharge": "sum",
+                "m:battDischarge": "sum",
+                "c:battLosses": "sum",
+                "c:limitMaxBattCharge": "sum",
+                "c:limitMaxBattDischarge": "sum",
+                "agd:solar": "sum",
+                "agd:load": "sum",
+                "solarToLoad": "sum",
+                "loadNotSuppliedBySolar": "sum",
+                "solarNotSupplyingLoad": "sum",
+                "battDischargeToLoad": "sum",
+                "battDischargeToGrid": "sum",
+                "battChargeFromSolar": "sum",
+                "battChargeFromGrid": "sum",
+                "loadFromGrid": "sum",
+                "solarToGrid": "sum",
+                "other:imbalanceVolume.final": first_ensure_equal,
+            }
+
+            # The rates have variable names based on config, so we have to specify the aggregation rule dynamically:
+            for col in output_df.columns:
+                # There doesn't seem to be a sensible way to aggregate predicted rates or volumes, so leave them out
+                if col.startswith("rate:") and col.endswith(".final"):
+                    agg_rules[col] = first_ensure_equal
+
+            # Do the actual aggregation
+            output_df = output_df.resample("30min").agg(agg_rules)
         else:
             raise ValueError(f"Unknown aggregate option: '{aggregate}'")
 
@@ -126,5 +150,4 @@ def first_ensure_equal(series: pd.Series):
     if (series.iloc[0] == series).all():
         return series.iloc[0]
     else:
-        breakpoint()
         raise ValueError("Not all elements of series are equal")
