@@ -44,6 +44,12 @@ def main():
         help='Output CSV file location, by default no output file is generated.'
     )
     parser_simulate.add_argument(
+        '-a', '--aggregate',
+        dest='output_aggregate',
+        default=None,
+        help='Aggregate the output file to the given time period, options available: "30min".'
+    )
+    parser_simulate.add_argument(
         '-p', '--plot',
         dest='do_plots',
         action="store_true",

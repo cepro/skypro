@@ -1,6 +1,6 @@
 import importlib.metadata
 import logging
-from typing import List, Tuple, Any
+from typing import List, Tuple, Any, Optional
 
 import pandas as pd
 
@@ -16,7 +16,7 @@ def with_config_entries(df: pd.DataFrame, entries: List[Tuple[str, Any]]) -> pd.
     return df
 
 
-def save_output(df: pd.DataFrame, config: Config, output_file_path: str):
+def save_output(df: pd.DataFrame, config: Config, output_file_path: str, aggregate: Optional[str] = None):
 
     output_df = pd.DataFrame(index=df.index)
 
@@ -52,6 +52,41 @@ def save_output(df: pd.DataFrame, config: Config, output_file_path: str):
             flow_name = col.removeprefix("rate_predicted_")
             output_df[f"rate:{flow_name}.predicted"] = df[col]
 
+    if aggregate:
+        if aggregate == "30min":
+            output_df = output_df.resample("30min").agg(
+                {
+                    "clocktime": "first",
+                    "m:battSoe": "first",
+                    "m:battCharge": "sum",
+                    "m:battDischarge": "sum",
+                    "c:battLosses": "sum",
+                    "c:limitMaxBattCharge": "sum",
+                    "c:limitMaxBattDischarge": "sum",
+                    "agd:solar": "sum",
+                    "agd:load": "sum",
+                    "solarToLoad": "sum",
+                    "loadNotSuppliedBySolar": "sum",
+                    "solarNotSupplyingLoad": "sum",
+                    "battDischargeToLoad": "sum",
+                    "battDischargeToGrid": "sum",
+                    "battChargeFromSolar": "sum",
+                    "battChargeFromGrid": "sum",
+                    "loadFromGrid": "sum",
+                    "solarToGrid": "sum",
+                    "other:imbalanceVolume.final": first_ensure_equal,
+                    "rate:bess_charge_from_solar.final": first_ensure_equal,
+                    "rate:bess_charge_from_grid.final": first_ensure_equal,
+                    "rate:bess_discharge_to_load.final": first_ensure_equal,
+                    "rate:bess_discharge_to_grid.final": first_ensure_equal,
+                    "rate:solar_to_grid.final": first_ensure_equal,
+                    "rate:load_from_grid.final": first_ensure_equal,
+                    # There doesn't seem to be a sensible way to aggregate predicted rates or volumes, so leave them out
+                }
+            )
+        else:
+            raise ValueError(f"Unknown aggregate option: '{aggregate}'")
+
     # Add the configuration input to the output file - this is stretching the use of the CSV format a bit, but it means
     # that there is a single output file with full traceability as to all the inputs.
     output_df = with_config_entries(
@@ -83,3 +118,13 @@ def save_output(df: pd.DataFrame, config: Config, output_file_path: str):
     )
 
 
+def first_ensure_equal(series: pd.Series):
+    """
+    Aggregation function that returns the first element in the series, but also ensures that all elements
+    of the series are equal.
+    """
+    if (series.iloc[0] == series).all():
+        return series.iloc[0]
+    else:
+        breakpoint()
+        raise ValueError("Not all elements of series are equal")
