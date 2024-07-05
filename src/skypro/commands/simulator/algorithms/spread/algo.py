@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 
 from skypro.commands.simulator.algorithms.approach import get_peak_approach_energies
+from skypro.commands.simulator.algorithms.microgrid import get_microgrid_algo_energy
+from skypro.commands.simulator.algorithms.system_state import SystemState, get_system_state
 from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy
 from skypro.commands.simulator.config.config import SpreadAlgo
 
@@ -69,9 +71,6 @@ def run_spread_based_algo(
     )[df_in[f"imbalance_volume_predicted"] < 0]
 
     df["notional_spread"] = pd.concat([notional_spread_long, notional_spread_short])
-    df["notional_spread_short"] = notional_spread_short
-    df["notional_spread_long"] = notional_spread_long
-
     df["prev_sp_notional_spread"] = df["notional_spread"].shift(steps_per_sp).bfill(limit=steps_per_sp-1)
 
     # Run through each row (where each row represents a time step) and apply the strategy
@@ -93,13 +92,7 @@ def run_spread_based_algo(
 
         else:
 
-            imbalance_volume_assumed = df_in.loc[t, "imbalance_volume_predicted"]
-            # TODO: optionally only allow this for the first 10m? df_in.loc[t, "time_into_sp"]<timedelta(minutes=10)
-            if np.isnan(imbalance_volume_assumed) and \
-                    abs(df_in.loc[t, "prev_sp_imbalance_volume_final"]) > 150:
-                imbalance_volume_assumed = df_in.loc[t, "prev_sp_imbalance_volume_final"]
-
-            df.loc[t, "imbalance_volume_assumed"] = imbalance_volume_assumed
+            system_state = get_system_state(df_in, t, config.niv_cutoff_for_system_state_assumption)
 
             red_approach_energy, amber_approach_energy = get_peak_approach_energies(
                 t=t,
@@ -107,28 +100,41 @@ def run_spread_based_algo(
                 soe=soe,
                 charge_efficiency=battery_charge_efficiency,
                 peak_config=config.peak,
-                is_long=imbalance_volume_assumed < 0
+                is_long=system_state == SystemState.LONG
             )
 
             spread_algo_energy = get_spread_algo_energy(
-                t=t,
-                df=df,
+                notional_spread=df.loc[t, "notional_spread"],
+                prev_sp_notional_spread=df.loc[t, "prev_sp_notional_spread"],
                 min_spread=config.min_spread,
                 short_energy=discharge_energy,
                 long_energy=charge_energy,
-                imbalance_volume_assumed=imbalance_volume_assumed
+                system_state=system_state
             )
+
+            if config.microgrid:
+                system_state = SystemState.UNKNOWN
+                if config.microgrid.imbalance_control:
+                    system_state = get_system_state(df_in, t, config.microgrid.imbalance_control.niv_cutoff_for_system_state_assumption)
+                microgrid_algo_energy = get_microgrid_algo_energy(
+                    config=config.microgrid,
+                    microgrid_residual_energy=df_in.loc[t, "microgrid_residual_power"] * time_step_hours,
+                    system_state=system_state,
+                )
+            else:
+                microgrid_algo_energy = 0.0
 
             df.loc[t, "red_approach_distance"] = red_approach_energy
             df.loc[t, "amber_approach_distance"] = amber_approach_energy
             df.loc[t, "spread_algo_energy"] = spread_algo_energy
+            df.loc[t, "microgrid_algo_energy"] = microgrid_algo_energy
 
             if red_approach_energy > 0:
                 target_energy_delta = max(red_approach_energy, amber_approach_energy, spread_algo_energy)
             elif amber_approach_energy > 0:
                 target_energy_delta = max(amber_approach_energy, spread_algo_energy)
             else:
-                target_energy_delta = spread_algo_energy
+                target_energy_delta = spread_algo_energy + microgrid_algo_energy
 
             power = get_power(target_energy_delta, time_step)
 
@@ -161,31 +167,31 @@ def run_spread_based_algo(
         logging.info(f"Skipped {num_skipped_periods}/{len(df_in)} {time_step_minutes} minute periods (probably due to "
                      f"missing imbalance data)")
 
-    return df[["soe", "energy_delta", "bess_losses", "notional_spread", "red_approach_distance", "amber_approach_distance", "spread_algo_energy"]]
+    return df[["soe", "energy_delta", "bess_losses", "notional_spread", "red_approach_distance", "amber_approach_distance", "spread_algo_energy", "microgrid_algo_energy"]]
 
 
 def get_spread_algo_energy(
-        t,
-        df,
+        notional_spread: float,
+        prev_sp_notional_spread: float,
         min_spread: float,
         short_energy: float,
         long_energy: float,
-        imbalance_volume_assumed: float
+        system_state: SystemState
 ) -> float:
 
-    if np.isnan(imbalance_volume_assumed):
+    if system_state == SystemState.UNKNOWN:
         return 0
 
-    is_currently_short = imbalance_volume_assumed > 0
-    notional_spread_assumed = df.loc[t, "notional_spread"]
+    notional_spread_assumed = notional_spread
     if np.isnan(notional_spread_assumed):
-        notional_spread_assumed = df.loc[t, "prev_sp_notional_spread"]
+        notional_spread_assumed = prev_sp_notional_spread
     if np.isnan(notional_spread_assumed):
-        notional_spread_assumed = np.nan
+        return 0
 
     if notional_spread_assumed > min_spread:
-        if is_currently_short:
+        if system_state == SystemState.SHORT:
             return -short_energy
         else:
             return long_energy
+
     return 0

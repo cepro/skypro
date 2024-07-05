@@ -44,6 +44,20 @@ def main():
         help='Output CSV file location, by default no output file is generated.'
     )
     parser_simulate.add_argument(
+        '-a', '--aggregate',
+        dest='output_aggregate',
+        default=None,
+        help='Aggregate the output file to the given time period, options available: "30min".'
+    )
+    parser_simulate.add_argument(
+        '-r', '--rate-detail',
+        dest='output_rate_detail',
+        default=None,
+        help='Puts detailed rate information in the output file. This can either be: "all" to include a breakdown of '
+             'all the rates in the output file; or a comma-seperated list of individual rate names that correspond '
+             'to the rate names in the configuration file, e.g: "duosGreen,duosAmber,duosRed"'
+    )
+    parser_simulate.add_argument(
         '-p', '--plot',
         dest='do_plots',
         action="store_true",

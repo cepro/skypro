@@ -1,9 +1,11 @@
 import logging
 from datetime import timedelta
-from typing import Optional
+from functools import reduce
+from typing import Optional, List
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import pytz
 
 from simt_common.jsonconfig.rates import parse_supply_points, process_rates_for_all_energy_flows
@@ -14,6 +16,7 @@ from skypro.cli_utils.cli_utils import substitute_vars, read_json_file
 from skypro.commands.simulator.algorithms.price_curve.algo import run_price_curve_imbalance_algo
 from skypro.commands.simulator.algorithms.spread.algo import run_spread_based_algo
 from skypro.commands.simulator.config import parse_config
+from skypro.commands.simulator.config.config import LoadProfile
 from skypro.commands.simulator.output import save_output
 from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data
 from skypro.commands.simulator.profiler import Profiler
@@ -25,7 +28,14 @@ STEPS_PER_SP = int(timedelta(minutes=30) / STEP_SIZE)
 assert((timedelta(minutes=30) / STEP_SIZE) == STEPS_PER_SP)  # Check that we have an exact number of steps per SP
 
 
-def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_file_path: Optional[str] = None):
+def simulate(
+        config_file_path: str,
+        env_file_path: str,
+        do_plots: bool,
+        output_file_path: Optional[str] = None,
+        output_aggregate: Optional[str] = None,
+        output_rate_detail: Optional[bool] = False,
+):
 
     logging.info("Simulator - - - - - - - - - - - - -")
 
@@ -100,16 +110,23 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
     else:
         raise ValueError("Solar configuration must be either 'profile' or 'constant'")
 
-    # Create domestic load data
-    logging.info("Generating domestic load profile...")
+    # Create load data
+    logging.info("Generating load profile...")
     load_config = config.simulation.site.load
-    if load_config.profile is not None:
-        loadProfiler = Profiler(
-            profile_csv_dir=substitute_vars(load_config.profile.profile_dir, env_vars),
-            scaling_factor=(load_config.profile.scaled_num_plots / load_config.profile.profiled_num_plots)
+    if load_config.profile:
+        df["load_power"] = generate_load_profile(
+            time_index=time_index,
+            profile_configs=[load_config.profile],
+            env_vars=env_vars,
+            do_plots=do_plots
         )
-        load_energy = loadProfiler.get_for(time_index)
-        df["load_power"] = load_energy / (STEP_SIZE.total_seconds()/3600)
+    elif load_config.profiles:
+        df["load_power"] = generate_load_profile(
+            time_index=time_index,
+            profile_configs=load_config.profiles,
+            env_vars=env_vars,
+            do_plots=do_plots
+        )
     elif not np.isnan(load_config.constant):
         df["load_power"] = load_config.constant
     else:
@@ -118,10 +135,10 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
     # Calculate the BESS charge and discharge limits based on how much solar generation and housing load
     # there is. We need to abide by the overall site import/export limits. And stay within the nameplate inverter
     # capabilities of the BESS
-    non_bess_power = df["load_power"] - df["solar_power"]
-    df["bess_max_power_charge"] = ((config.simulation.site.grid_connection.import_limit - non_bess_power).
+    df["microgrid_residual_power"] = df["load_power"] - df["solar_power"]
+    df["bess_max_power_charge"] = ((config.simulation.site.grid_connection.import_limit - df["microgrid_residual_power"]).
                                     clip(upper=config.simulation.site.bess.nameplate_power))
-    df["bess_max_power_discharge"] = ((config.simulation.site.grid_connection.export_limit + non_bess_power).
+    df["bess_max_power_discharge"] = ((config.simulation.site.grid_connection.export_limit + df["microgrid_residual_power"]).
                                        clip(upper=config.simulation.site.bess.nameplate_power))
 
     # The algo sometimes needs the previous SP's final rates. The algo processes each step as a row, so make the
@@ -151,6 +168,7 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
         "time_left_of_sp",
         "load_power",
         "solar_power",
+        "microgrid_residual_power",
         "bess_max_power_charge",
         "bess_max_power_discharge",
         "imbalance_volume_predicted",
@@ -174,8 +192,7 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
             df_in=df[cols_to_share_with_algo],
             battery_energy_capacity=config.simulation.site.bess.energy_capacity,
             battery_charge_efficiency=config.simulation.site.bess.charge_efficiency,
-            niv_chase_periods=config.simulation.strategy.price_curve_algo.niv_chase_periods,
-            peak_config=config.simulation.strategy.price_curve_algo.peak,
+            config=config.simulation.strategy.price_curve_algo
         )
     elif config.simulation.strategy.spread_algo:
         # TODO: there should be a more elegant way of doing this - but at the moment the spread based algo needs to know
@@ -193,7 +210,6 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
             battery_charge_efficiency=config.simulation.site.bess.charge_efficiency,
             config=config.simulation.strategy.spread_algo,
         )
-
     else:
         raise ValueError("Unknown algorithm chosen")
 
@@ -202,7 +218,14 @@ def simulate(config_file_path: str, env_file_path: str, do_plots: bool, output_f
     df = calculate_microgrid_flows(df)
 
     if output_file_path:
-        save_output(df, config, output_file_path)
+        save_output(
+            df=df,
+            final_rates_dfs=final_rates_dfs,
+            config=config,
+            output_file_path=output_file_path,
+            aggregate=output_aggregate,
+            rate_detail=output_rate_detail,
+        )
 
     explore_results(
         df=df,
@@ -247,3 +270,39 @@ def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
     df["solar_to_grid"] = df["solar_not_supplying_load"] - df["bess_charge_from_solar"]
 
     return df
+
+
+def generate_load_profile(
+        time_index: pd.DatetimeIndex,
+        profile_configs: List[LoadProfile],
+        env_vars,
+        do_plots: bool
+) -> pd.Series:
+
+    all_power_series = []
+    for profile_config in profile_configs:
+        logging.info(f"Generating load profile for {profile_config.profile_dir}...")
+        loadProfiler = Profiler(
+            profile_csv_dir=substitute_vars(profile_config.profile_dir, env_vars),
+            scaling_factor=(profile_config.scaled_num_plots / profile_config.profiled_num_plots)
+        )
+        load_energy = loadProfiler.get_for(time_index)
+        load_power = load_energy / (STEP_SIZE.total_seconds() / 3600)
+        all_power_series.append(load_power)
+
+    total_load_power = reduce(lambda x, y: x.add(y, fill_value=0), all_power_series)
+    if do_plots:
+        fig = go.Figure()
+        for i, series in enumerate(all_power_series):
+            fig.add_trace(
+                go.Scatter(
+                    x=series.index,
+                    y=series,
+                    mode='lines',
+                    name=f"profile-{i}"
+                )
+            )
+        fig.add_trace(go.Scatter(x=total_load_power.index, y=total_load_power, name="total"))
+        fig.update_layout(title="Load profile(s)")
+        fig.show()
+    return total_load_power

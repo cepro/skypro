@@ -58,9 +58,13 @@ class LoadProfile:
 class Load:
     constant: Optional[float] = field(default=np.nan)
     profile: Optional[LoadProfile] = field(default=None)
+    profiles: Optional[List[LoadProfile]] = field(default=None)
 
     def __post_init__(self):
-        enforce_one_option([self.constant, self.profile], "'constant' or 'profile' load")
+        enforce_one_option(
+            [self.constant, self.profile, self.profiles],
+            "'constant', 'profile' or 'profiles' load"
+        )
 
 
 @dataclass
@@ -131,7 +135,27 @@ class Peak:
 
 
 @dataclass
+class MicrogridLocalControl:
+    import_avoidance: bool = name_in_json("importAvoidance")
+    export_avoidance: bool = name_in_json("exportAvoidance")
+
+
+@dataclass
+class MicrogridImbalanceControl:
+    discharge_into_load_when_short: bool = name_in_json("dischargeIntoLoadWhenShort")
+    charge_from_solar_when_long: bool = name_in_json("chargeFromSolarWhenLong")
+    niv_cutoff_for_system_state_assumption: float = field(metadata={"data_key": "nivCutoffForSystemStateAssumption", "allow_nan": True})
+
+
+@dataclass
+class Microgrid:
+    local_control: Optional[MicrogridLocalControl] = name_in_json("localControl")
+    imbalance_control: Optional[MicrogridImbalanceControl] = name_in_json("imbalanceControl")
+
+
+@dataclass
 class PriceCurveAlgo:
+    microgrid: Optional[Microgrid] = name_in_json("microgrid")
     peak: Peak = name_in_json("peak")
     niv_chase_periods: List[NivPeriod] = name_in_json("nivChasePeriods")
 
@@ -146,7 +170,9 @@ class SpreadAlgoFixedAction:
 class SpreadAlgo:
     min_spread: float = name_in_json("minSpread")
     recent_pricing_span: int = name_in_json("recentPricingSpan")
+    niv_cutoff_for_system_state_assumption: float = field(metadata={"data_key": "nivCutoffForSystemStateAssumption", "allow_nan": True})
     fixed_action: SpreadAlgoFixedAction = name_in_json("fixedAction")
+    microgrid: Optional[Microgrid] = name_in_json("microgrid")
     peak: Peak = name_in_json("peak")
 
 
@@ -157,6 +183,7 @@ class Strategy:
 
     def __post_init__(self):
         enforce_one_option([self.price_curve_algo, self.spread_algo], "'priceCurveAlgo', 'spreadAlgo'")
+
 
 @dataclass
 class Simulation:

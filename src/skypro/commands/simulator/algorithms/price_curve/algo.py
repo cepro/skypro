@@ -7,18 +7,18 @@ import pandas as pd
 
 from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
 from skypro.commands.simulator.algorithms.approach import get_peak_approach_energies
+from skypro.commands.simulator.algorithms.microgrid import get_microgrid_algo_energy
+from skypro.commands.simulator.algorithms.system_state import get_system_state, SystemState
 from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy
 from skypro.commands.simulator.cartesian import Curve, Point
-from skypro.commands.simulator.config.config import get_relevant_niv_config, Peak
-import skypro.commands.simulator.config as config
+from skypro.commands.simulator.config.config import get_relevant_niv_config, PriceCurveAlgo
 
 
 def run_price_curve_imbalance_algo(
         df_in: pd.DataFrame,
         battery_energy_capacity: float,
         battery_charge_efficiency: float,
-        niv_chase_periods: List[config.NivPeriod],
-        peak_config: Peak,
+        config: PriceCurveAlgo
 ) -> pd.DataFrame:
 
     # Create a separate dataframe for working values
@@ -31,6 +31,7 @@ def run_price_curve_imbalance_algo(
     num_skipped_periods = 0
 
     time_step = pd.to_timedelta(df_in.index.freq)
+    time_step_hours = time_step.total_seconds() / 3600
 
     # TODO: the surrounding 'harness' code should be brought out to be shared with all algos
 
@@ -47,9 +48,9 @@ def run_price_curve_imbalance_algo(
         df.loc[t, "soe"] = soe
 
         # Select the appropriate NIV chasing configuration for this time of day
-        niv_config = get_relevant_niv_config(niv_chase_periods, t).niv
+        niv_config = get_relevant_niv_config(config.niv_chase_periods, t).niv
 
-        if peak_config.period and peak_config.period.contains(t):
+        if config.peak.period and config.peak.period.contains(t):
             # The configuration may specify that we ignore the charge/discharge curves and do a full discharge
             # for a certain period - probably a DUoS red band
             power = -df_in.loc[t, "bess_max_power_discharge"]
@@ -57,20 +58,15 @@ def run_price_curve_imbalance_algo(
         else:
             target_energy_delta = 0
 
-            # TODO: include the volume size threshold to match with other algo
-            imbalance_volume_assumed = df_in.loc[t, "imbalance_volume_predicted"]
-            if np.isnan(imbalance_volume_assumed):
-                imbalance_volume_assumed = df_in.loc[t, "prev_sp_imbalance_volume_final"]
-            if np.isnan(imbalance_volume_assumed):
-                imbalance_volume_assumed = np.nan
+            system_state = get_system_state(df_in, t, niv_config.volume_cutoff_for_prediction)
 
             red_approach_energy, amber_approach_energy = get_peak_approach_energies(
                 t=t,
                 time_step=time_step,
                 soe=soe,
                 charge_efficiency=battery_charge_efficiency,
-                peak_config=peak_config,
-                is_long=imbalance_volume_assumed < 0
+                peak_config=config.peak,
+                is_long=system_state == SystemState.LONG
             )
 
             df.loc[t, "red_approach_distance"] = red_approach_energy
@@ -117,12 +113,27 @@ def run_price_curve_imbalance_algo(
                 #       are skipped
                 num_skipped_periods += 1
 
+            if config.microgrid:
+                system_state = SystemState.UNKNOWN
+                if config.microgrid.imbalance_control:
+                    system_state = get_system_state(df_in, t,
+                                                    config.microgrid.imbalance_control.niv_cutoff_for_system_state_assumption)
+                microgrid_algo_energy = get_microgrid_algo_energy(
+                    config=config.microgrid,
+                    microgrid_residual_energy=df_in.loc[t, "microgrid_residual_power"] * time_step_hours,
+                    system_state=system_state
+                )
+            else:
+                microgrid_algo_energy = 0.0
+
             if red_approach_energy > 0:
                 target_energy_delta = max(red_approach_energy, amber_approach_energy, target_energy_delta)
             elif amber_approach_energy > 0:
                 target_energy_delta = max(amber_approach_energy, target_energy_delta)
+            else:
+                target_energy_delta = target_energy_delta + microgrid_algo_energy
 
-            power = get_power(target_energy_delta, df_in.loc[t, "time_left_of_sp"])
+            power = get_power(target_energy_delta, time_step)  # TODO: check this tme step
 
         power = cap_power(power, df_in.loc[t, "bess_max_power_charge"], df_in.loc[t, "bess_max_power_discharge"])
         energy_delta = get_energy(power, time_step)
