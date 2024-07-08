@@ -4,7 +4,7 @@ Scenario analysis tool for microgrids
 ## Installation
 
 To install from test.pypi:
-- `pip3 install --extra-index-url https://test.pypi.org/simple/ skypro`
+- `pip3 install --upgrade --extra-index-url https://test.pypi.org/simple/ skypro`
 
 ## Usage
 See `skypro -h` for help.
