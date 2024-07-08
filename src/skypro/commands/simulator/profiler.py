@@ -35,7 +35,18 @@ class Profiler:
             # Temporary hack to support unusual CSV formats
             df["ClockTime"] = pd.to_datetime(df["ClockTime"])
             if clock_time_zone:
-                df["ClockTime"] = df["ClockTime"].dt.tz_localize(clock_time_zone)
+                df["ClockTime"] = df["ClockTime"].dt.tz_localize(
+                    clock_time_zone,
+                    ambiguous="NaT",
+                    nonexistent="NaT"
+                )
+
+                num_inc_nan = len(df)
+                df = df.dropna(subset=["ClockTime"])
+                num_dropped = num_inc_nan - len(df)
+                if num_dropped > 0:
+                    logging.warning(f"Dropped {num_dropped} NaT rows from profile (probably because the UTC time could "
+                                    f"not be inferred from the ClockTime")
 
             df["UTCTime"] = df["ClockTime"].dt.tz_convert("UTC")
         else:
