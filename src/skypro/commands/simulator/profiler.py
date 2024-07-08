@@ -37,6 +37,8 @@ class Profiler:
             df = df.drop("ClockTime", axis=1)
 
         if energy_cols is None:
+            if "energy" not in df.columns:
+                raise KeyError("Expected a column called 'energy' in profile")
             self._profile = df["energy"]
         elif energy_cols == "sum-all":
             self._profile = df.sum(axis=1)
