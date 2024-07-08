@@ -1,8 +1,6 @@
 import json
 import os
-from typing import Dict, List
-
-import pandas as pd
+from typing import Dict, Optional
 
 
 def get_user_ack_of_warning_or_exit(warning_str: str):
@@ -16,10 +14,13 @@ def get_user_ack_of_warning_or_exit(warning_str: str):
         exit(-1)
 
 
-def substitute_vars(string: str, variables: Dict[str, str]) -> str:
+def substitute_vars(string: Optional[str], variables: Dict[str, str]) -> Optional[str]:
     """
     Replaces the variables that are present in `string` with their associated value in the `variables` dictionary.
     """
+    if string is None:
+        return None
+
     for key, val in variables.items():
         string = string.replace(f"${key}", val)
 

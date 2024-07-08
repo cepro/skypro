@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import timedelta
 from functools import reduce
 from typing import Optional, List
@@ -16,7 +17,7 @@ from skypro.cli_utils.cli_utils import substitute_vars, read_json_file
 from skypro.commands.simulator.algorithms.price_curve.algo import run_price_curve_imbalance_algo
 from skypro.commands.simulator.algorithms.spread.algo import run_spread_based_algo
 from skypro.commands.simulator.config import parse_config
-from skypro.commands.simulator.config.config import LoadProfile
+from skypro.commands.simulator.config.config import Profile
 from skypro.commands.simulator.output import save_output
 from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data
 from skypro.commands.simulator.profiler import Profiler
@@ -114,14 +115,14 @@ def simulate(
     logging.info("Generating load profile...")
     load_config = config.simulation.site.load
     if load_config.profile:
-        df["load_power"] = generate_load_profile(
+        df["load_power"] = generate_profile(
             time_index=time_index,
             profile_configs=[load_config.profile],
             env_vars=env_vars,
             do_plots=do_plots
         )
     elif load_config.profiles:
-        df["load_power"] = generate_load_profile(
+        df["load_power"] = generate_profile(
             time_index=time_index,
             profile_configs=load_config.profiles,
             env_vars=env_vars,
@@ -272,23 +273,34 @@ def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def generate_load_profile(
+def generate_profile(
         time_index: pd.DatetimeIndex,
-        profile_configs: List[LoadProfile],
+        profile_configs: List[Profile],
         env_vars,
         do_plots: bool
 ) -> pd.Series:
-
     all_power_series = []
+    all_power_names = []
     for profile_config in profile_configs:
-        logging.info(f"Generating load profile for {profile_config.profile_dir}...")
+
+        if profile_config.profile_csv:
+            name = profile_config.profile_csv
+        else:
+            name = profile_config.profile_dir
+        name = os.path.basename(os.path.normpath(name))
+
+        logging.info(f"Generating load profile for {name}...")
         loadProfiler = Profiler(
+            scaling_factor=profile_config.scaling_factor,
+            profile_csv=substitute_vars(profile_config.profile_csv, env_vars),
             profile_csv_dir=substitute_vars(profile_config.profile_dir, env_vars),
-            scaling_factor=(profile_config.scaled_num_plots / profile_config.profiled_num_plots)
+            energy_cols=profile_config.energy_cols
         )
         load_energy = loadProfiler.get_for(time_index)
         load_power = load_energy / (STEP_SIZE.total_seconds() / 3600)
+
         all_power_series.append(load_power)
+        all_power_names.append(name)
 
     total_load_power = reduce(lambda x, y: x.add(y, fill_value=0), all_power_series)
     if do_plots:
@@ -299,10 +311,11 @@ def generate_load_profile(
                     x=series.index,
                     y=series,
                     mode='lines',
-                    name=f"profile-{i}"
+                    name=f"profile-{i}-{all_power_names[i]}"
                 )
             )
         fig.add_trace(go.Scatter(x=total_load_power.index, y=total_load_power, name="total"))
         fig.update_layout(title="Load profile(s)")
         fig.show()
+
     return total_load_power

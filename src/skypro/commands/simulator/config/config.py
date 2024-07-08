@@ -32,33 +32,50 @@ class Site:
 
 
 @dataclass
-class SolarProfile:
-    profile_dir: str = name_in_json("profileDir")
-    profiled_size_kwp: float = name_in_json("profiledSizeKwp")
-    scaled_size_kwp: float = name_in_json("scaledSizeKwp")
+class Profile:
+    profile_dir: Optional[str] = name_in_json("profileDir")
+    profile_csv: Optional[str] = name_in_json("profileCsv")
+
+    energy_cols: Optional[str] = name_in_json("energyCols")
+
+    profiled_num_plots: Optional[float] = name_in_json("profiledNumPlots")
+    scaled_num_plots: Optional[float] = name_in_json("scaledNumPlots")
+    profiled_size_kwp: Optional[float] = name_in_json("profiledSizeKwp")
+    scaled_size_kwp: Optional[float] = name_in_json("scaledSizeKwp")
+
+    def __post_init__(self):
+        enforce_one_option([self.profile_dir, self.profile_csv], "'profileDir' or 'profileCsv'")
+
+        # There are two ways of setting the scaling factor: by 'kwp' fields or by 'num plot' fields. This is partly to
+        # support older configurations.
+        self.scaling_factor = None
+
+        if (self.profiled_num_plots is not None) and (self.scaled_num_plots is not None):
+            self.scaling_factor = self.scaled_num_plots / self.profiled_num_plots
+
+        if (self.profiled_size_kwp is not None) and (self.scaled_size_kwp is not None):
+            if self.scaling_factor is not None:
+                raise ValueError(f"Profile can be scaled by either 'num plots' or 'kwp', but not both.")
+            self.scaling_factor = self.scaled_size_kwp / self.profiled_size_kwp
+
+        if self.scaling_factor is None:
+            self.scaling_factor = 1
 
 
 @dataclass
 class Solar:
     constant: Optional[float] = field(default=np.nan)
-    profile: Optional[SolarProfile] = field(default=None)
+    profile: Optional[Profile] = field(default=None)
 
     def __post_init__(self):
         enforce_one_option([self.constant, self.profile], "'constant' or 'profile' solar")
 
 
 @dataclass
-class LoadProfile:
-    profile_dir: str = name_in_json("profileDir")
-    profiled_num_plots: float = name_in_json("profiledNumPlots")
-    scaled_num_plots: float = name_in_json("scaledNumPlots")
-
-
-@dataclass
 class Load:
     constant: Optional[float] = field(default=np.nan)
-    profile: Optional[LoadProfile] = field(default=None)
-    profiles: Optional[List[LoadProfile]] = field(default=None)
+    profile: Optional[Profile] = field(default=None)
+    profiles: Optional[List[Profile]] = field(default=None)
 
     def __post_init__(self):
         enforce_one_option(

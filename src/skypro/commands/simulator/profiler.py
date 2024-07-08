@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -14,16 +15,34 @@ class Profiler:
     def __init__(
             self,
             scaling_factor: float,
-            profile_csv_dir: str
+            profile_csv_dir: Optional[str] = None,
+            profile_csv: Optional[str] = None,
+            energy_cols: Optional[str] = None
     ):
         self._scaling_factor = scaling_factor
 
-        # read in all the profile files in the given directory into a dataframe
-        df = read_directory_of_csvs(profile_csv_dir)
+        if profile_csv_dir:
+            # read in all the profile files in the given directory into a dataframe
+            df = read_directory_of_csvs(profile_csv_dir)
+        elif profile_csv:
+            df = pd.read_csv(profile_csv)
+        else:
+            raise ValueError("Either a directory containing CSVs or CSV file must be specified")
 
-        # store only the information that we need - which is a pd.Series of the profile, indexed by datetime
-        df["UTCTime"] = pd.to_datetime(df["UTCTime"])
-        self._profile = df.set_index("UTCTime")["energy"]
+        df["UTCTime"] = pd.to_datetime(df["UTCTime"], utc=True)
+        df = df.set_index("UTCTime")
+
+        # If we have UTCTime then we don't need the ClockTime column
+        if "ClockTime" in df.columns:
+            df = df.drop("ClockTime", axis=1)
+
+        if energy_cols is None:
+            self._profile = df["energy"]
+        elif energy_cols == "sum-all":
+            self._profile = df.sum(axis=1)
+        else:
+            raise ValueError(f"Unknown energy column option: '{energy_cols}'")
+
         self._profile = self._profile.sort_index()
         duplicated = self._profile[self._profile.index.duplicated()].index
         if len(duplicated) > 0:
@@ -40,7 +59,7 @@ class Profiler:
         df_hh["values"] = np.nan
 
         # Search the profile by offsetting the year by increasing degrees
-        for year_offset in range(0, -5, -1):
+        for year_offset in range(0, -10, -1):
 
             # These are the times to search for in the profile
             hh_times_search = df_hh.index.to_series().apply(lambda t: try_offset_year(t, year_offset))
