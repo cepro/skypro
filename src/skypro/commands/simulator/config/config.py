@@ -38,6 +38,7 @@ class Profile:
 
     energy_cols: Optional[str] = name_in_json("energyCols")
 
+    scaling_factor: Optional[float] = name_in_json("scalingFactor")
     profiled_num_plots: Optional[float] = name_in_json("profiledNumPlots")
     scaled_num_plots: Optional[float] = name_in_json("scaledNumPlots")
     profiled_size_kwp: Optional[float] = name_in_json("profiledSizeKwp")
@@ -46,20 +47,19 @@ class Profile:
     def __post_init__(self):
         enforce_one_option([self.profile_dir, self.profile_csv], "'profileDir' or 'profileCsv'")
 
-        # There are two ways of setting the scaling factor: by 'kwp' fields or by 'num plot' fields. This is partly to
-        # support older configurations.
-        self.scaling_factor = None
-
-        if (self.profiled_num_plots is not None) and (self.scaled_num_plots is not None):
-            self.scaling_factor = self.scaled_num_plots / self.profiled_num_plots
-
-        if (self.profiled_size_kwp is not None) and (self.scaled_size_kwp is not None):
-            if self.scaling_factor is not None:
-                raise ValueError(f"Profile can be scaled by either 'num plots' or 'kwp', but not both.")
-            self.scaling_factor = self.scaled_size_kwp / self.profiled_size_kwp
-
+        # There are three ways of setting the scaling factor: by 'kwp' fields; by 'num plot' fields; or by
+        # explicitly setting the 'scalingFactor'. This is partly to support older configurations.
         if self.scaling_factor is None:
-            self.scaling_factor = 1
+            if (self.profiled_num_plots is not None) and (self.scaled_num_plots is not None):
+                self.scaling_factor = self.scaled_num_plots / self.profiled_num_plots
+
+            if (self.profiled_size_kwp is not None) and (self.scaled_size_kwp is not None):
+                if self.scaling_factor is not None:
+                    raise ValueError(f"Profile can be scaled by either 'num plots' or 'kwp', but not both.")
+                self.scaling_factor = self.scaled_size_kwp / self.profiled_size_kwp
+
+            if self.scaling_factor is None:
+                self.scaling_factor = 1
 
 
 @dataclass
