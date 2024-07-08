@@ -17,7 +17,9 @@ class Profiler:
             scaling_factor: float,
             profile_csv_dir: Optional[str] = None,
             profile_csv: Optional[str] = None,
-            energy_cols: Optional[str] = None
+            energy_cols: Optional[str] = None,
+            parse_clock_time: Optional[bool] = False,
+            clock_time_zone: Optional[str] = None,
     ):
         self._scaling_factor = scaling_factor
 
@@ -29,7 +31,16 @@ class Profiler:
         else:
             raise ValueError("Either a directory containing CSVs or CSV file must be specified")
 
-        df["UTCTime"] = pd.to_datetime(df["UTCTime"], utc=True)
+        if parse_clock_time:
+            # Temporary hack to support unusual CSV formats
+            df["ClockTime"] = pd.to_datetime(df["ClockTime"])
+            if clock_time_zone:
+                df["ClockTime"] = df["ClockTime"].dt.tz_localize(clock_time_zone)
+
+            df["UTCTime"] = df["ClockTime"].dt.tz_convert("UTC")
+        else:
+            df["UTCTime"] = pd.to_datetime(df["UTCTime"], utc=True)
+
         df = df.set_index("UTCTime")
 
         # If we have UTCTime then we don't need the ClockTime column

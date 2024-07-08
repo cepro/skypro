@@ -38,6 +38,9 @@ class Profile:
 
     energy_cols: Optional[str] = name_in_json("energyCols")
 
+    parse_clock_time: Optional[bool] = name_in_json("parseClockTime")
+    clock_time_zone: Optional[str] = name_in_json("clockTimeZone")
+
     scaling_factor: Optional[float] = name_in_json("scalingFactor")
     profiled_num_plots: Optional[float] = name_in_json("profiledNumPlots")
     scaled_num_plots: Optional[float] = name_in_json("scaledNumPlots")

@@ -287,7 +287,9 @@ def generate_profile(
             scaling_factor=profile_config.scaling_factor,
             profile_csv=substitute_vars(profile_config.profile_csv, env_vars),
             profile_csv_dir=substitute_vars(profile_config.profile_dir, env_vars),
-            energy_cols=profile_config.energy_cols
+            energy_cols=profile_config.energy_cols,
+            parse_clock_time=profile_config.parse_clock_time,
+            clock_time_zone=profile_config.clock_time_zone,
         )
         energy = profiler.get_for(time_index)
         power = energy / (STEP_SIZE.total_seconds() / 3600)
