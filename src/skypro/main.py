@@ -44,6 +44,12 @@ def main():
         help='Output CSV file location, by default no output file is generated.'
     )
     parser_simulate.add_argument(
+        '-s', '--output-summary',
+        dest='output_summary_file_path',
+        default=None,
+        help='Output CSV file location for a summary, by default no summary output file is generated.'
+    )
+    parser_simulate.add_argument(
         '-a', '--aggregate',
         dest='output_aggregate',
         default=None,

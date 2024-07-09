@@ -34,6 +34,7 @@ def simulate(
         env_file_path: str,
         do_plots: bool,
         output_file_path: Optional[str] = None,
+        output_summary_file_path: Optional[str] = None,
         output_aggregate: Optional[str] = None,
         output_rate_detail: Optional[bool] = False,
 ):
@@ -219,6 +220,7 @@ def simulate(
         battery_nameplate_power=config.simulation.site.bess.nameplate_power,
         site_import_limit=config.simulation.site.grid_connection.import_limit,
         site_export_limit=config.simulation.site.grid_connection.export_limit,
+        summary_csv_path=output_summary_file_path
     )
 
 
