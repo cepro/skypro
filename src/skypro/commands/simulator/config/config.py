@@ -149,9 +149,15 @@ class Approach:
 
 
 @dataclass
+class PeakDynamic:
+    prioritise_residual_load: bool = name_in_json("prioritiseResidualLoad")
+
+
+@dataclass
 class Peak:
     period: DayedPeriodType = name_in_json("period")
     approach: Approach = name_in_json("approach")
+    dynamic: Optional[PeakDynamic] = name_in_json("dynamic")
 
 
 @dataclass
