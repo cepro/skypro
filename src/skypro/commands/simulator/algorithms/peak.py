@@ -87,6 +87,11 @@ def get_peak_power(
         reserve_duration = peak_end - empty_time_without_reserve
         reserve_energy = microgrid_residual_power * (reserve_duration.total_seconds() / 3600)
 
+        if reserve_energy > soe:
+            # The assumptions around how much we needed to reserve were wrong and so we are going to run out of energy.
+            # Just do our best to service the residual load at this point:
+            return -microgrid_residual_power
+
         # Which, in turn, allows us to calculate the new max discharge rate which would allow us
         # to keep that reserve for the end of the peak
         duration_before_reserve = (peak_end - reserve_duration) - t
