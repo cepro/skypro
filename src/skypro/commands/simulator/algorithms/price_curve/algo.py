@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
-from skypro.commands.simulator.algorithms.peak import get_peak_approach_energies
+from skypro.commands.simulator.algorithms.peak import get_peak_approach_energies, get_peak_power
 from skypro.commands.simulator.algorithms.microgrid import get_microgrid_algo_energy
 from skypro.commands.simulator.algorithms.system_state import get_system_state, SystemState
 from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy
@@ -50,15 +50,22 @@ def run_price_curve_imbalance_algo(
         # Select the appropriate NIV chasing configuration for this time of day
         niv_config = get_relevant_niv_config(config.niv_chase_periods, t).niv
 
-        if config.peak.period and config.peak.period.contains(t):
-            # The configuration may specify that we ignore the charge/discharge curves and do a full discharge
-            # for a certain period - probably a DUoS red band
-            power = -df_in.loc[t, "bess_max_power_discharge"]
+        system_state = get_system_state(df_in, t, niv_config.volume_cutoff_for_prediction)
+
+        peak_power = get_peak_power(
+            peak_config=config.peak,
+            t=t,
+            time_step=time_step,
+            soe=soe,
+            bess_max_power_discharge=df_in.loc[t, "bess_max_power_discharge"],
+            microgrid_residual_power=df_in.loc[t, "microgrid_residual_power"],
+            system_state=system_state
+        )
+        if peak_power is not None:
+            power = peak_power
 
         else:
             target_energy_delta = 0
-
-            system_state = get_system_state(df_in, t, niv_config.volume_cutoff_for_prediction)
 
             red_approach_energy, amber_approach_energy = get_peak_approach_energies(
                 t=t,
