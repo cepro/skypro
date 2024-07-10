@@ -98,76 +98,7 @@ def run_spread_based_algo(
         )
         if peak_power is not None:
             power = peak_power
-        # if config.peak.period and config.peak.period.contains(t):
-        #     # The configuration may specify that we ignore the charge/discharge curves and do a full discharge
-        #     # for a certain period - probably a DUoS red band
-        #
-        #     CONFIG_PEAK_DYNAMIC = True
-        #     CONFIG_PEAK_PRIORITISE_LOAD = True
-        #
-        #     bess_max_power_discharge = df_in.loc[t, "bess_max_power_discharge"]
-        #
-        #     if not CONFIG_PEAK_DYNAMIC:
-        #         # We just do a 'dumb' full discharge over the peak until the battery is empty
-        #         power = -bess_max_power_discharge
-        #     else:
-        #         # If the notional battery duration (accounting for grid constraints) is shorter than the peak duration
-        #         # then we can get an improvement on the above 'dumb' method by choosing when we discharge into the peak.
-        #
-        #         peak_end = config.peak.period.period.end_absolute(t)
-        #
-        #         # This is an approximation because we may be limited by grid constraints and the load and solar levels
-        #         # may change throughout the peak.
-        #         assumed_time_to_empty_battery = timedelta(hours=(soe / bess_max_power_discharge))
-        #
-        #         # We want to ensure that we empty the battery completely by the end of the peak period, and there is a
-        #         # point into the peak where we must discharge at the max power to ensure that.
-        #         latest_time_before_max_discharge = peak_end - assumed_time_to_empty_battery
-        #         if t > (latest_time_before_max_discharge - timedelta(seconds=time_step.total_seconds())):
-        #             power = -bess_max_power_discharge
-        #         else:
-        #             # We are early enough in the peak period to have some flexibility about how much we discharge
-        #             if system_state == SystemState.LONG:
-        #                 if CONFIG_PEAK_PRIORITISE_LOAD:
-        #                     # Even though the system is long, discharge to avoid microgrid imports (if any)
-        #                     microgrid_residual = df_in.loc[t, "microgrid_residual_power"]
-        #                     if microgrid_residual > 0:
-        #                         power = -microgrid_residual
-        #                     else:
-        #                         power = 0
-        #                 else:
-        #                     # If we are not 'prioritising loads' then hold off on the discharge until the last minute,
-        #                     # or until the system is short.
-        #                     power = 0
-        #             else:
-        #                 if CONFIG_PEAK_PRIORITISE_LOAD:
-        #                     # Here we want to discharge at the max power we can, whilst ensuring there is enough energy
-        #                     # in the battery to service any residual microgrid load at the end of the peak.
-        #                     microgrid_residual = df_in.loc[t, "microgrid_residual_power"]
-        #
-        #                     # Approximate that the residual load will stay the same throughout the peak
-        #                     # TODO: we could make some assumption about the residual growing due to less solar later on?
-        #                     if microgrid_residual > 0:
-        #
-        #                         # If we were to discharge at max power, then when would we run out of energy?
-        #                         empty_time_without_reserve = t + assumed_time_to_empty_battery
-        #
-        #                         # This tells us how long and how much energy we need to reserve for servicing load
-        #                         reserve_duration = peak_end - empty_time_without_reserve
-        #                         reserve_energy = microgrid_residual * (reserve_duration.total_seconds() / 3600)
-        #
-        #                         # Which, in turn, allows us to calculate the new max discharge rate which would allow us
-        #                         # to keep that reserve for the end of the peak
-        #                         duration_before_reserve = (peak_end - reserve_duration) - t
-        #                         energy_before_reserve = soe - reserve_energy
-        #                         power = -energy_before_reserve / (duration_before_reserve.total_seconds() / 3600)
-        #
-        #                     else:
-        #                         power = -bess_max_power_discharge
-        #                 else:
-        #                     # If we are not 'prioritising loads' then discharge at the max power
-        #                     power = -bess_max_power_discharge
-
+       
         else:
             red_approach_energy, amber_approach_energy = get_peak_approach_energies(
                 t=t,
