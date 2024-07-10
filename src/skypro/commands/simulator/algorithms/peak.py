@@ -90,6 +90,8 @@ def get_peak_power(
         # Which, in turn, allows us to calculate the new max discharge rate which would allow us
         # to keep that reserve for the end of the peak
         duration_before_reserve = (peak_end - reserve_duration) - t
+        if duration_before_reserve.total_seconds() <= 0:
+            return -bess_max_power_discharge
         energy_before_reserve = soe - reserve_energy
         return -energy_before_reserve / (duration_before_reserve.total_seconds() / 3600)
 
