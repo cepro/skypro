@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "skypro"
-version = "0.6.3"
+version = "0.6.4"
 description = "Skyprospector command line tool by Cepro"
 authors = ["damonrand <damon@cepro.energy>"]
 license = "AGPL-3.0"
