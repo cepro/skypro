@@ -1,10 +1,10 @@
 import logging
-from datetime import timedelta
+from datetime import timedelta, date
 
 import numpy as np
 import pandas as pd
 
-from skypro.commands.simulator.algorithms.approach import get_peak_approach_energies
+from skypro.commands.simulator.algorithms.peak import get_peak_approach_energies, get_peak_power
 from skypro.commands.simulator.algorithms.microgrid import get_microgrid_algo_energy
 from skypro.commands.simulator.algorithms.system_state import SystemState, get_system_state
 from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy
@@ -85,15 +85,21 @@ def run_spread_based_algo(
         soe = last_soe + last_energy_delta - last_bess_losses
         df.loc[t, "soe"] = soe
 
-        if config.peak.period and config.peak.period.contains(t):
-            # The configuration may specify that we ignore the charge/discharge curves and do a full discharge
-            # for a certain period - probably a DUoS red band
-            power = -df_in.loc[t, "bess_max_power_discharge"]
+        system_state = get_system_state(df_in, t, config.niv_cutoff_for_system_state_assumption)
 
+        peak_power = get_peak_power(
+            peak_config=config.peak,
+            t=t,
+            time_step=time_step,
+            soe=soe,
+            bess_max_power_discharge=df_in.loc[t, "bess_max_power_discharge"],
+            microgrid_residual_power=df_in.loc[t, "microgrid_residual_power"],
+            system_state=system_state
+        )
+        if peak_power is not None:
+            power = peak_power
+       
         else:
-
-            system_state = get_system_state(df_in, t, config.niv_cutoff_for_system_state_assumption)
-
             red_approach_energy, amber_approach_energy = get_peak_approach_energies(
                 t=t,
                 time_step=time_step,
@@ -113,13 +119,14 @@ def run_spread_based_algo(
             )
 
             if config.microgrid:
-                system_state = SystemState.UNKNOWN
+                # There is a different niv cutoff threshold for the microgrid algo
+                system_state_mg = SystemState.UNKNOWN
                 if config.microgrid.imbalance_control:
-                    system_state = get_system_state(df_in, t, config.microgrid.imbalance_control.niv_cutoff_for_system_state_assumption)
+                    system_state_mg = get_system_state(df_in, t, config.microgrid.imbalance_control.niv_cutoff_for_system_state_assumption)
                 microgrid_algo_energy = get_microgrid_algo_energy(
                     config=config.microgrid,
                     microgrid_residual_energy=df_in.loc[t, "microgrid_residual_power"] * time_step_hours,
-                    system_state=system_state,
+                    system_state=system_state_mg,
                 )
             else:
                 microgrid_algo_energy = 0.0

@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Dict
+from typing import Dict, Optional
 
 import pandas as pd
 
@@ -20,6 +20,7 @@ def explore_results(
         battery_nameplate_power: float,
         site_import_limit: float,
         site_export_limit: float,
+        summary_csv_path: Optional[str]
 ):
     """
     Generally explores/plots the results, including logging the weighted average prices, cycling statistics, and
@@ -45,6 +46,11 @@ def explore_results(
     total_bess_discharge_to_grid = df['bess_discharge_to_grid'].sum()
     total_bess_discharge_to_load = df['bess_discharge_to_load'].sum()
 
+    # The above charge/discharge flows are representative of the flows into and out of the BESS. Losses are modelled as
+    # 'internal to the battery'. So the total bess charge (from all sources) is larger than the total bess discharge
+    # (to all loads).
+    total_bess_losses = df['bess_losses'].sum()
+
     # Calculate total costs of the BESS charging and discharging
     total_cost_bess_charge = costs_dfs["bess_charge"].sum().sum()
     total_cost_bess_discharge = costs_dfs["bess_discharge"].sum().sum()
@@ -55,10 +61,16 @@ def explore_results(
     total_cost_bess_discharge_to_load = costs_dfs["bess_discharge_to_load_inc_opp"].sum().sum()
 
     # Calculate the summaries/costs of non-BESS microgrid imports/exports
+    total_cost_solar_to_load = costs_dfs["solar_to_load_inc_opp"].sum().sum()
     total_cost_solar_to_grid = costs_dfs["solar_to_grid"].sum().sum()
     total_cost_load_from_grid = costs_dfs["load_from_grid"].sum().sum()
     total_solar_to_grid = df["solar_to_grid"].sum()
     total_load_from_grid = df["load_from_grid"].sum()
+
+    total_load = df["load"].sum()
+    total_solar = df["solar"].sum()
+    total_solar_to_load = df["solar_to_load"].sum()
+    solar_self_use = total_solar - total_solar_to_grid
 
     # Calculate the average p/kWh rates associated with the various energy flows
     avg_rate_bess_charge = total_cost_bess_charge / total_bess_charged_1
@@ -68,6 +80,7 @@ def explore_results(
     avg_rate_bess_discharge_to_grid = total_cost_bess_discharge_to_grid / total_bess_discharge_to_grid
     avg_rate_bess_discharge_to_load = total_cost_bess_discharge_to_load / total_bess_discharge_to_load
 
+    avg_rate_solar_to_load = total_cost_solar_to_load / total_solar_to_load
     avg_rate_solar_to_grid = total_cost_solar_to_grid / total_solar_to_grid
     avg_rate_load_from_grid = total_cost_load_from_grid / total_load_from_grid
 
@@ -78,14 +91,44 @@ def explore_results(
     print(f"Total BESS discharge: {total_bess_discharged_1:.1f} kWh, £{total_cost_bess_discharge/100:.2f}, {avg_rate_bess_discharge:.2f} p/kWh")
     print(f"  Discharge to grid: {total_bess_discharge_to_grid:.1f} kWh, £{total_cost_bess_discharge_to_grid/100:.2f}, {avg_rate_bess_discharge_to_grid:.2f} p/kWh")
     print(f"  Discharge to load: {total_bess_discharge_to_load:.1f} kWh, £{total_cost_bess_discharge_to_load/100:.2f}, {avg_rate_bess_discharge_to_load:.2f} p/kWh")
+    print(f"Total BESS losses: {total_bess_losses:.1f} kWh")
 
     print("")
-    print(f"Surplus solar to grid: {total_solar_to_grid:.1f} kWh, £{total_cost_solar_to_grid / 100:.2f}, {avg_rate_solar_to_grid:.2f} p/kWh")
-    print(f"Load from grid: {total_load_from_grid:.1f} kWh, £{total_cost_load_from_grid / 100:.2f}, {avg_rate_load_from_grid:.2f} p/kWh")
+    print(f"Total solar: {total_solar:.1f} kWh")
+    print(f"  Solar to load: {total_solar_to_load:.1f} kWh, £{total_cost_solar_to_load/100:.2f}, {avg_rate_solar_to_load:.2f} p/kWh")
+    print(f"  Solar to grid: {total_solar_to_grid:.1f} kWh, £{total_cost_solar_to_grid / 100:.2f}, {avg_rate_solar_to_grid:.2f} p/kWh")
+    print(f"  Solar to BESS: see above")
+    print(f"  Self-use (inc batt losses): {solar_self_use:.2f} kWh, {(solar_self_use/total_solar)*100:.1f}%")
+
+    print("")
+    print(f"Total load: {total_load:.1f} kWh")
+    print(f"  Load from grid: {total_load_from_grid:.1f} kWh, £{total_cost_load_from_grid / 100:.2f}, {avg_rate_load_from_grid:.2f} p/kWh")
+    print(f"  Load from solar: see above")
+    print(f"  Load from BESS: see above")
 
     print("")
     print(f"Total BESS gain over period: £{total_bess_gain/100:.2f}")
     print(f"Average daily BESS gain over period: £{(total_bess_gain / 100)/sim_days:.2f}")
+
+    if summary_csv_path:
+        # Output a CSV file summarising the energy flows and costs (costs are in £ rather than pence)
+        summary_df = pd.DataFrame(index=[1])
+        summary_df["bess_charge_from_grid"] = total_bess_charge_from_grid
+        summary_df["bess_charge_from_grid_cost"] = total_cost_bess_charge_from_grid / 100
+        summary_df["bess_charge_from_solar"] = total_bess_charge_from_solar
+        summary_df["bess_charge_from_solar_cost"] = total_cost_bess_charge_from_solar / 100
+        summary_df["bess_discharge_to_grid"] = total_bess_discharge_to_grid
+        summary_df["bess_discharge_to_grid_cost"] = total_cost_bess_discharge_to_grid / 100
+        summary_df["bess_discharge_to_load"] = total_bess_discharge_to_load
+        summary_df["bess_discharge_to_load_cost"] = total_cost_bess_discharge_to_load / 100
+        summary_df["bess_losses"] = total_bess_losses
+        summary_df["solar_to_load"] = total_solar_to_load
+        summary_df["solar_to_load_cost"] = total_cost_solar_to_load / 100
+        summary_df["solar_to_grid"] = total_solar_to_grid
+        summary_df["solar_to_grid_cost"] = total_cost_solar_to_grid / 100
+        summary_df["load_from_grid"] = total_load_from_grid
+        summary_df["load_from_grid_cost"] = total_cost_load_from_grid / 100
+        summary_df.to_csv(summary_csv_path, index=False)
 
     # Cycling
     total_cycles = total_bess_discharged_1 / battery_energy_capacity
@@ -95,17 +138,6 @@ def explore_results(
     print(f"Total cycles over simulation: {total_cycles:.2f} cycles")
     print(f"Average cycles per day: {cycles_per_day:.2f} cycles/day")
 
-    print("")
-    print("- - HINXTON - - ")
-    total_load = df["load"].sum()
-    total_solar = df["solar"].sum()
-    total_solar_exports = df["solar_to_grid"].sum()
-    self_use = total_solar - total_solar_exports
-
-    print(f"Total load: {total_load:.2f} kWh")
-    print(f"Total solar generation: {total_solar:.2f} kWh")
-    print(f"Total solar exports: {total_solar_exports:.2f} kWh")
-    print(f"Total solar self-use (inc batt losses): {self_use:.2f} kWh, {(self_use/total_solar)*100:.1f}%")
     # TODO: print warning if cycling is low - charge efficiency changes
 
     # Plot energy flows with charge / discharge limits
