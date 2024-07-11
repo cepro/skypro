@@ -54,7 +54,7 @@ def get_peak_power(
         return -bess_max_power_discharge
 
     # We are early enough in the peak period to have some flexibility about how much we discharge
-    if system_state == SystemState.LONG:
+    if system_state == SystemState.LONG or system_state == SystemState.UNKNOWN:
         if not peak_config.dynamic.prioritise_residual_load:
             # If we are not 'prioritising loads' then hold off on the discharge until the last minute,
             # or until the system is short.
@@ -66,7 +66,7 @@ def get_peak_power(
         else:
             return 0.0
 
-    else: # TODO: this 'else' currently includes SystemState.UNKNOWN, we may want to adjust the behaviour around that
+    else:
 
         if not peak_config.dynamic.prioritise_residual_load:
             # If we are not 'prioritising loads' then discharge at the max power
