@@ -8,6 +8,12 @@ import pandas as pd
 class TestIntegration(unittest.TestCase):
 
     def test_integration(self):
+        """
+        This spawns the Skypro cli tool in a subprocess, runs it with a set of known inputs/configurations, and checks
+        that the summarised results are within tolerance.
+        This should allow us to ensure that the results do not change unexpectedly, although of course if the algorithm
+        genuinely changes then we should expect the results to change and update them appropriately here.
+        """
 
         logging.info("Starting integration test...")
         res = subprocess.run([
