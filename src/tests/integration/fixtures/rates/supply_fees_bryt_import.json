@@ -1,0 +1,16 @@
+{
+  "imbalance": {
+    "supplyPoint": "nsp",
+    "isExport": false
+  },
+  "powerFixed": {
+    "brytAccountManagement": {
+      "rate": 1.177,
+      "supplyPoint": "nsp"
+    },
+    "brytCashOutFee": {
+      "rate": 0.878,
+      "supplyPoint": "nsp"
+    }
+  }
+}

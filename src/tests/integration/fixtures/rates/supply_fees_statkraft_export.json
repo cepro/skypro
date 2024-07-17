@@ -1,0 +1,11 @@
+{
+  "imbalance": {
+    "supplyPoint": "nsp",
+    "isExport": true
+  },
+  "multiplierRate": {
+    "name": "StatkraftMultiplier",
+    "factor": -0.05,
+    "ratesToMultiply": "all-in-this-direction"
+  }
+}

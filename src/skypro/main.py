@@ -5,7 +5,7 @@ import importlib.metadata
 from skypro.commands.simulator.main import simulate
 
 
-DEFAULT_ENV_FILE = f"~/.simt/env.json"
+DEFAULT_ENV_FILE = "~/.simt/env.json"
 
 
 def main():
@@ -68,6 +68,12 @@ def main():
         dest='do_plots',
         action="store_true",
         help='If specified, plots will be generated and shown in your default browser.'
+    )
+    parser_simulate.add_argument(
+        '-y',
+        dest='skip_cli_warnings',
+        action="store_true",
+        help='If specified, command line warnings will be auto-accepted.'
     )
 
     kwargs = vars(parser.parse_args())

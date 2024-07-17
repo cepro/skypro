@@ -32,9 +32,9 @@ def read_imbalance_data(time_index: pd.DatetimeIndex, price_dir: str, volume_dir
         volume_df["predictionUTCTime"] = pd.to_datetime(volume_df["predictionUTCTime"], format="ISO8601")
 
     if time_index[0] < min(price_df["spUTCTime"]) or time_index[0] < min(volume_df["spUTCTime"]):
-        raise ValueError(f"Simulation start time is outside of imbalance data range")
+        raise ValueError("Simulation start time is outside of imbalance data range")
     if time_index[-1] > max(price_df["spUTCTime"]) or time_index[-1] > max(volume_df["spUTCTime"]):
-        raise ValueError(f"Simulation end time is outside of imbalance volume data range")
+        raise ValueError("Simulation end time is outside of imbalance volume data range")
 
     # Remove data out of the time range of interest
     # TODO: only read in CSVs for the months that are required in the first place

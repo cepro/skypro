@@ -1,0 +1,13 @@
+{
+  "supplyPoints": {
+    "msp": {
+      "lossFactor": 1.00
+    },
+    "gsp": {
+      "lossFactor": 1.08
+    },
+    "nsp": {
+      "lossFactor": 1.11
+    }
+  }
+}

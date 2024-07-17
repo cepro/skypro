@@ -1,11 +1,9 @@
 import logging
 from datetime import timedelta, datetime
-from typing import List
 
 import numpy as np
 import pandas as pd
 
-from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
 from skypro.commands.simulator.algorithms.peak import get_peak_approach_energies, get_peak_power
 from skypro.commands.simulator.algorithms.microgrid import get_microgrid_algo_energy
 from skypro.commands.simulator.algorithms.system_state import get_system_state, SystemState

@@ -7,7 +7,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from simt_common.analysis.costs_by_group import plot_costs_by_grouping
 from simt_common.analysis.daily_gains import plot_daily_gains
 from simt_common.rates.microgrid import breakdown_costs
 
@@ -97,14 +96,14 @@ def explore_results(
     print(f"Total solar: {total_solar:.1f} kWh")
     print(f"  Solar to load: {total_solar_to_load:.1f} kWh, £{total_cost_solar_to_load/100:.2f}, {avg_rate_solar_to_load:.2f} p/kWh")
     print(f"  Solar to grid: {total_solar_to_grid:.1f} kWh, £{total_cost_solar_to_grid / 100:.2f}, {avg_rate_solar_to_grid:.2f} p/kWh")
-    print(f"  Solar to BESS: see above")
+    print("  Solar to BESS: see above")
     print(f"  Self-use (inc batt losses): {solar_self_use:.2f} kWh, {(solar_self_use/total_solar)*100:.1f}%")
 
     print("")
     print(f"Total load: {total_load:.1f} kWh")
     print(f"  Load from grid: {total_load_from_grid:.1f} kWh, £{total_cost_load_from_grid / 100:.2f}, {avg_rate_load_from_grid:.2f} p/kWh")
-    print(f"  Load from solar: see above")
-    print(f"  Load from BESS: see above")
+    print("  Load from solar: see above")
+    print("  Load from BESS: see above")
 
     print("")
     print(f"Total BESS gain over period: £{total_bess_gain/100:.2f}")
