@@ -69,6 +69,12 @@ def main():
         action="store_true",
         help='If specified, plots will be generated and shown in your default browser.'
     )
+    parser_simulate.add_argument(
+        '-y',
+        dest='skip_cli_warnings',
+        action="store_true",
+        help='If specified, command line warnings will be auto-accepted.'
+    )
 
     kwargs = vars(parser.parse_args())
 
