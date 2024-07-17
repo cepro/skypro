@@ -5,7 +5,7 @@ import importlib.metadata
 from skypro.commands.simulator.main import simulate
 
 
-DEFAULT_ENV_FILE = f"~/.simt/env.json"
+DEFAULT_ENV_FILE = "~/.simt/env.json"
 
 
 def main():

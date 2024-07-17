@@ -2,7 +2,7 @@ import logging
 import os
 from datetime import timedelta
 from functools import reduce
-from typing import Optional, List
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -17,7 +17,7 @@ from skypro.cli_utils.cli_utils import substitute_vars, read_json_file
 from skypro.commands.simulator.algorithms.price_curve.algo import run_price_curve_imbalance_algo
 from skypro.commands.simulator.algorithms.spread.algo import run_spread_based_algo
 from skypro.commands.simulator.config import parse_config
-from skypro.commands.simulator.config.config import Profile, Solar, Load
+from skypro.commands.simulator.config.config import Solar, Load
 from skypro.commands.simulator.output import save_output
 from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data
 from skypro.commands.simulator.profiler import Profiler

@@ -1,5 +1,5 @@
 import logging
-from datetime import timedelta, date
+from datetime import timedelta
 
 import numpy as np
 import pandas as pd
@@ -58,17 +58,17 @@ def run_spread_based_algo(
     df["rate_bess_discharge_to_grid_non_imbalance"] = df_in["rate_bess_discharge_to_grid_non_imbalance"]
 
     notional_spread_short = (
-            df_in[f"rate_predicted_bess_charge_from_grid"] -
+            df_in["rate_predicted_bess_charge_from_grid"] -
             (
-                    (df[f"recent_imbalance_price_long"] + df_in["rate_bess_charge_from_grid_non_imbalance"])
+                    (df["recent_imbalance_price_long"] + df_in["rate_bess_charge_from_grid_non_imbalance"])
                     / battery_charge_efficiency
             )
-    )[df_in[f"imbalance_volume_predicted"] > 0]
+    )[df_in["imbalance_volume_predicted"] > 0]
 
     notional_spread_long = -(
-            (-df[f"recent_imbalance_price_short"] + df_in["rate_bess_discharge_to_grid_non_imbalance"]) -
-            (df_in[f"rate_predicted_bess_discharge_to_grid"])
-    )[df_in[f"imbalance_volume_predicted"] < 0]
+            (-df["recent_imbalance_price_short"] + df_in["rate_bess_discharge_to_grid_non_imbalance"]) -
+            (df_in["rate_predicted_bess_discharge_to_grid"])
+    )[df_in["imbalance_volume_predicted"] < 0]
 
     df["notional_spread"] = pd.concat([notional_spread_long, notional_spread_short])
     df["prev_sp_notional_spread"] = df["notional_spread"].shift(steps_per_sp).bfill(limit=steps_per_sp-1)
