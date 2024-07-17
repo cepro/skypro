@@ -5,15 +5,17 @@ import subprocess
 import pandas as pd
 
 
-class TestBlah(unittest.TestCase):
+class TestIntegration(unittest.TestCase):
 
-    def test_blah(self):
+    def test_integration(self):
 
         logging.info("Starting integration test...")
         res = subprocess.run([
             'python3',
             './src/skypro/main.py',
             'simulate',
+            '--env',
+            './src/tests/integration/fixtures/env.json',
             '-y',
             '--config',
             './src/tests/integration/fixtures/config.json',
