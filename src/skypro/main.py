@@ -53,7 +53,13 @@ def main():
         '-a', '--aggregate',
         dest='output_aggregate',
         default=None,
-        help='Aggregate the output file to the given time period, options available: "30min".'
+        help='Aggregate the output files to the given time period, options available: "30min".'
+    )
+    parser_simulate.add_argument(
+        '-l', '--load',
+        dest='output_load_breakdown',
+        default=None,
+        help='Output CSV file for the load breakdown.'
     )
     parser_simulate.add_argument(
         '-r', '--rate-detail',
