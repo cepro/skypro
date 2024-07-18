@@ -1,7 +1,6 @@
 import logging
 import os
 from datetime import timedelta
-from functools import reduce
 from typing import Optional
 
 import numpy as np
@@ -337,7 +336,7 @@ def process_profiles(
 
     if output_profile_breakdown:
         # Optionally export a CSV of the load profiles
-        
+
         if output_aggregate:
             # Optionally aggregate to 30mins to reduce the size of the CSV
             if output_aggregate == "30min":
