@@ -33,6 +33,10 @@ class Site:
 
 @dataclass
 class Profile:
+    # Tag is an optional name to assign to the profile. The advantage of this over the name being a dict key is that
+    # arrays preserve order and the order of the load profiles may become important down the line.
+    tag: Optional[str] = name_in_json("tag")
+
     profile_dir: Optional[str] = name_in_json("profileDir")
     profile_csv: Optional[str] = name_in_json("profileCsv")
 

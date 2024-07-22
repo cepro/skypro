@@ -1,7 +1,6 @@
 import logging
 import os
 from datetime import timedelta
-from functools import reduce
 from typing import Optional
 
 import numpy as np
@@ -36,6 +35,7 @@ def simulate(
         skip_cli_warnings: bool,
         output_file_path: Optional[str] = None,
         output_summary_file_path: Optional[str] = None,
+        output_load_breakdown: Optional[str] = None,
         output_aggregate: Optional[str] = None,
         output_rate_detail: Optional[bool] = False,
 ):
@@ -102,22 +102,26 @@ def simulate(
         df[f"rate_final_{set_name}"] = rates_df.sum(axis=1, skipna=False)
 
     logging.info("Generating solar profile...")
-    df["solar_power"] = generate_profile(
+    df["solar_power"] = process_profiles(
         time_index=time_index,
         config=config.simulation.site.solar,
         env_vars=env_vars,
         do_plots=do_plots,
-        context_hint="Solar"
+        context_hint="Solar",
+        output_profile_breakdown=None,
+        output_aggregate=None
     )
 
     # Create load data
     logging.info("Generating load profile...")
-    df["load_power"] = generate_profile(
+    df["load_power"] = process_profiles(
         time_index=time_index,
         config=config.simulation.site.load,
         env_vars=env_vars,
         do_plots=do_plots,
-        context_hint="Load"
+        context_hint="Load",
+        output_profile_breakdown=output_load_breakdown,
+        output_aggregate=output_aggregate
     )
 
     # Calculate the BESS charge and discharge limits based on how much solar generation and housing load
@@ -261,13 +265,19 @@ def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def generate_profile(
+def process_profiles(
         time_index: pd.DatetimeIndex,
         config: Solar | Load,
         env_vars,
         do_plots: bool,
-        context_hint: str
+        context_hint: str,
+        output_profile_breakdown: Optional[str],
+        output_aggregate: Optional[str]
 ) -> pd.Series:
+    """
+    Reads the specified profile configuration and returns the total power in a pd.Series.
+    This function also optionally plots the profiles and exports a CSV of the profiles broken down by category.
+    """
 
     if config.profile:
         profile_configs = [config.profile]
@@ -278,14 +288,19 @@ def generate_profile(
     else:
         raise ValueError("Configuration must have either 'profile', 'profiles' or 'constant'")
 
-    all_power_series = []
-    all_power_names = []
-    for profile_config in profile_configs:
-        if profile_config.profile_csv:
-            name = profile_config.profile_csv
+    energy_df = pd.DataFrame(index=time_index)
+    power_df = pd.DataFrame(index=time_index)
+
+    for i, profile_config in enumerate(profile_configs):
+        if profile_config.tag:
+            name = profile_config.tag
         else:
-            name = profile_config.profile_dir
-        name = os.path.basename(os.path.normpath(name))
+            if profile_config.profile_csv:
+                name = profile_config.profile_csv
+            else:
+                name = profile_config.profile_dir
+            name = os.path.basename(os.path.normpath(name))
+            name = f"profile-{i}-{name}"
 
         logging.info(f"Generating load profile for {name}...")
         profiler = Profiler(
@@ -296,22 +311,20 @@ def generate_profile(
             parse_clock_time=profile_config.parse_clock_time,
             clock_time_zone=profile_config.clock_time_zone,
         )
-        energy = profiler.get_for(time_index)
-        power = energy / (STEP_SIZE.total_seconds() / 3600)
+        energy_df[name] = profiler.get_for(time_index)
+        power_df[name] = energy_df[name] / (STEP_SIZE.total_seconds() / 3600)
 
-        all_power_series.append(power)
-        all_power_names.append(name)
+    total_power = power_df.sum(axis=1)  # TODO: check
 
-    total_power = reduce(lambda x, y: x.add(y, fill_value=0), all_power_series)
     if do_plots:
         fig = go.Figure()
-        for i, series in enumerate(all_power_series):
+        for name in power_df.columns:
             fig.add_trace(
                 go.Scatter(
-                    x=series.index,
-                    y=series,
+                    x=power_df.index,
+                    y=power_df[name],
                     mode='lines',
-                    name=f"power-{i}-{all_power_names[i]}"
+                    name=name
                 )
             )
         fig.add_trace(go.Scatter(x=total_power.index, y=total_power, name="total-power"))
@@ -320,5 +333,20 @@ def generate_profile(
             yaxis_title="Power (kW)"
         )
         fig.show()
+
+    if output_profile_breakdown:
+        # Optionally export a CSV of the load profiles
+
+        if output_aggregate:
+            # Optionally aggregate to 30mins to reduce the size of the CSV
+            if output_aggregate == "30min":
+                # Energy profiles are in kWh should all be summed to aggregate
+                aggregate_energy_df = energy_df.resample("30min").sum()
+            else:
+                raise ValueError(f"Unknown aggregate option: '{output_aggregate}'")
+        else:
+            aggregate_energy_df = energy_df
+
+        aggregate_energy_df.to_csv(output_profile_breakdown, index_label="UTCTime")
 
     return total_power
