@@ -4,7 +4,7 @@ from typing import List, Tuple, Any, Optional, Dict
 
 import pandas as pd
 
-from skypro.commands.simulator.config.config import Config
+from skypro.commands.simulator.config import ConfigV3
 
 
 def with_config_entries(df: pd.DataFrame, entries: List[Tuple[str, Any]]) -> pd.DataFrame:
@@ -19,7 +19,7 @@ def with_config_entries(df: pd.DataFrame, entries: List[Tuple[str, Any]]) -> pd.
 def save_output(
         df: pd.DataFrame,
         final_rates_dfs: Dict[str, pd.DataFrame],
-        config: Config,
+        config: ConfigV3,
         output_file_path: str,
         aggregate: Optional[str] = None,
         rate_detail: Optional[str] = None,

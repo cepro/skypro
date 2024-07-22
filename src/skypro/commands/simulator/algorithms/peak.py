@@ -7,7 +7,7 @@ import pytz
 
 from skypro.commands.simulator.algorithms.system_state import SystemState
 from skypro.commands.simulator.cartesian import Curve, Point
-from skypro.commands.simulator.config.config import Peak
+from skypro.commands.simulator.config import Peak
 
 TIMEZONE_STR = "Europe/London"
 REF_DATETIME = pytz.timezone(TIMEZONE_STR).localize(datetime(year=2000, month=1, day=1))

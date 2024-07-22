@@ -9,7 +9,7 @@ from skypro.commands.simulator.algorithms.microgrid import get_microgrid_algo_en
 from skypro.commands.simulator.algorithms.system_state import get_system_state, SystemState
 from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy
 from skypro.commands.simulator.cartesian import Curve, Point
-from skypro.commands.simulator.config.config import get_relevant_niv_config, PriceCurveAlgo
+from skypro.commands.simulator.config import get_relevant_niv_config, PriceCurveAlgo
 
 
 def run_price_curve_imbalance_algo(

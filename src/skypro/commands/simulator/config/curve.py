@@ -12,6 +12,7 @@ This handles parsing of JSON into a Curve and Point types
 class PointSchema(Schema):
     x = fields.Float
     y = fields.Float
+    # TODO: somehow these aren't being validated - Infinity is coming through as a string
 
 
 class PointField(fields.Field):
