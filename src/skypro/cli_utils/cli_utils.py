@@ -26,19 +26,6 @@ def get_user_ack_of_warning_or_exit(warning_str: str):
             exit(-1)
 
 
-def substitute_vars(string: Optional[str], variables: Dict[str, str]) -> Optional[str]:
-    """
-    Replaces the variables that are present in `string` with their associated value in the `variables` dictionary.
-    """
-    if string is None:
-        return None
-
-    for key, val in variables.items():
-        string = string.replace(f"${key}", val)
-
-    return string
-
-
 def read_json_file(file_path: str) -> Dict:
     """
     Reads a json file and returns the contents as a dictionary.

@@ -7,7 +7,6 @@ from simt_common.jsonconfig.utility import name_in_json
 
 from skypro.commands.simulator.config.config_common import Strategy, ImbalanceDataSource, Rates, Site
 
-
 """
 This file contains configuration schema specific to V3
 """

@@ -10,6 +10,8 @@ from plotly.subplots import make_subplots
 from simt_common.analysis.daily_gains import plot_daily_gains
 from simt_common.rates.microgrid import breakdown_costs
 
+from skypro.commands.simulator.config.config_v4 import OutputSummary
+
 
 def explore_results(
         df: pd.DataFrame,
@@ -19,7 +21,7 @@ def explore_results(
         battery_nameplate_power: float,
         site_import_limit: float,
         site_export_limit: float,
-        summary_csv_path: Optional[str]
+        summary_output_config: Optional[OutputSummary]
 ):
     """
     Generally explores/plots the results, including logging the weighted average prices, cycling statistics, and
@@ -109,7 +111,7 @@ def explore_results(
     print(f"Total BESS gain over period: £{total_bess_gain/100:.2f}")
     print(f"Average daily BESS gain over period: £{(total_bess_gain / 100)/sim_days:.2f}")
 
-    if summary_csv_path:
+    if summary_output_config:
         # Output a CSV file summarising the energy flows and costs (costs are in £ rather than pence)
         summary_df = pd.DataFrame(index=[1])
         summary_df["bess_charge_from_grid"] = total_bess_charge_from_grid
@@ -127,7 +129,7 @@ def explore_results(
         summary_df["solar_to_grid_cost"] = total_cost_solar_to_grid / 100
         summary_df["load_from_grid"] = total_load_from_grid
         summary_df["load_from_grid_cost"] = total_cost_load_from_grid / 100
-        summary_df.to_csv(summary_csv_path, index=False)
+        summary_df.to_csv(summary_output_config.csv, index=False)
 
     # Cycling
     total_cycles = total_bess_discharged_1 / battery_energy_capacity

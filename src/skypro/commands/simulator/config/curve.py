@@ -31,7 +31,7 @@ class CurveField(fields.Field):
         """
         points = []
         for point_config in raw:
-            points.append(Point(x=point_config["x"], y=point_config["y"]))
+            points.append(Point(x=float(point_config["x"]), y=float(point_config["y"])))
 
         return Curve(points)
 

@@ -1,10 +1,11 @@
 from dataclasses import field
 from datetime import timedelta
 from typing import List, Optional, Dict
+from os.path import expanduser
 
 import numpy as np
 from marshmallow_dataclass import dataclass
-
+from simt_common.cli_utils.cliutils import substitute_vars
 
 from simt_common.jsonconfig.utility import name_in_json, enforce_one_option
 from simt_common.jsonconfig.dayed_period import DayedPeriodType
