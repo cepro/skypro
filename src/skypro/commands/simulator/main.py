@@ -47,6 +47,7 @@ def simulate(
     set_auto_accept_cli_warnings(skip_cli_warnings)
 
     # Here we tell the PathField class about env vars, so it knows how expand them during config deserialization
+    logging.info(f"Using env var file: {os.path.expanduser(env_file_path)}")
     PathField.env_vars = read_json_file(env_file_path)["vars"]
 
     # Parse the main config file
@@ -58,7 +59,7 @@ def simulate(
         simulation_cases = {"v3Case": config.simulation}
     elif isinstance(config, ConfigV4):
         if not simulation_case_name:
-            raise ValueError("You muse specify the --case when using a V4 configuration file.")
+            raise ValueError("You must specify the --case to run when using a V4 configuration file.")
         if simulation_case_name == "all":
             simulation_cases = config.cases
         elif simulation_case_name in config.cases.keys():
@@ -145,7 +146,7 @@ def simulate(
         if isinstance(config, ConfigV3):
             load_output_config = None
         else:
-            load_output_config = case_config.output.load
+            load_output_config = case_config.output.load if case_config.output else None
 
         # Create load data
         logging.info("Generating load profile...")
@@ -251,7 +252,7 @@ def simulate(
                     rate_detail=v3_output_rate_detail
                 )
         else:
-            simulation_output_config = case_config.output.simulation
+            simulation_output_config = case_config.output.simulation if case_config.output else None
 
         if simulation_output_config:
             save_simulation_output(
@@ -268,7 +269,7 @@ def simulate(
                     csv=v3_output_summary_file_path
                 )
         else:
-            summary_output_config = case_config.output.summary
+            summary_output_config = case_config.output.summary if case_config.output else None
 
         explore_results(
             df=df,

@@ -46,7 +46,7 @@ class Output:
 
 @dataclass
 class SimulationV4:
-    output: Output
+    output: Optional[Output]
     timeframe: TimeFrame = name_in_json("timeFrame")
     site: Site
     strategy: Strategy
