@@ -13,10 +13,11 @@ from simt_common.jsonconfig.rates import parse_supply_points, process_rates_for_
 from simt_common.rates.microgrid import get_rates_dfs
 from simt_common.timeutils.hh_math import floor_hh
 
-from skypro.cli_utils.cli_utils import substitute_vars, read_json_file, set_auto_accept_cli_warnings
+from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings
 from skypro.commands.simulator.algorithms.price_curve.algo import run_price_curve_imbalance_algo
 from skypro.commands.simulator.algorithms.spread.algo import run_spread_based_algo
 from skypro.commands.simulator.config import parse_config, Solar, Load, ConfigV3, ConfigV4
+from skypro.commands.simulator.config.config_common import PathField
 from skypro.commands.simulator.config.config_v3 import SimulationV3
 from skypro.commands.simulator.config.config_v4 import SimulationV4, OutputLoad, OutputSimulation, OutputSummary
 from skypro.commands.simulator.output import save_simulation_output
@@ -46,11 +47,13 @@ def simulate(
 
     set_auto_accept_cli_warnings(skip_cli_warnings)
 
+    # Here we tell the PathField class about env vars, so it knows how expand them during config deserialization
+    PathField.env_vars = read_json_file(env_file_path)["vars"]
+
     # Parse the main config file
     logging.info(f"Using config file: {config_file_path}")
     config: ConfigV3 | ConfigV4 = parse_config(config_file_path)
 
-    env_vars = read_json_file(env_file_path)["vars"]
 
     if isinstance(config, ConfigV3):
         simulation_cases = {"v3Case": config.simulation}
@@ -73,7 +76,7 @@ def simulate(
 
         # Parse the supply points config file:
         supply_points = parse_supply_points(
-            supply_points_config_file=substitute_vars(case_config.rates.supply_points_config_file, env_vars)
+            supply_points_config_file=case_config.rates.supply_points_config_file
         )
 
         # Run the simulation at 10 minute granularity
@@ -88,20 +91,28 @@ def simulate(
         # change over the course of the SP, whereas Elexon publishes a single figure for each SP in hindsight.
         df = read_imbalance_data(
             time_index=time_index,
-            price_dir=substitute_vars(case_config.imbalance_data_source.price_dir, env_vars),
-            volume_dir=substitute_vars(case_config.imbalance_data_source.volume_dir, env_vars),
+            price_dir=case_config.imbalance_data_source.price_dir,
+            volume_dir=case_config.imbalance_data_source.volume_dir,
         )
 
         predicted_rates = process_rates_for_all_energy_flows(
-            config=case_config.rates.files,
-            env_vars=env_vars,
+            bess_charge_from_solar=case_config.rates.files.bess_charge_from_solar,
+            bess_charge_from_grid=case_config.rates.files.bess_charge_from_grid,
+            bess_discharge_to_load=case_config.rates.files.bess_discharge_to_load,
+            bess_discharge_to_grid=case_config.rates.files.bess_discharge_to_grid,
+            solar_to_grid=case_config.rates.files.solar_to_grid,
+            load_from_grid=case_config.rates.files.load_from_grid,
             supply_points=supply_points,
             imbalance_pricing=df["imbalance_price_predicted"]
         )
 
         final_rates = process_rates_for_all_energy_flows(
-            config=case_config.rates.files,
-            env_vars=env_vars,
+            bess_charge_from_solar=case_config.rates.files.bess_charge_from_solar,
+            bess_charge_from_grid=case_config.rates.files.bess_charge_from_grid,
+            bess_discharge_to_load=case_config.rates.files.bess_discharge_to_load,
+            bess_discharge_to_grid=case_config.rates.files.bess_discharge_to_grid,
+            solar_to_grid=case_config.rates.files.solar_to_grid,
+            load_from_grid=case_config.rates.files.load_from_grid,
             supply_points=supply_points,
             imbalance_pricing=df["imbalance_price_final"]
         )
@@ -126,7 +137,6 @@ def simulate(
         df["solar_power"] = process_profiles(
             time_index=time_index,
             config=case_config.site.solar,
-            env_vars=env_vars,
             do_plots=do_plots,
             context_hint="Solar",
             output_config=None
@@ -143,7 +153,6 @@ def simulate(
         df["load_power"] = process_profiles(
             time_index=time_index,
             config=case_config.site.load,
-            env_vars=env_vars,
             do_plots=do_plots,
             context_hint="Load",
             output_config=load_output_config
@@ -311,7 +320,6 @@ def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
 def process_profiles(
         time_index: pd.DatetimeIndex,
         config: Solar | Load,
-        env_vars,
         do_plots: bool,
         context_hint: str,
         output_config: Optional[OutputLoad]
@@ -347,8 +355,8 @@ def process_profiles(
         logging.info(f"Generating load profile for {name}...")
         profiler = Profiler(
             scaling_factor=profile_config.scaling_factor,
-            profile_csv=substitute_vars(profile_config.profile_csv, env_vars),
-            profile_csv_dir=substitute_vars(profile_config.profile_dir, env_vars),
+            profile_csv=profile_config.profile_csv,
+            profile_csv_dir=profile_config.profile_dir,
             energy_cols=profile_config.energy_cols,
             parse_clock_time=profile_config.parse_clock_time,
             clock_time_zone=profile_config.clock_time_zone,

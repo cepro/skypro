@@ -1,15 +1,15 @@
 import os
 from dataclasses import field
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Annotated
 
-from marshmallow_dataclass import dataclass
+from marshmallow import fields
+from marshmallow_dataclass import dataclass, NewType
 from simt_common.cli_utils.cliutils import substitute_vars
 
 from simt_common.jsonconfig.utility import name_in_json
 
-from skypro.commands.simulator.config.config_common import Site, Strategy, ImbalanceDataSource, Rates
-
+from skypro.commands.simulator.config.config_common import Site, Strategy, ImbalanceDataSource, Rates, PathType
 
 """
 This file contains configuration schema specific to V4
@@ -24,19 +24,19 @@ class TimeFrame:
 
 @dataclass
 class OutputSummary:
-    csv: str
+    csv: PathType
 
 
 @dataclass
 class OutputSimulation:
-    csv: str
+    csv: PathType
     aggregate: Optional[str]
     rate_detail: Optional[str] = name_in_json("rateDetail")
 
 
 @dataclass
 class OutputLoad:
-    csv: str
+    csv: PathType
     aggregate: Optional[str]
 
 

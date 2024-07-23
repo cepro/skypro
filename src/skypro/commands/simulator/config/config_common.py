@@ -1,9 +1,11 @@
+import os
 from dataclasses import field
 from datetime import timedelta
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Annotated
 from os.path import expanduser
 
 import numpy as np
+from marshmallow import fields
 from marshmallow_dataclass import dataclass
 from simt_common.cli_utils.cliutils import substitute_vars
 
@@ -15,6 +17,27 @@ from skypro.commands.simulator.config.curve import (CurveType)
 """
 This file contains configuration schema that is used for both V3 and V4 config
 """
+
+
+class PathField(fields.Field):
+    """
+    This Marshmallow field type is used to deserialize file paths. It expands the local user tilde symbol and also
+    substitutes environment variables.
+    The environment variables must be first set on the `env_vars` class variable before deserializing.
+    """
+
+    env_vars = {}  # class variable defines any environment variables for substitution into the path
+
+    def _serialize(self, value, attr, obj, **kwargs):
+        raise ValueError("Serialization not yet defined")
+
+    def _deserialize(self, value, attr, data, **kwargs):
+        # Expand any `~/` syntax and $ENV_VARS that are used
+        return os.path.expanduser(substitute_vars(value, PathField.env_vars))
+
+
+# The marshmallow_dataclass library doesn't use the PathField directly, but instead needs a Type defining:
+PathType = Annotated[str, PathField]
 
 
 @dataclass
@@ -34,8 +57,8 @@ class Profile:
     # arrays preserve order and the order of the load profiles may become important down the line.
     tag: Optional[str] = name_in_json("tag")
 
-    profile_dir: Optional[str] = name_in_json("profileDir")
-    profile_csv: Optional[str] = name_in_json("profileCsv")
+    profile_dir: Optional[PathType] = name_in_json("profileDir")
+    profile_csv: Optional[PathType] = name_in_json("profileCsv")
 
     energy_cols: Optional[str] = name_in_json("energyCols")
 
@@ -126,8 +149,18 @@ class NivPeriod:
 
 @dataclass
 class ImbalanceDataSource:
-    price_dir: str = name_in_json("priceDir")
-    volume_dir: str = name_in_json("volumeDir")
+    price_dir: PathType = name_in_json("priceDir")
+    volume_dir: PathType = name_in_json("volumeDir")
+
+
+@dataclass
+class RatesFiles:
+    bess_charge_from_solar: List[PathType] = name_in_json("bessChargeFromSolar")
+    bess_charge_from_grid: List[PathType] = name_in_json("bessChargeFromGrid")
+    bess_discharge_to_grid: List[PathType] = name_in_json("bessDischargeToGrid")
+    bess_discharge_to_load: List[PathType] = name_in_json("bessDischargeToLoad")
+    solar_to_grid: List[PathType] = name_in_json("solarToGrid")
+    load_from_grid: List[PathType] = name_in_json("loadFromGrid")
 
 
 @dataclass
@@ -136,8 +169,8 @@ class Rates:
     Note that this class just holds the paths to the rates/supply point configuration files. The actual parsing of the
     contents of these files is done in the common.config.rates module.
     """
-    supply_points_config_file: str = name_in_json("supplyPointsConfigFile")
-    files: Dict = name_in_json("files")
+    supply_points_config_file: PathType = name_in_json("supplyPointsConfigFile")
+    files: RatesFiles
 
 
 @dataclass
