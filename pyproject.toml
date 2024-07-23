@@ -12,8 +12,8 @@ pandas = "^2.2.2"
 plotly = "^5.21.0"
 marshmallow = "^3.21.1"
 marshmallow-dataclass = "^8.6.1"
-simt-common = {version = "^1.2.1", source = "testpypi"}
 pyyaml = "^6.0.1"
+simt-common = {version = "^1.3.0", source = "testpypi"}
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.4.2"
