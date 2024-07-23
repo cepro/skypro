@@ -1,7 +1,6 @@
 import logging
 import os
 from datetime import timedelta
-from pprint import pprint
 from typing import Optional
 
 import numpy as np

@@ -1,10 +1,9 @@
 import importlib.metadata
 import logging
-from typing import List, Tuple, Any, Optional, Dict
+from typing import List, Tuple, Any, Dict
 
 import pandas as pd
 
-from skypro.commands.simulator.config import ConfigV3
 from skypro.commands.simulator.config.config_v3 import SimulationV3
 from skypro.commands.simulator.config.config_v4 import SimulationV4, OutputSimulation
 

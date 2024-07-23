@@ -1,8 +1,7 @@
 import os
 from dataclasses import field
 from datetime import timedelta
-from typing import List, Optional, Dict, Annotated
-from os.path import expanduser
+from typing import List, Optional, Annotated
 
 import numpy as np
 from marshmallow import fields
@@ -47,11 +46,6 @@ class GridConnection:
 
 
 @dataclass
-class Site:
-    grid_connection: GridConnection = field(metadata={"data_key": "gridConnection"})
-
-
-@dataclass
 class Profile:
     # Tag is an optional name to assign to the profile. The advantage of this over the name being a dict key is that
     # arrays preserve order and the order of the load profiles may become important down the line.
@@ -82,7 +76,7 @@ class Profile:
 
             if (self.profiled_size_kwp is not None) and (self.scaled_size_kwp is not None):
                 if self.scaling_factor is not None:
-                    raise ValueError(f"Profile can be scaled by either 'num plots' or 'kwp', but not both.")
+                    raise ValueError("Profile can be scaled by either 'num plots' or 'kwp', but not both.")
                 self.scaling_factor = self.scaled_size_kwp / self.profiled_size_kwp
 
             if self.scaling_factor is None:

@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import Dict, Optional
+from typing import Dict
 
 _auto_accept_cli_warnings = False
 
