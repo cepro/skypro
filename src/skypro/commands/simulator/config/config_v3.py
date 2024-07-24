@@ -13,7 +13,7 @@ This file contains configuration schema specific to V3
 
 
 @dataclass
-class SimulationV3:
+class SimulationCaseV3:
     start: datetime
     end: datetime
     site: Site
@@ -25,4 +25,4 @@ class SimulationV3:
 @dataclass
 class ConfigV3:
     config_format_version: str = field(metadata={"data_key": "configFormatVersion"})
-    simulation: SimulationV3
+    simulation: SimulationCaseV3

@@ -16,8 +16,8 @@ from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warni
 from skypro.commands.simulator.algorithms.price_curve.algo import run_price_curve_imbalance_algo
 from skypro.commands.simulator.algorithms.spread.algo import run_spread_based_algo
 from skypro.commands.simulator.config import parse_config, Solar, Load, ConfigV3, ConfigV4
-from skypro.commands.simulator.config.config_v3 import SimulationV3
-from skypro.commands.simulator.config.config_v4 import SimulationV4, OutputLoad, OutputSimulation, OutputSummary
+from skypro.commands.simulator.config.config_v3 import SimulationCaseV3
+from skypro.commands.simulator.config.config_v4 import SimulationCaseV4, OutputLoad, OutputSimulation, OutputSummary
 from skypro.commands.simulator.output import save_simulation_output
 from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data
 from skypro.commands.simulator.profiler import Profiler
@@ -66,7 +66,7 @@ def simulate(
     else:
         raise AssertionError("Configuration type unknown")
 
-    case_config: SimulationV3 | SimulationV4
+    case_config: SimulationCaseV3 | SimulationCaseV4
     for case_name, case_config in simulation_cases.items():
 
         print(f"\n\n\nRunning case '{case_name}'...")

@@ -4,8 +4,8 @@ from typing import List, Tuple, Any, Dict
 
 import pandas as pd
 
-from skypro.commands.simulator.config.config_v3 import SimulationV3
-from skypro.commands.simulator.config.config_v4 import SimulationV4, OutputSimulation
+from skypro.commands.simulator.config.config_v3 import SimulationCaseV3
+from skypro.commands.simulator.config.config_v4 import SimulationCaseV4, OutputSimulation
 
 
 def with_config_entries(df: pd.DataFrame, entries: List[Tuple[str, Any]]) -> pd.DataFrame:
@@ -20,7 +20,7 @@ def with_config_entries(df: pd.DataFrame, entries: List[Tuple[str, Any]]) -> pd.
 def save_simulation_output(
         df: pd.DataFrame,
         final_rates_dfs: Dict[str, pd.DataFrame],
-        case_config: SimulationV3 | SimulationV4,
+        case_config: SimulationCaseV3 | SimulationCaseV4,
         output_config: OutputSimulation
 ):
     """

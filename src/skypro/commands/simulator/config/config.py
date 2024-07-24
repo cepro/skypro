@@ -7,7 +7,7 @@ from simt_common.cli_utils.cliutils import substitute_vars
 
 from skypro.commands.simulator.config.config_common import NivPeriod, PathField
 from skypro.commands.simulator.config.config_v3 import ConfigV3
-from skypro.commands.simulator.config.config_v4 import ConfigV4, SimulationV4
+from skypro.commands.simulator.config.config_v4 import ConfigV4, SimulationCaseV4
 
 """
 This module handles parsing of the JSON or YAML configuration file for the Simulation script.
@@ -50,7 +50,7 @@ def parse_config(file_path: str, env_vars: dict) -> ConfigV3 | ConfigV4:
             # particularly elegant mechanism. A better way may be to somehow integrate it into the PathField class, or
             # to just do all the substitutions here but in a generic way with 'deep reflection' of the config structure
             # looking for `PathField` types.
-            case: SimulationV4
+            case: SimulationCaseV4
             for case_name, case in config.cases.items():
                 case_name_dict = {"_CASE_NAME": case_name}
                 if case.output:
