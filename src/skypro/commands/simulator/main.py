@@ -54,7 +54,18 @@ def simulate(
 
     if isinstance(config, ConfigV3):
         simulations = {"v3sim": config.simulation}
+        if chosen_sim_name:
+            raise ValueError("The --sim option is not compatible with a v3 config")
     elif isinstance(config, ConfigV4):
+        if v3_output_file_path:
+            raise ValueError("The --output option is not compatible with a v4 config")
+        if v3_output_summary_file_path:
+            raise ValueError("The --output-summary option is not compatible with a v4 config")
+        if v3_output_aggregate:
+            raise ValueError("The --aggregate option is not compatible with a v4 config")
+        if v3_output_rate_detail:
+            raise ValueError("The --rate-detail option is not compatible with a v4 config")
+
         if not chosen_sim_name:
             raise ValueError("You must specify the --sim to run when using a V4 configuration file.")
         if chosen_sim_name == "all":
