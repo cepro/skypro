@@ -21,18 +21,18 @@ This file contains configuration schema that is used for both V3 and V4 config
 class PathField(fields.Field):
     """
     This Marshmallow field type is used to deserialize file paths. It expands the local user tilde symbol and also
-    substitutes environment variables.
-    The environment variables must be first set on the `env_vars` class variable before deserializing.
+    substitutes variables (in the $VAR_NAME format).
+    The variables must be first set on the `vars_for_substitution` class variable before deserializing.
     """
 
-    env_vars = {}  # class variable defines any environment variables for substitution into the path
+    vars_for_substitution = {}  # class variable defines any variables for substitution into the paths
 
     def _serialize(self, value, attr, obj, **kwargs):
         raise ValueError("Serialization not yet defined")
 
     def _deserialize(self, value, attr, data, **kwargs):
         # Expand any `~/` syntax and $ENV_VARS that are used
-        return os.path.expanduser(substitute_vars(value, PathField.env_vars))
+        return os.path.expanduser(substitute_vars(value, PathField.vars_for_substitution))
 
 
 # The marshmallow_dataclass library doesn't use the PathField directly, but instead needs a Type defining:

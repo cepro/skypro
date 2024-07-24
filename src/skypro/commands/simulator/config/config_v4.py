@@ -65,5 +65,6 @@ class SimulationV4:
 @dataclass
 class ConfigV4:
     config_format_version: str = field(metadata={"data_key": "configFormatVersion"})
-    sandbox: Optional[dict]  # a space for the user to define YAML anchors which is not parsed/used by the program
+    sandbox: Optional[dict]  # a space for the user to define YAML anchors, which is not parsed/used by the program
+    variables: Optional[dict]  # a space for the user to define file-level variables that are substituted into paths, which is not parsed/used by the program
     cases: Dict[str, SimulationV4]

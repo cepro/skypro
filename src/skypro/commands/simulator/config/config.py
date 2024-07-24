@@ -3,10 +3,11 @@ from typing import List
 from packaging.version import Version
 
 import yaml
+from simt_common.cli_utils.cliutils import substitute_vars
 
-from skypro.commands.simulator.config.config_common import NivPeriod
+from skypro.commands.simulator.config.config_common import NivPeriod, PathField
 from skypro.commands.simulator.config.config_v3 import ConfigV3
-from skypro.commands.simulator.config.config_v4 import ConfigV4
+from skypro.commands.simulator.config.config_v4 import ConfigV4, SimulationV4
 
 """
 This module handles parsing of the JSON or YAML configuration file for the Simulation script.
@@ -14,7 +15,7 @@ Marshmallow (and marshmallow-dataclass) is used to validate and parse the JSON i
 """
 
 
-def parse_config(file_path: str) -> ConfigV3 | ConfigV4:
+def parse_config(file_path: str, env_vars: dict) -> ConfigV3 | ConfigV4:
     # Read in the main config file
     with open(file_path) as config_file:
         # Here we parse the config file as YAML, which is a superset of JSON so allows us to parse JSON files as well
@@ -25,12 +26,40 @@ def parse_config(file_path: str) -> ConfigV3 | ConfigV4:
 
         version = Version(config_dict["configFormatVersion"])
 
+        # Set up the variables that are substituted into file paths
+        PathField.vars_for_substitution = env_vars
+        if version.major == 4 and "variables" in config_dict:
+            # In config v4 there may be variables defined at the file level as well as env vars
+            file_vars = config_dict["variables"]
+            # Allow the file-level variables to contain env level variables, which we resolve here:
+            for name, value in file_vars.items():
+                file_vars[name] = substitute_vars(value, env_vars)
+            PathField.vars_for_substitution = env_vars | file_vars
+
+        # Parse the configs
         if version.major == 3:
             config = ConfigV3.Schema().load(config_dict)
         elif version.major == 4:
             config = ConfigV4.Schema().load(config_dict)
         else:
             raise ValueError(f"Unknown config version: {config_dict['configFormatVersion']}")
+
+        if version.major == 4:
+            # There is also a special variable `$CASE_NAME` which should resolve to the name of the case, which can't
+            # be handled with the above mechanism... manually go through a substitute that here... this isn't a
+            # particularly elegant mechanism. A better way may be to somehow integrate it into the PathField class, or
+            # to just do all the substitutions here but in a generic way with 'deep reflection' of the config structure
+            # looking for `PathField` types.
+            case: SimulationV4
+            for case_name, case in config.cases.items():
+                case_name_dict = {"_CASE_NAME": case_name}
+                if case.output:
+                    if case.output.simulation:
+                        case.output.simulation.csv = substitute_vars(case.output.simulation.csv, case_name_dict)
+                    if case.output.summary:
+                        case.output.summary.csv = substitute_vars(case.output.summary.csv, case_name_dict)
+                    if case.output.load:
+                        case.output.load.csv = substitute_vars(case.output.load.csv, case_name_dict)
 
     return config
 

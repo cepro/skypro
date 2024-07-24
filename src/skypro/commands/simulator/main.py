@@ -16,7 +16,6 @@ from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warni
 from skypro.commands.simulator.algorithms.price_curve.algo import run_price_curve_imbalance_algo
 from skypro.commands.simulator.algorithms.spread.algo import run_spread_based_algo
 from skypro.commands.simulator.config import parse_config, Solar, Load, ConfigV3, ConfigV4
-from skypro.commands.simulator.config.config_common import PathField
 from skypro.commands.simulator.config.config_v3 import SimulationV3
 from skypro.commands.simulator.config.config_v4 import SimulationV4, OutputLoad, OutputSimulation, OutputSummary
 from skypro.commands.simulator.output import save_simulation_output
@@ -46,14 +45,12 @@ def simulate(
 
     set_auto_accept_cli_warnings(skip_cli_warnings)
 
-    # Here we tell the PathField class about env vars, so it knows how expand them during config deserialization
     logging.info(f"Using env var file: {os.path.expanduser(env_file_path)}")
-    PathField.env_vars = read_json_file(env_file_path)["vars"]
+    env_vars = read_json_file(env_file_path)["vars"]
 
     # Parse the main config file
     logging.info(f"Using config file: {config_file_path}")
-    config: ConfigV3 | ConfigV4 = parse_config(config_file_path)
-
+    config: ConfigV3 | ConfigV4 = parse_config(config_file_path, env_vars)
 
     if isinstance(config, ConfigV3):
         simulation_cases = {"v3Case": config.simulation}
