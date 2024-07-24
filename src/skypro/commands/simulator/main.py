@@ -60,7 +60,7 @@ def simulate(
         if chosen_sim_name == "all":
             simulations = config.simulations
         elif chosen_sim_name in config.simulations.keys():
-            simulations = {chosen_sim_name: config.simulations[sim_name]}
+            simulations = {chosen_sim_name: config.simulations[chosen_sim_name]}
         else:
             raise KeyError(f"Simulation case '{chosen_sim_name}' is not defined in the configuration.")
     else:
