@@ -1,5 +1,5 @@
 from skypro.commands.simulator.algorithms.system_state import SystemState
-from skypro.commands.simulator.config.config import Microgrid
+from skypro.commands.simulator.config import Microgrid
 
 
 def get_microgrid_algo_energy(

@@ -8,7 +8,7 @@ from skypro.commands.simulator.algorithms.peak import get_peak_approach_energies
 from skypro.commands.simulator.algorithms.microgrid import get_microgrid_algo_energy
 from skypro.commands.simulator.algorithms.system_state import SystemState, get_system_state
 from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy
-from skypro.commands.simulator.config.config import SpreadAlgo
+from skypro.commands.simulator.config import SpreadAlgo
 
 
 def run_spread_based_algo(

@@ -1,10 +1,11 @@
 import importlib.metadata
 import logging
-from typing import List, Tuple, Any, Optional, Dict
+from typing import List, Tuple, Any, Dict
 
 import pandas as pd
 
-from skypro.commands.simulator.config.config import Config
+from skypro.commands.simulator.config.config_v3 import SimulationCaseV3
+from skypro.commands.simulator.config.config_v4 import SimulationCaseV4, OutputSimulation
 
 
 def with_config_entries(df: pd.DataFrame, entries: List[Tuple[str, Any]]) -> pd.DataFrame:
@@ -16,14 +17,16 @@ def with_config_entries(df: pd.DataFrame, entries: List[Tuple[str, Any]]) -> pd.
     return df
 
 
-def save_output(
+def save_simulation_output(
         df: pd.DataFrame,
         final_rates_dfs: Dict[str, pd.DataFrame],
-        config: Config,
-        output_file_path: str,
-        aggregate: Optional[str] = None,
-        rate_detail: Optional[str] = None,
+        sim_config: SimulationCaseV3 | SimulationCaseV4,
+        output_config: OutputSimulation
 ):
+    """
+    Saves a detailed timeseries of the simulation to CSV file.
+    The `case_config` is used to retrieve some configuration which is also saved into the CSV file
+    """
 
     # TODO: this could do with a bit of a refactor to make it cleaner, but waiting on finalized column naming from Damon
 
@@ -63,20 +66,20 @@ def save_output(
             output_df[f"rate:{flow_name}.predicted"] = df[col]
 
     # If the command-line option for detailed rate info is specified then put each individual rate in the CSV
-    if rate_detail:
+    if output_config.rate_detail:
 
         rates_of_interest = []
-        if rate_detail != "all":
+        if output_config.rate_detail != "all":
             # parse the string like a comma-seperated list of rates to include detail for
-            rates_of_interest = rate_detail.split(",")
+            rates_of_interest = output_config.rate_detail.split(",")
 
         for flow_name, rates_df in final_rates_dfs.items():
             for col in rates_df.columns:
-                if rate_detail == "all" or col in rates_of_interest:
+                if output_config.rate_detail == "all" or col in rates_of_interest:
                     output_df[f"rate:{flow_name}.{col}.final"] = rates_df[col]
 
-    if aggregate:
-        if aggregate == "30min":
+    if output_config.aggregate:
+        if output_config.aggregate == "30min":
 
             agg_rules = {  # defines how to aggregate 10minutely data to 30minutely
                 "clocktime": "first",
@@ -109,7 +112,7 @@ def save_output(
             # Do the actual aggregation
             output_df = output_df.resample("30min").agg(agg_rules)
         else:
-            raise ValueError(f"Unknown aggregate option: '{aggregate}'")
+            raise ValueError(f"Unknown aggregate option: '{output_config.aggregate}'")
 
     # Add the configuration input to the output file - this is stretching the use of the CSV format a bit, but it means
     # that there is a single output file with full traceability as to all the inputs.
@@ -117,27 +120,27 @@ def save_output(
         df=output_df,
         entries=[
             ("skypro.version", importlib.metadata.version('skypro')),
-            ("start", config.simulation.start.isoformat()),
-            ("end", config.simulation.end.isoformat()),
-            ("site.gridConnection.importLimit", config.simulation.site.grid_connection.import_limit),
-            ("site.gridConnection.exportLimit", config.simulation.site.grid_connection.export_limit),
-            ("site.solar.constant", config.simulation.site.solar.constant),
-            ("site.solar.profile", config.simulation.site.solar.profile),
-            ("site.load.constant", config.simulation.site.load.constant),
-            ("site.load.profile", config.simulation.site.load.profile),
-            ("site.bess.energyCapacity", config.simulation.site.bess.energy_capacity),
-            ("site.bess.nameplatePower", config.simulation.site.bess.nameplate_power),
-            ("site.bess.chargeEfficiency", config.simulation.site.bess.charge_efficiency),
-            ("strategy.priceCurveAlgo", config.simulation.strategy.price_curve_algo),
-            ("imbalanceDataSource", config.simulation.imbalance_data_source),
-            ("rates", config.simulation.rates),
+            ("start", sim_config.start.isoformat()),
+            ("end", sim_config.end.isoformat()),
+            ("site.gridConnection.importLimit", sim_config.site.grid_connection.import_limit),
+            ("site.gridConnection.exportLimit", sim_config.site.grid_connection.export_limit),
+            ("site.solar.constant", sim_config.site.solar.constant),
+            ("site.solar.profile", sim_config.site.solar.profile),
+            ("site.load.constant", sim_config.site.load.constant),
+            ("site.load.profile", sim_config.site.load.profile),
+            ("site.bess.energyCapacity", sim_config.site.bess.energy_capacity),
+            ("site.bess.nameplatePower", sim_config.site.bess.nameplate_power),
+            ("site.bess.chargeEfficiency", sim_config.site.bess.charge_efficiency),
+            ("strategy.priceCurveAlgo", sim_config.strategy.price_curve_algo),
+            ("imbalanceDataSource", sim_config.imbalance_data_source),
+            ("rates", sim_config.rates),
         ]
     )
 
-    logging.info(f"Saving output to {output_file_path}...")
+    logging.info(f"Saving output to {output_config.csv}...")
 
     output_df.to_csv(
-        output_file_path,
+        output_config.csv,
         index_label="utctime"
     )
 
