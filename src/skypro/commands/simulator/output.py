@@ -20,7 +20,7 @@ def with_config_entries(df: pd.DataFrame, entries: List[Tuple[str, Any]]) -> pd.
 def save_simulation_output(
         df: pd.DataFrame,
         final_rates_dfs: Dict[str, pd.DataFrame],
-        case_config: SimulationCaseV3 | SimulationCaseV4,
+        sim_config: SimulationCaseV3 | SimulationCaseV4,
         output_config: OutputSimulation
 ):
     """
@@ -120,20 +120,20 @@ def save_simulation_output(
         df=output_df,
         entries=[
             ("skypro.version", importlib.metadata.version('skypro')),
-            ("start", case_config.start.isoformat()),
-            ("end", case_config.end.isoformat()),
-            ("site.gridConnection.importLimit", case_config.site.grid_connection.import_limit),
-            ("site.gridConnection.exportLimit", case_config.site.grid_connection.export_limit),
-            ("site.solar.constant", case_config.site.solar.constant),
-            ("site.solar.profile", case_config.site.solar.profile),
-            ("site.load.constant", case_config.site.load.constant),
-            ("site.load.profile", case_config.site.load.profile),
-            ("site.bess.energyCapacity", case_config.site.bess.energy_capacity),
-            ("site.bess.nameplatePower", case_config.site.bess.nameplate_power),
-            ("site.bess.chargeEfficiency", case_config.site.bess.charge_efficiency),
-            ("strategy.priceCurveAlgo", case_config.strategy.price_curve_algo),
-            ("imbalanceDataSource", case_config.imbalance_data_source),
-            ("rates", case_config.rates),
+            ("start", sim_config.start.isoformat()),
+            ("end", sim_config.end.isoformat()),
+            ("site.gridConnection.importLimit", sim_config.site.grid_connection.import_limit),
+            ("site.gridConnection.exportLimit", sim_config.site.grid_connection.export_limit),
+            ("site.solar.constant", sim_config.site.solar.constant),
+            ("site.solar.profile", sim_config.site.solar.profile),
+            ("site.load.constant", sim_config.site.load.constant),
+            ("site.load.profile", sim_config.site.load.profile),
+            ("site.bess.energyCapacity", sim_config.site.bess.energy_capacity),
+            ("site.bess.nameplatePower", sim_config.site.bess.nameplate_power),
+            ("site.bess.chargeEfficiency", sim_config.site.bess.charge_efficiency),
+            ("strategy.priceCurveAlgo", sim_config.strategy.price_curve_algo),
+            ("imbalanceDataSource", sim_config.imbalance_data_source),
+            ("rates", sim_config.rates),
         ]
     )
 

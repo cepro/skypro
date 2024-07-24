@@ -38,11 +38,11 @@ def main():
         help=f'JSON file containing environment and secret configuration, defaults to {DEFAULT_ENV_FILE}'
     )
     parser_simulate.add_argument(
-        '--case',
-        dest='simulation_case_name',
+        '--sim',
+        dest='chosen_sim_name',
         default=None,
         help='When using a V4 configuration file, this is the name of the simulation case to run. Or "all" to run every'
-             ' case.'
+             ' simulation.'
     )
     parser_simulate.add_argument(
         '-p', '--plot',

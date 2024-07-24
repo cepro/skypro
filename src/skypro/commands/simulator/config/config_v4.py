@@ -38,7 +38,7 @@ class OutputLoad:
 
 
 @dataclass
-class CaseOutput:
+class SimOutput:
     summary: Optional[OutputSummary]
     simulation: Optional[OutputSimulation]
     load: Optional[OutputLoad]
@@ -46,7 +46,7 @@ class CaseOutput:
 
 @dataclass
 class SimulationCaseV4:
-    output: Optional[CaseOutput]
+    output: Optional[SimOutput]
     timeframe: TimeFrame = name_in_json("timeFrame")
     site: Site
     strategy: Strategy
@@ -66,5 +66,5 @@ class SimulationCaseV4:
 class ConfigV4:
     config_format_version: str = field(metadata={"data_key": "configFormatVersion"})
     sandbox: Optional[dict]  # a space for the user to define YAML anchors, which is not parsed/used by the program
-    variables: Optional[dict]  # a space for the user to define file-level variables that are substituted into paths, which is not parsed/used by the program
-    cases: Dict[str, SimulationCaseV4]
+    variables: Optional[dict]  # a space for the user to define file-level variables that are substituted into paths, which is not otherwise parsed/used by the program
+    simulations: Dict[str, SimulationCaseV4]

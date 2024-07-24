@@ -50,16 +50,16 @@ def parse_config(file_path: str, env_vars: dict) -> ConfigV3 | ConfigV4:
             # particularly elegant mechanism. A better way may be to somehow integrate it into the PathField class, or
             # to just do all the substitutions here but in a generic way with 'deep reflection' of the config structure
             # looking for `PathField` types.
-            case: SimulationCaseV4
-            for case_name, case in config.cases.items():
-                case_name_dict = {"_CASE_NAME": case_name}
-                if case.output:
-                    if case.output.simulation:
-                        case.output.simulation.csv = substitute_vars(case.output.simulation.csv, case_name_dict)
-                    if case.output.summary:
-                        case.output.summary.csv = substitute_vars(case.output.summary.csv, case_name_dict)
-                    if case.output.load:
-                        case.output.load.csv = substitute_vars(case.output.load.csv, case_name_dict)
+            sim_config: SimulationCaseV4
+            for sim_name, sim_config in config.simulations.items():
+                case_name_dict = {"_SIM_NAME": sim_name}
+                if sim_config.output:
+                    if sim_config.output.simulation:
+                        sim_config.output.simulation.csv = substitute_vars(sim_config.output.simulation.csv, case_name_dict)
+                    if sim_config.output.summary:
+                        sim_config.output.summary.csv = substitute_vars(sim_config.output.summary.csv, case_name_dict)
+                    if sim_config.output.load:
+                        sim_config.output.load.csv = substitute_vars(sim_config.output.load.csv, case_name_dict)
 
     return config
 
