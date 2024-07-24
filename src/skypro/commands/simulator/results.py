@@ -22,10 +22,10 @@ def explore_results(
         site_import_limit: float,
         site_export_limit: float,
         summary_output_config: Optional[OutputSummary]
-):
+) -> pd.DataFrame:
     """
     Generally explores/plots the results, including logging the weighted average prices, cycling statistics, and
-    benchmark £/kW and £/kWh values for the simulation.
+    benchmark £/kW and £/kWh values for the simulation. Returns a dataframe summarising the results
     """
 
     df = df.copy()
@@ -111,24 +111,25 @@ def explore_results(
     print(f"Total BESS gain over period: £{total_bess_gain/100:.2f}")
     print(f"Average daily BESS gain over period: £{(total_bess_gain / 100)/sim_days:.2f}")
 
+    # Output a CSV file summarising the energy flows and costs (costs are in £ rather than pence)
+    summary_df = pd.DataFrame(index=[1])
+    summary_df["bess_charge_from_grid"] = total_bess_charge_from_grid
+    summary_df["bess_charge_from_grid_cost"] = total_cost_bess_charge_from_grid / 100
+    summary_df["bess_charge_from_solar"] = total_bess_charge_from_solar
+    summary_df["bess_charge_from_solar_cost"] = total_cost_bess_charge_from_solar / 100
+    summary_df["bess_discharge_to_grid"] = total_bess_discharge_to_grid
+    summary_df["bess_discharge_to_grid_cost"] = total_cost_bess_discharge_to_grid / 100
+    summary_df["bess_discharge_to_load"] = total_bess_discharge_to_load
+    summary_df["bess_discharge_to_load_cost"] = total_cost_bess_discharge_to_load / 100
+    summary_df["bess_losses"] = total_bess_losses
+    summary_df["solar_to_load"] = total_solar_to_load
+    summary_df["solar_to_load_cost"] = total_cost_solar_to_load / 100
+    summary_df["solar_to_grid"] = total_solar_to_grid
+    summary_df["solar_to_grid_cost"] = total_cost_solar_to_grid / 100
+    summary_df["load_from_grid"] = total_load_from_grid
+    summary_df["load_from_grid_cost"] = total_cost_load_from_grid / 100
+
     if summary_output_config:
-        # Output a CSV file summarising the energy flows and costs (costs are in £ rather than pence)
-        summary_df = pd.DataFrame(index=[1])
-        summary_df["bess_charge_from_grid"] = total_bess_charge_from_grid
-        summary_df["bess_charge_from_grid_cost"] = total_cost_bess_charge_from_grid / 100
-        summary_df["bess_charge_from_solar"] = total_bess_charge_from_solar
-        summary_df["bess_charge_from_solar_cost"] = total_cost_bess_charge_from_solar / 100
-        summary_df["bess_discharge_to_grid"] = total_bess_discharge_to_grid
-        summary_df["bess_discharge_to_grid_cost"] = total_cost_bess_discharge_to_grid / 100
-        summary_df["bess_discharge_to_load"] = total_bess_discharge_to_load
-        summary_df["bess_discharge_to_load_cost"] = total_cost_bess_discharge_to_load / 100
-        summary_df["bess_losses"] = total_bess_losses
-        summary_df["solar_to_load"] = total_solar_to_load
-        summary_df["solar_to_load_cost"] = total_cost_solar_to_load / 100
-        summary_df["solar_to_grid"] = total_solar_to_grid
-        summary_df["solar_to_grid_cost"] = total_cost_solar_to_grid / 100
-        summary_df["load_from_grid"] = total_load_from_grid
-        summary_df["load_from_grid_cost"] = total_cost_load_from_grid / 100
         summary_df.to_csv(summary_output_config.csv, index=False)
 
     # Cycling
@@ -149,6 +150,8 @@ def explore_results(
         )
         # plot_costs_by_grouping(costs_dfs["bess_charge"], costs_dfs["bess_discharge"])
         plot_daily_gains(costs_dfs)
+
+    return summary_df
 
 
 def plot_hh_strategy(df: pd.DataFrame):

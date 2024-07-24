@@ -270,16 +270,24 @@ def simulate(
         else:
             summary_output_config = sim_config.output.summary if sim_config.output else None
 
-        explore_results(
+        sim_summary_df = explore_results(
             df=df,
             final_rates_dfs=final_rates_dfs,
             do_plots=do_plots,
-            battery_energy_capacity=case_config.site.bess.energy_capacity,
-            battery_nameplate_power=case_config.site.bess.nameplate_power,
-            site_import_limit=case_config.site.grid_connection.import_limit,
-            site_export_limit=case_config.site.grid_connection.export_limit,
+            battery_energy_capacity=sim_config.site.bess.energy_capacity,
+            battery_nameplate_power=sim_config.site.bess.nameplate_power,
+            site_import_limit=sim_config.site.grid_connection.import_limit,
+            site_export_limit=sim_config.site.grid_connection.export_limit,
             summary_output_config=summary_output_config
         )
+        # Maintain a dataframe containing the summaries of each simulation
+        sim_summary_df.index = pd.Series([sim_name])
+        summary_df = pd.concat([summary_df, sim_summary_df], axis=0)
+
+    if isinstance(config, ConfigV4):
+        if chosen_sim_name == "all" and config.all_sims_output and config.all_sims_output.summary:
+            # Optionally write a CSV file containing the summaries of all the simulations
+            summary_df.to_csv(config.all_sims_output.summary.csv, index_label="simulation")
 
 
 def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
