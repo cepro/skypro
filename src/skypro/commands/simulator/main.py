@@ -331,7 +331,6 @@ def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
     Calculates the individual flows of energy around the microgrid and adds them to the dataframe
     """
     df = df.copy()
-    time_step_hours = (STEP_SIZE.total_seconds() / 3600)
 
     df["bess_discharge"] = -df["energy_delta"][df["energy_delta"] < 0]
     df["bess_discharge"] = df["bess_discharge"].fillna(0)
