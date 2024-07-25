@@ -25,8 +25,9 @@ from skypro.commands.simulator.results import explore_results
 
 
 STEP_SIZE = timedelta(minutes=10)
+STEP_SIZE_HRS = STEP_SIZE.total_seconds() / 3600
 STEPS_PER_SP = int(timedelta(minutes=30) / STEP_SIZE)
-assert((timedelta(minutes=30) / STEP_SIZE) == STEPS_PER_SP)  # Check that we have an exact number of steps per SP
+assert ((timedelta(minutes=30) / STEP_SIZE) == STEPS_PER_SP)  # Check that we have an exact number of steps per SP
 
 
 def simulate(
@@ -112,6 +113,9 @@ def run_one_simulation(
         v3_output_rate_detail,
         v3_output_summary_file_path
 ) -> pd.DataFrame:
+    """
+    Runs a single simulation as defined by the configuration and returns a dataframe containing a summary of the results
+    """
 
     # Parse the supply points config file:
     supply_points = parse_supply_points(
@@ -164,28 +168,27 @@ def run_one_simulation(
         df[f"rate_predicted_{set_name}"] = rates_df.sum(axis=1, skipna=False)
     for set_name, rates_df in final_rates_dfs.items():
         df[f"rate_final_{set_name}"] = rates_df.sum(axis=1, skipna=False)
-    logging.info("Generating solar profile...")
-    df["solar_power"] = process_profiles(
+
+    # Process solar profiles
+    solar_energy_breakdown_df, total_solar_power = process_profiles(
         time_index=time_index,
         config=sim_config.site.solar,
         do_plots=do_plots,
-        context_hint="Solar",
-        output_config=None
+        context_hint="Solar"
     )
-    load_output_config: Optional[OutputLoad]
-    if isinstance(sim_config, SimulationCaseV3):
-        load_output_config = None
-    else:
-        load_output_config = sim_config.output.load if sim_config.output else None
-    # Create load data
-    logging.info("Generating load profile...")
-    df["load_power"] = process_profiles(
+    df["solar"] = solar_energy_breakdown_df.sum(axis=1)
+    df["solar_power"] = total_solar_power
+
+    # Process load profiles
+    load_energy_breakdown_df, total_load_power = process_profiles(
         time_index=time_index,
         config=sim_config.site.load,
         do_plots=do_plots,
-        context_hint="Load",
-        output_config=load_output_config
+        context_hint="Load"
     )
+    df["load"] = load_energy_breakdown_df.sum(axis=1)
+    df["load_power"] = total_load_power
+
     # Calculate the BESS charge and discharge limits based on how much solar generation and housing load
     # there is. We need to abide by the overall site import/export limits. And stay within the nameplate inverter
     # capabilities of the BESS
@@ -194,6 +197,10 @@ def run_one_simulation(
                                    clip(upper=sim_config.site.bess.nameplate_power))
     df["bess_max_power_discharge"] = ((sim_config.site.grid_connection.export_limit + df["microgrid_residual_power"]).
                                       clip(upper=sim_config.site.bess.nameplate_power))
+    # Also store the energy equivalent of the powers
+    df["bess_max_charge"] = df["bess_max_power_charge"] * STEP_SIZE_HRS
+    df["bess_max_discharge"] = df["bess_max_power_discharge"] * STEP_SIZE_HRS
+
     # The algo sometimes needs the previous SP's final rates. The algo processes each step as a row, so make the
     # previous SPs values available in each row/step.
     cols_to_shift = [
@@ -208,10 +215,12 @@ def run_one_simulation(
     ]
     for col in cols_to_shift:
         df[f"prev_sp_{col}"] = df[col].shift(STEPS_PER_SP)
+
     # Calculate settlement period timings
     df["sp"] = df.index.to_series().apply(lambda t: floor_hh(t))
     df["time_into_sp"] = df.index.to_series() - df["sp"]
     df["time_left_of_sp"] = timedelta(minutes=30) - df["time_into_sp"]
+
     # Only share the columns that are relevant with the algo
     cols_to_share_with_algo = [
         "sp",
@@ -238,6 +247,8 @@ def run_one_simulation(
         "prev_sp_rate_final_solar_to_grid",
         "prev_sp_rate_final_load_from_grid",
     ]
+
+    # Run the configured algo
     if sim_config.strategy.price_curve_algo:
         df_algo = run_price_curve_imbalance_algo(
             df_in=df[cols_to_share_with_algo],
@@ -266,8 +277,13 @@ def run_one_simulation(
         )
     else:
         raise ValueError("Unknown algorithm chosen")
+
+    # Add the results of the algo into the main dataframe
     df = pd.concat([df, df_algo], axis=1)
+
     df = calculate_microgrid_flows(df)
+
+    # Generate an output file if configured to do so
     simulation_output_config: Optional[OutputSimulation] = None
     if isinstance(sim_config, SimulationCaseV3):
         if v3_output_file_path:
@@ -282,9 +298,12 @@ def run_one_simulation(
         save_simulation_output(
             df=df,
             final_rates_dfs=final_rates_dfs,
+            load_energy_breakdown_df=load_energy_breakdown_df,
             sim_config=sim_config,
             output_config=simulation_output_config
         )
+
+    # Generate a summary of the results to return
     summary_output_config: Optional[OutputSummary] = None
     if isinstance(sim_config, SimulationCaseV3):
         if v3_output_summary_file_path:
@@ -319,12 +338,7 @@ def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
     df["bess_charge"] = df["energy_delta"][df["energy_delta"] > 0]
     df["bess_charge"] = df["bess_charge"].fillna(0)
 
-    df["bess_max_charge"] = df["bess_max_power_charge"] * time_step_hours
-    df["bess_max_discharge"] = df["bess_max_power_discharge"] * time_step_hours
-
     # Calculate load and solar energies from the power
-    df["solar"] = df["solar_power"] * time_step_hours
-    df["load"] = df["load_power"] * time_step_hours
     df["solar_to_load"] = df[["solar", "load"]].min(axis=1)
     df["load_not_supplied_by_solar"] = df["load"] - df["solar_to_load"]
     df["solar_not_supplying_load"] = df["solar"] - df["solar_to_load"]
@@ -345,11 +359,11 @@ def process_profiles(
         time_index: pd.DatetimeIndex,
         config: Solar | Load,
         do_plots: bool,
-        context_hint: str,
-        output_config: Optional[OutputLoad]
-) -> pd.Series:
+        context_hint: str
+) -> (pd.DataFrame, pd.Series):
     """
-    Reads the specified profile configuration and returns the total power in a pd.Series.
+    Reads the specified profile configuration and returns a dataframe of the individual profiled energies, as well as
+    the summed total power in a pd.Series.
     This function also optionally plots the profiles and exports a CSV of the profiles broken down by category.
     """
 
@@ -367,16 +381,11 @@ def process_profiles(
 
     for i, profile_config in enumerate(profile_configs):
         if profile_config.tag:
-            name = profile_config.tag
+            tag = profile_config.tag
         else:
-            if profile_config.profile_csv:
-                name = profile_config.profile_csv
-            else:
-                name = profile_config.profile_dir
-            name = os.path.basename(os.path.normpath(name))
-            name = f"profile-{i}-{name}"
+            tag = "untagged"
 
-        logging.info(f"Generating load profile for {name}...")
+        logging.info(f"Generating {context_hint} profile for '{tag}'...")
         profiler = Profiler(
             scaling_factor=profile_config.scaling_factor,
             profile_csv=profile_config.profile_csv,
@@ -385,20 +394,28 @@ def process_profiles(
             parse_clock_time=profile_config.parse_clock_time,
             clock_time_zone=profile_config.clock_time_zone,
         )
-        energy_df[name] = profiler.get_for(time_index)
-        power_df[name] = energy_df[name] / (STEP_SIZE.total_seconds() / 3600)
+        energy = profiler.get_for(time_index)
+        power = energy / (STEP_SIZE.total_seconds() / 3600)
 
-    total_power = power_df.sum(axis=1)  # TODO: check
+        # There may be multiple profiles under the same tag - in which case the profiles are added together under the
+        # tag name.
+        if tag in energy_df.columns:
+            energy_df[tag] = energy_df[tag] + energy
+            power_df[tag] = power_df[tag] + power
+        else:
+            energy_df[tag] = energy
+            power_df[tag] = power
 
+    total_power = power_df.sum(axis=1)
     if do_plots:
         fig = go.Figure()
-        for name in power_df.columns:
+        for tag in power_df.columns:
             fig.add_trace(
                 go.Scatter(
                     x=power_df.index,
-                    y=power_df[name],
+                    y=power_df[tag],
                     mode='lines',
-                    name=name
+                    name=tag
                 )
             )
         fig.add_trace(go.Scatter(x=total_power.index, y=total_power, name="total-power"))
@@ -408,19 +425,4 @@ def process_profiles(
         )
         fig.show()
 
-    if output_config:
-        # Optionally export a CSV of the load profiles
-
-        if output_config.aggregate:
-            # Optionally aggregate to 30mins to reduce the size of the CSV
-            if output_config.aggregate == "30min":
-                # Energy profiles are in kWh should all be summed to aggregate
-                aggregate_energy_df = energy_df.resample("30min").sum()
-            else:
-                raise ValueError(f"Unknown aggregate option: '{output_config.aggregate}'")
-        else:
-            aggregate_energy_df = energy_df
-
-        aggregate_energy_df.to_csv(output_config.csv, index_label="UTCTime")
-
-    return total_power
+    return energy_df, total_power
