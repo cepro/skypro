@@ -82,215 +82,18 @@ def simulate(
     sim_config: SimulationCaseV3 | SimulationCaseV4
     for sim_name, sim_config in simulations.items():
 
-        print(f"\n\n\nRunning simulation '{sim_name}'...")
+        print("\n\n")
+        logging.info(f"Running simulation '{sim_name}'...")
 
-        # Parse the supply points config file:
-        supply_points = parse_supply_points(
-            supply_points_config_file=sim_config.rates.supply_points_config_file
-        )
-
-        # Run the simulation at 10 minute granularity
-        time_index = pd.date_range(
-            start=sim_config.start.astimezone(pytz.UTC),
-            end=sim_config.end.astimezone(pytz.UTC),
-            freq=STEP_SIZE
-        )
-        time_index = time_index.tz_convert("UTC")
-
-        # Imbalance pricing/volume data can come from either Modo or Elexon, Modo is 'predictive' and it's predictions
-        # change over the course of the SP, whereas Elexon publishes a single figure for each SP in hindsight.
-        df = read_imbalance_data(
-            time_index=time_index,
-            price_dir=sim_config.imbalance_data_source.price_dir,
-            volume_dir=sim_config.imbalance_data_source.volume_dir,
-        )
-
-        predicted_rates = process_rates_for_all_energy_flows(
-            bess_charge_from_solar=sim_config.rates.files.bess_charge_from_solar,
-            bess_charge_from_grid=sim_config.rates.files.bess_charge_from_grid,
-            bess_discharge_to_load=sim_config.rates.files.bess_discharge_to_load,
-            bess_discharge_to_grid=sim_config.rates.files.bess_discharge_to_grid,
-            solar_to_grid=sim_config.rates.files.solar_to_grid,
-            load_from_grid=sim_config.rates.files.load_from_grid,
-            supply_points=supply_points,
-            imbalance_pricing=df["imbalance_price_predicted"]
-        )
-
-        final_rates = process_rates_for_all_energy_flows(
-            bess_charge_from_solar=sim_config.rates.files.bess_charge_from_solar,
-            bess_charge_from_grid=sim_config.rates.files.bess_charge_from_grid,
-            bess_discharge_to_load=sim_config.rates.files.bess_discharge_to_load,
-            bess_discharge_to_grid=sim_config.rates.files.bess_discharge_to_grid,
-            solar_to_grid=sim_config.rates.files.solar_to_grid,
-            load_from_grid=sim_config.rates.files.load_from_grid,
-            supply_points=supply_points,
-            imbalance_pricing=df["imbalance_price_final"]
-        )
-
-        # Log the parsed rates for user information
-        for name, rate_set in predicted_rates.get_all_sets_named():
-            for rate in rate_set:
-                logging.info(f"Flow: {name}, Rate: {rate}")
-
-        logging.info("Calculating predicted rates...")
-        predicted_rates_dfs = get_rates_dfs(time_index, predicted_rates)
-        logging.info("Calculating final rates...")
-        final_rates_dfs = get_rates_dfs(time_index, final_rates)
-
-        # Add the total rate of each energy flow to the dataframe
-        for set_name, rates_df in predicted_rates_dfs.items():
-            df[f"rate_predicted_{set_name}"] = rates_df.sum(axis=1, skipna=False)
-        for set_name, rates_df in final_rates_dfs.items():
-            df[f"rate_final_{set_name}"] = rates_df.sum(axis=1, skipna=False)
-
-        logging.info("Generating solar profile...")
-        df["solar_power"] = process_profiles(
-            time_index=time_index,
-            config=sim_config.site.solar,
+        sim_summary_df = run_one_simulation(
+            sim_config=sim_config,
             do_plots=do_plots,
-            context_hint="Solar",
-            output_config=None
+            v3_output_aggregate=v3_output_aggregate,
+            v3_output_file_path=v3_output_file_path,
+            v3_output_rate_detail=v3_output_rate_detail,
+            v3_output_summary_file_path=v3_output_summary_file_path
         )
 
-        load_output_config: Optional[OutputLoad]
-        if isinstance(config, ConfigV3):
-            load_output_config = None
-        else:
-            load_output_config = sim_config.output.load if sim_config.output else None
-
-        # Create load data
-        logging.info("Generating load profile...")
-        df["load_power"] = process_profiles(
-            time_index=time_index,
-            config=sim_config.site.load,
-            do_plots=do_plots,
-            context_hint="Load",
-            output_config=load_output_config
-        )
-
-        # Calculate the BESS charge and discharge limits based on how much solar generation and housing load
-        # there is. We need to abide by the overall site import/export limits. And stay within the nameplate inverter
-        # capabilities of the BESS
-        df["microgrid_residual_power"] = df["load_power"] - df["solar_power"]
-        df["bess_max_power_charge"] = ((sim_config.site.grid_connection.import_limit - df["microgrid_residual_power"]).
-                                        clip(upper=sim_config.site.bess.nameplate_power))
-        df["bess_max_power_discharge"] = ((sim_config.site.grid_connection.export_limit + df["microgrid_residual_power"]).
-                                           clip(upper=sim_config.site.bess.nameplate_power))
-
-        # The algo sometimes needs the previous SP's final rates. The algo processes each step as a row, so make the
-        # previous SPs values available in each row/step.
-        cols_to_shift = [
-            "imbalance_volume_final",
-            "imbalance_price_final",
-            "rate_final_bess_charge_from_solar",
-            "rate_final_bess_charge_from_grid",
-            "rate_final_bess_discharge_to_load",
-            "rate_final_bess_discharge_to_grid",
-            "rate_final_solar_to_grid",
-            "rate_final_load_from_grid",
-        ]
-        for col in cols_to_shift:
-            df[f"prev_sp_{col}"] = df[col].shift(STEPS_PER_SP)
-
-        # Calculate settlement period timings
-        df["sp"] = df.index.to_series().apply(lambda t: floor_hh(t))
-        df["time_into_sp"] = df.index.to_series() - df["sp"]
-        df["time_left_of_sp"] = timedelta(minutes=30) - df["time_into_sp"]
-
-        # Only share the columns that are relevant with the algo
-        cols_to_share_with_algo = [
-            "sp",
-            "time_into_sp",
-            "time_left_of_sp",
-            "load_power",
-            "solar_power",
-            "microgrid_residual_power",
-            "bess_max_power_charge",
-            "bess_max_power_discharge",
-            "imbalance_volume_predicted",
-            "rate_predicted_bess_charge_from_solar",
-            "rate_predicted_bess_charge_from_grid",
-            "rate_predicted_bess_discharge_to_load",
-            "rate_predicted_bess_discharge_to_grid",
-            "rate_predicted_solar_to_grid",
-            "rate_predicted_load_from_grid",
-            "prev_sp_imbalance_price_final",
-            "prev_sp_imbalance_volume_final",
-            "prev_sp_rate_final_bess_charge_from_solar",
-            "prev_sp_rate_final_bess_charge_from_grid",
-            "prev_sp_rate_final_bess_discharge_to_load",
-            "prev_sp_rate_final_bess_discharge_to_grid",
-            "prev_sp_rate_final_solar_to_grid",
-            "prev_sp_rate_final_load_from_grid",
-        ]
-        if sim_config.strategy.price_curve_algo:
-            df_algo = run_price_curve_imbalance_algo(
-                df_in=df[cols_to_share_with_algo],
-                battery_energy_capacity=sim_config.site.bess.energy_capacity,
-                battery_charge_efficiency=sim_config.site.bess.charge_efficiency,
-                config=sim_config.strategy.price_curve_algo
-            )
-        elif sim_config.strategy.spread_algo:
-            # TODO: there should be a more elegant way of doing this - but at the moment the spread based algo needs to know
-            #  the "non imbalance" rates, seperated from the imbalance rates. These are calculated here, because if the algo
-            #  did these calculations itself then we would need to share 'final' rates with it which is best avoided as it
-            #  shouldn't know about final rates.
-
-            df["rate_bess_charge_from_grid_non_imbalance"] = df["rate_final_bess_charge_from_grid"] - df["imbalance_price_final"]
-            df["rate_bess_discharge_to_grid_non_imbalance"] = df["rate_final_bess_discharge_to_grid"] + df["imbalance_price_final"]
-            cols_to_share_with_algo.extend(["rate_bess_charge_from_grid_non_imbalance", "rate_bess_discharge_to_grid_non_imbalance"])
-
-            df_algo = run_spread_based_algo(
-                df_in=df[cols_to_share_with_algo],
-                battery_energy_capacity=sim_config.site.bess.energy_capacity,
-                battery_charge_efficiency=sim_config.site.bess.charge_efficiency,
-                config=sim_config.strategy.spread_algo,
-            )
-        else:
-            raise ValueError("Unknown algorithm chosen")
-
-        df = pd.concat([df, df_algo], axis=1)
-
-        df = calculate_microgrid_flows(df)
-
-        simulation_output_config: Optional[OutputSimulation] = None
-        if isinstance(config, ConfigV3):
-            if v3_output_file_path:
-                simulation_output_config = OutputSimulation(
-                    csv=v3_output_file_path,
-                    aggregate=v3_output_aggregate,
-                    rate_detail=v3_output_rate_detail
-                )
-        else:
-            simulation_output_config = sim_config.output.simulation if sim_config.output else None
-
-        if simulation_output_config:
-            save_simulation_output(
-                df=df,
-                final_rates_dfs=final_rates_dfs,
-                sim_config=sim_config,
-                output_config=simulation_output_config
-            )
-
-        summary_output_config: Optional[OutputSummary] = None
-        if isinstance(config, ConfigV3):
-            if v3_output_summary_file_path:
-                summary_output_config = OutputSummary(
-                    csv=v3_output_summary_file_path
-                )
-        else:
-            summary_output_config = sim_config.output.summary if sim_config.output else None
-
-        sim_summary_df = explore_results(
-            df=df,
-            final_rates_dfs=final_rates_dfs,
-            do_plots=do_plots,
-            battery_energy_capacity=sim_config.site.bess.energy_capacity,
-            battery_nameplate_power=sim_config.site.bess.nameplate_power,
-            site_import_limit=sim_config.site.grid_connection.import_limit,
-            site_export_limit=sim_config.site.grid_connection.export_limit,
-            summary_output_config=summary_output_config
-        )
         # Maintain a dataframe containing the summaries of each simulation
         sim_summary_df.index = pd.Series([sim_name])
         summary_df = pd.concat([summary_df, sim_summary_df], axis=0)
@@ -299,6 +102,209 @@ def simulate(
         if chosen_sim_name == "all" and config.all_sims_output and config.all_sims_output.summary:
             # Optionally write a CSV file containing the summaries of all the simulations
             summary_df.to_csv(config.all_sims_output.summary.csv, index_label="simulation")
+
+
+def run_one_simulation(
+        sim_config: SimulationCaseV3 | SimulationCaseV4,
+        do_plots: bool,
+        v3_output_aggregate,
+        v3_output_file_path,
+        v3_output_rate_detail,
+        v3_output_summary_file_path
+) -> pd.DataFrame:
+
+    # Parse the supply points config file:
+    supply_points = parse_supply_points(
+        supply_points_config_file=sim_config.rates.supply_points_config_file
+    )
+    # Run the simulation at 10 minute granularity
+    time_index = pd.date_range(
+        start=sim_config.start.astimezone(pytz.UTC),
+        end=sim_config.end.astimezone(pytz.UTC),
+        freq=STEP_SIZE
+    )
+    time_index = time_index.tz_convert("UTC")
+    # Imbalance pricing/volume data can come from either Modo or Elexon, Modo is 'predictive' and it's predictions
+    # change over the course of the SP, whereas Elexon publishes a single figure for each SP in hindsight.
+    df = read_imbalance_data(
+        time_index=time_index,
+        price_dir=sim_config.imbalance_data_source.price_dir,
+        volume_dir=sim_config.imbalance_data_source.volume_dir,
+    )
+    predicted_rates = process_rates_for_all_energy_flows(
+        bess_charge_from_solar=sim_config.rates.files.bess_charge_from_solar,
+        bess_charge_from_grid=sim_config.rates.files.bess_charge_from_grid,
+        bess_discharge_to_load=sim_config.rates.files.bess_discharge_to_load,
+        bess_discharge_to_grid=sim_config.rates.files.bess_discharge_to_grid,
+        solar_to_grid=sim_config.rates.files.solar_to_grid,
+        load_from_grid=sim_config.rates.files.load_from_grid,
+        supply_points=supply_points,
+        imbalance_pricing=df["imbalance_price_predicted"]
+    )
+    final_rates = process_rates_for_all_energy_flows(
+        bess_charge_from_solar=sim_config.rates.files.bess_charge_from_solar,
+        bess_charge_from_grid=sim_config.rates.files.bess_charge_from_grid,
+        bess_discharge_to_load=sim_config.rates.files.bess_discharge_to_load,
+        bess_discharge_to_grid=sim_config.rates.files.bess_discharge_to_grid,
+        solar_to_grid=sim_config.rates.files.solar_to_grid,
+        load_from_grid=sim_config.rates.files.load_from_grid,
+        supply_points=supply_points,
+        imbalance_pricing=df["imbalance_price_final"]
+    )
+    # Log the parsed rates for user information
+    for name, rate_set in predicted_rates.get_all_sets_named():
+        for rate in rate_set:
+            logging.info(f"Flow: {name}, Rate: {rate}")
+    logging.info("Calculating predicted rates...")
+    predicted_rates_dfs = get_rates_dfs(time_index, predicted_rates)
+    logging.info("Calculating final rates...")
+    final_rates_dfs = get_rates_dfs(time_index, final_rates)
+    # Add the total rate of each energy flow to the dataframe
+    for set_name, rates_df in predicted_rates_dfs.items():
+        df[f"rate_predicted_{set_name}"] = rates_df.sum(axis=1, skipna=False)
+    for set_name, rates_df in final_rates_dfs.items():
+        df[f"rate_final_{set_name}"] = rates_df.sum(axis=1, skipna=False)
+    logging.info("Generating solar profile...")
+    df["solar_power"] = process_profiles(
+        time_index=time_index,
+        config=sim_config.site.solar,
+        do_plots=do_plots,
+        context_hint="Solar",
+        output_config=None
+    )
+    load_output_config: Optional[OutputLoad]
+    if isinstance(sim_config, SimulationCaseV3):
+        load_output_config = None
+    else:
+        load_output_config = sim_config.output.load if sim_config.output else None
+    # Create load data
+    logging.info("Generating load profile...")
+    df["load_power"] = process_profiles(
+        time_index=time_index,
+        config=sim_config.site.load,
+        do_plots=do_plots,
+        context_hint="Load",
+        output_config=load_output_config
+    )
+    # Calculate the BESS charge and discharge limits based on how much solar generation and housing load
+    # there is. We need to abide by the overall site import/export limits. And stay within the nameplate inverter
+    # capabilities of the BESS
+    df["microgrid_residual_power"] = df["load_power"] - df["solar_power"]
+    df["bess_max_power_charge"] = ((sim_config.site.grid_connection.import_limit - df["microgrid_residual_power"]).
+                                   clip(upper=sim_config.site.bess.nameplate_power))
+    df["bess_max_power_discharge"] = ((sim_config.site.grid_connection.export_limit + df["microgrid_residual_power"]).
+                                      clip(upper=sim_config.site.bess.nameplate_power))
+    # The algo sometimes needs the previous SP's final rates. The algo processes each step as a row, so make the
+    # previous SPs values available in each row/step.
+    cols_to_shift = [
+        "imbalance_volume_final",
+        "imbalance_price_final",
+        "rate_final_bess_charge_from_solar",
+        "rate_final_bess_charge_from_grid",
+        "rate_final_bess_discharge_to_load",
+        "rate_final_bess_discharge_to_grid",
+        "rate_final_solar_to_grid",
+        "rate_final_load_from_grid",
+    ]
+    for col in cols_to_shift:
+        df[f"prev_sp_{col}"] = df[col].shift(STEPS_PER_SP)
+    # Calculate settlement period timings
+    df["sp"] = df.index.to_series().apply(lambda t: floor_hh(t))
+    df["time_into_sp"] = df.index.to_series() - df["sp"]
+    df["time_left_of_sp"] = timedelta(minutes=30) - df["time_into_sp"]
+    # Only share the columns that are relevant with the algo
+    cols_to_share_with_algo = [
+        "sp",
+        "time_into_sp",
+        "time_left_of_sp",
+        "load_power",
+        "solar_power",
+        "microgrid_residual_power",
+        "bess_max_power_charge",
+        "bess_max_power_discharge",
+        "imbalance_volume_predicted",
+        "rate_predicted_bess_charge_from_solar",
+        "rate_predicted_bess_charge_from_grid",
+        "rate_predicted_bess_discharge_to_load",
+        "rate_predicted_bess_discharge_to_grid",
+        "rate_predicted_solar_to_grid",
+        "rate_predicted_load_from_grid",
+        "prev_sp_imbalance_price_final",
+        "prev_sp_imbalance_volume_final",
+        "prev_sp_rate_final_bess_charge_from_solar",
+        "prev_sp_rate_final_bess_charge_from_grid",
+        "prev_sp_rate_final_bess_discharge_to_load",
+        "prev_sp_rate_final_bess_discharge_to_grid",
+        "prev_sp_rate_final_solar_to_grid",
+        "prev_sp_rate_final_load_from_grid",
+    ]
+    if sim_config.strategy.price_curve_algo:
+        df_algo = run_price_curve_imbalance_algo(
+            df_in=df[cols_to_share_with_algo],
+            battery_energy_capacity=sim_config.site.bess.energy_capacity,
+            battery_charge_efficiency=sim_config.site.bess.charge_efficiency,
+            config=sim_config.strategy.price_curve_algo
+        )
+    elif sim_config.strategy.spread_algo:
+        # TODO: there should be a more elegant way of doing this - but at the moment the spread based algo needs to know
+        #  the "non imbalance" rates, seperated from the imbalance rates. These are calculated here, because if the algo
+        #  did these calculations itself then we would need to share 'final' rates with it which is best avoided as it
+        #  shouldn't know about final rates.
+
+        df["rate_bess_charge_from_grid_non_imbalance"] = df["rate_final_bess_charge_from_grid"] - df[
+            "imbalance_price_final"]
+        df["rate_bess_discharge_to_grid_non_imbalance"] = df["rate_final_bess_discharge_to_grid"] + df[
+            "imbalance_price_final"]
+        cols_to_share_with_algo.extend(
+            ["rate_bess_charge_from_grid_non_imbalance", "rate_bess_discharge_to_grid_non_imbalance"])
+
+        df_algo = run_spread_based_algo(
+            df_in=df[cols_to_share_with_algo],
+            battery_energy_capacity=sim_config.site.bess.energy_capacity,
+            battery_charge_efficiency=sim_config.site.bess.charge_efficiency,
+            config=sim_config.strategy.spread_algo,
+        )
+    else:
+        raise ValueError("Unknown algorithm chosen")
+    df = pd.concat([df, df_algo], axis=1)
+    df = calculate_microgrid_flows(df)
+    simulation_output_config: Optional[OutputSimulation] = None
+    if isinstance(sim_config, SimulationCaseV3):
+        if v3_output_file_path:
+            simulation_output_config = OutputSimulation(
+                csv=v3_output_file_path,
+                aggregate=v3_output_aggregate,
+                rate_detail=v3_output_rate_detail
+            )
+    else:
+        simulation_output_config = sim_config.output.simulation if sim_config.output else None
+    if simulation_output_config:
+        save_simulation_output(
+            df=df,
+            final_rates_dfs=final_rates_dfs,
+            sim_config=sim_config,
+            output_config=simulation_output_config
+        )
+    summary_output_config: Optional[OutputSummary] = None
+    if isinstance(sim_config, SimulationCaseV3):
+        if v3_output_summary_file_path:
+            summary_output_config = OutputSummary(
+                csv=v3_output_summary_file_path
+            )
+    else:
+        summary_output_config = sim_config.output.summary if sim_config.output else None
+    sim_summary_df = explore_results(
+        df=df,
+        final_rates_dfs=final_rates_dfs,
+        do_plots=do_plots,
+        battery_energy_capacity=sim_config.site.bess.energy_capacity,
+        battery_nameplate_power=sim_config.site.bess.nameplate_power,
+        site_import_limit=sim_config.site.grid_connection.import_limit,
+        site_export_limit=sim_config.site.grid_connection.export_limit,
+        summary_output_config=summary_output_config
+    )
+
+    return sim_summary_df
 
 
 def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
