@@ -58,8 +58,6 @@ def parse_config(file_path: str, env_vars: dict) -> ConfigV3 | ConfigV4:
                         sim_config.output.simulation.csv = substitute_vars(sim_config.output.simulation.csv, case_name_dict)
                     if sim_config.output.summary:
                         sim_config.output.summary.csv = substitute_vars(sim_config.output.summary.csv, case_name_dict)
-                    if sim_config.output.load:
-                        sim_config.output.load.csv = substitute_vars(sim_config.output.load.csv, case_name_dict)
 
     return config
 

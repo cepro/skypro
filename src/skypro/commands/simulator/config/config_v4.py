@@ -32,16 +32,9 @@ class OutputSimulation:
 
 
 @dataclass
-class OutputLoad:
-    csv: PathType
-    aggregate: Optional[str]
-
-
-@dataclass
 class SimOutput:
     summary: Optional[OutputSummary]
     simulation: Optional[OutputSimulation]
-    load: Optional[OutputLoad]
 
 
 @dataclass
