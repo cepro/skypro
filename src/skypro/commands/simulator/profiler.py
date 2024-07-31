@@ -74,7 +74,7 @@ class Profiler:
 
     def get_for(self, times: pd.DatetimeIndex) -> pd.Series:
         """
-        Returns the scaled profile for the range of times given
+        Returns the scaled energy profile for the range of times given
         """
 
         # We have profile data at half-hour / 30minute granularity, but the requested times may be at a finer resolution
@@ -117,9 +117,13 @@ class Profiler:
 
         # Up-scale the half-hour granularity to whatever granularity has been requested
         df = pd.DataFrame(index=times)
-        resolution_scaling_factor = pd.to_timedelta(times.freq) / timedelta(minutes=30)
+        steps_per_hh = timedelta(minutes=30) / pd.to_timedelta(times.freq)
+        steps_per_hh_int = int(steps_per_hh)
+        if steps_per_hh != steps_per_hh_int:
+            raise AssertionError("There are not an integer number of steps per half-hour")
+        resolution_scaling_factor = 1 / steps_per_hh
         df["values"] = df_hh["values"] * resolution_scaling_factor
-        df["values"] = df["values"].ffill()
+        df["values"] = df["values"].ffill(limit=steps_per_hh_int)
 
         return df["values"]
 

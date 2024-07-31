@@ -20,6 +20,7 @@ def with_config_entries(df: pd.DataFrame, entries: List[Tuple[str, Any]]) -> pd.
 def save_simulation_output(
         df: pd.DataFrame,
         final_rates_dfs: Dict[str, pd.DataFrame],
+        load_energy_breakdown_df: pd.DataFrame,
         sim_config: SimulationCaseV3 | SimulationCaseV4,
         output_config: OutputSimulation
 ):
@@ -43,6 +44,9 @@ def save_simulation_output(
 
     output_df["agd:solar"] = df["solar"]
     output_df["agd:load"] = df["load"]
+    for col in load_energy_breakdown_df.columns:
+        output_df[f"agd:load.{col}"] = load_energy_breakdown_df[col]
+
     output_df["solarToLoad"] = df["solar_to_load"]  # TODO: what to call this as it's match at adg level plus m level
     output_df["loadNotSuppliedBySolar"] = df["load_not_supplied_by_solar"]
     output_df["solarNotSupplyingLoad"] = df["solar_not_supplying_load"]
@@ -108,6 +112,9 @@ def save_simulation_output(
                 # There doesn't seem to be a sensible way to aggregate predicted rates or volumes, so leave them out
                 if col.startswith("rate:") and col.endswith(".final"):
                     agg_rules[col] = first_ensure_equal
+
+                if col.startswith("agd:load."):
+                    agg_rules[col] = "sum"
 
             # Do the actual aggregation
             output_df = output_df.resample("30min").agg(agg_rules)
