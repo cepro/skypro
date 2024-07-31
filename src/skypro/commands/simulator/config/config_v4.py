@@ -70,5 +70,5 @@ class ConfigV4:
     config_format_version: str = field(metadata={"data_key": "configFormatVersion"})
     sandbox: Optional[dict]  # a space for the user to define YAML anchors, which is not parsed/used by the program
     variables: Optional[dict]  # a space for the user to define file-level variables that are substituted into paths, which is not otherwise parsed/used by the program
-    all_sims_output: Optional[AllSimulations] = name_in_json("allSimulations")
+    all_sims: Optional[AllSimulations] = name_in_json("allSimulations")
     simulations: Dict[str, SimulationCaseV4]

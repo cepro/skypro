@@ -100,9 +100,9 @@ def simulate(
         summary_df = pd.concat([summary_df, sim_summary_df], axis=0)
 
     if isinstance(config, ConfigV4):
-        if chosen_sim_name == "all" and config.all_sims_output and config.all_sims_output.summary:
+        if chosen_sim_name == "all" and config.all_sims and config.all_sims.output and config.all_sims.output.summary:
             # Optionally write a CSV file containing the summaries of all the simulations
-            summary_df.to_csv(config.all_sims_output.summary.csv, index_label="simulation")
+            summary_df.to_csv(config.all_sims.output.summary.csv, index_label="simulation")
 
 
 def run_one_simulation(
