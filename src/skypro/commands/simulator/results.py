@@ -6,9 +6,9 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from tabulate import tabulate
 
 from simt_common.analysis.daily_gains import plot_daily_gains
-from simt_common.rates.microgrid import breakdown_costs
 
 from skypro.commands.simulator.config.config_v4 import OutputSummary
 
@@ -16,6 +16,7 @@ from skypro.commands.simulator.config.config_v4 import OutputSummary
 def explore_results(
         df: pd.DataFrame,
         final_rates_dfs: Dict[str, pd.DataFrame],
+        final_int_rates_dfs: Dict[str, pd.DataFrame],
         do_plots: bool,
         battery_energy_capacity: float,
         battery_nameplate_power: float,
@@ -33,112 +34,167 @@ def explore_results(
     sim_end = df.iloc[-1].name
     sim_days = get_24hr_days(sim_end - sim_start)
 
-    df["solar_n"] = df["solar"] * -1
-    df["bess_discharge_to_load_n"] = df["bess_discharge_to_load"] * -1
-    df["bess_discharge_to_grid_n"] = df["bess_discharge_to_grid"] * -1
-    df["bess_discharge_n"] = df["bess_discharge"] * -1
+    # Calculate both the internal and external cost associated with each energy flow
+    int_costs_dfs: Dict[str, pd.DataFrame] = {}
+    for flow_name, int_rate_df in final_int_rates_dfs.items():
+        int_costs_dfs[flow_name] = int_rate_df.mul(df[flow_name], axis=0)
+    ext_costs_dfs: Dict[str, pd.DataFrame] = {}
+    for flow_name, rate_df in final_rates_dfs.items():
+        ext_costs_dfs[flow_name] = rate_df.mul(df[flow_name], axis=0)
 
-    costs_dfs = breakdown_costs(rates_dfs=final_rates_dfs, df=df)
+    # Also calculate some 'derived' total cost of bess charges; discharges; solar and load, summing up from all sources.
+    int_costs_dfs["bess_charge"] = pd.concat([
+        int_costs_dfs["bess_charge_from_grid"].add_prefix("from_grid_"),
+        int_costs_dfs["bess_charge_from_solar"].add_prefix("from_solar_")
+    ], axis=1)
+    ext_costs_dfs["bess_charge"] = pd.concat([
+        ext_costs_dfs["bess_charge_from_grid"].add_prefix("from_grid_"),
+        ext_costs_dfs["bess_charge_from_solar"].add_prefix("from_solar_")
+    ], axis=1)
+    int_costs_dfs["bess_discharge"] = pd.concat([
+        int_costs_dfs["bess_discharge_to_grid"].add_prefix("to_grid_"),
+        int_costs_dfs["bess_discharge_to_load"].add_prefix("to_load_")
+    ], axis=1)
+    ext_costs_dfs["bess_discharge"] = pd.concat([
+        ext_costs_dfs["bess_discharge_to_grid"].add_prefix("to_grid_"),
+        ext_costs_dfs["bess_discharge_to_load"].add_prefix("to_load_")
+    ], axis=1)
+    int_costs_dfs["solar"] = pd.concat([
+        int_costs_dfs["solar_to_grid"].add_prefix("to_grid_"),
+        int_costs_dfs["solar_to_load"].add_prefix("to_load_"),
+        -1 * int_costs_dfs["bess_charge_from_solar"].add_prefix("to_bess_")
+    ], axis=1)
+    ext_costs_dfs["solar"] = pd.concat([
+        ext_costs_dfs["solar_to_grid"].add_prefix("to_grid_"),
+        ext_costs_dfs["solar_to_load"].add_prefix("to_load_"),
+        ext_costs_dfs["bess_charge_from_solar"].add_prefix("to_bess_")
+    ], axis=1)
+    int_costs_dfs["load"] = pd.concat([
+        int_costs_dfs["load_from_grid"].add_prefix("from_grid_"),
+        -1 * int_costs_dfs["solar_to_load"].add_prefix("from_solar_"),
+        -1 * int_costs_dfs["bess_discharge_to_load"].add_prefix("from_bess_")
+    ], axis=1)
+    ext_costs_dfs["load"] = pd.concat([
+        ext_costs_dfs["load_from_grid"].add_prefix("from_grid_"),
+        ext_costs_dfs["solar_to_load"].add_prefix("from_solar_"),
+        ext_costs_dfs["bess_discharge_to_load"].add_prefix("from_bess_")
+    ], axis=1)
 
-    total_bess_charged_1 = df["bess_charge"].sum()
-    total_bess_charge_from_grid = df['bess_charge_from_grid'].sum()
-    total_bess_charge_from_solar = df['bess_charge_from_solar'].sum()
-    total_bess_discharged_1 = df["bess_discharge"].sum()
-    total_bess_discharge_to_grid = df['bess_discharge_to_grid'].sum()
-    total_bess_discharge_to_load = df['bess_discharge_to_load'].sum()
+    # Calculate the total cost associated with each energy flow.
+    total_int_costs: Dict[str, float] = {}
+    total_ext_costs: Dict[str, float] = {}
+    for flow_name, cost_df in int_costs_dfs.items():
+        total_int_costs[flow_name] = cost_df.sum().sum()
+    for flow_name, cost_df in ext_costs_dfs.items():
+        total_ext_costs[flow_name] = cost_df.sum().sum()
+
+    total_int_bess_gain = - total_int_costs["bess_discharge"] - total_int_costs["bess_charge"]
+
+    # Calculate the total energy over the period for each energy flow of interest.
+    total_flows: Dict[str, float] = {}
+    for flow_name in list(int_costs_dfs.keys()):
+        total_flows[flow_name] = df[flow_name].sum()
 
     # The above charge/discharge flows are representative of the flows into and out of the BESS. Losses are modelled as
     # 'internal to the battery'. So the total bess charge (from all sources) is larger than the total bess discharge
     # (to all loads).
     total_bess_losses = df['bess_losses'].sum()
 
-    # Calculate total costs of the BESS charging and discharging
-    total_cost_bess_charge = costs_dfs["bess_charge"].sum().sum()
-    total_cost_bess_discharge = costs_dfs["bess_discharge"].sum().sum()
-    total_bess_gain = - total_cost_bess_discharge - total_cost_bess_charge
-    total_cost_bess_charge_from_grid = costs_dfs["bess_charge_from_grid"].sum().sum()
-    total_cost_bess_charge_from_solar = costs_dfs["bess_charge_from_solar_inc_opp"].sum().sum()
-    total_cost_bess_discharge_to_grid = costs_dfs["bess_discharge_to_grid"].sum().sum()
-    total_cost_bess_discharge_to_load = costs_dfs["bess_discharge_to_load_inc_opp"].sum().sum()
-
-    # Calculate the summaries/costs of non-BESS microgrid imports/exports
-    total_cost_solar_to_load = costs_dfs["solar_to_load_inc_opp"].sum().sum()
-    total_cost_solar_to_grid = costs_dfs["solar_to_grid"].sum().sum()
-    total_cost_load_from_grid = costs_dfs["load_from_grid"].sum().sum()
-    total_solar_to_grid = df["solar_to_grid"].sum()
-    total_load_from_grid = df["load_from_grid"].sum()
-
-    total_load = df["load"].sum()
-    total_solar = df["solar"].sum()
-    total_solar_to_load = df["solar_to_load"].sum()
-    solar_self_use = total_solar - total_solar_to_grid
+    solar_self_use = total_flows["solar"] - total_flows["solar_to_grid"]
 
     # Calculate the average p/kWh rates associated with the various energy flows
-    avg_rate_bess_charge = total_cost_bess_charge / total_bess_charged_1
-    avg_rate_bess_discharge = total_cost_bess_discharge / total_bess_discharged_1
-    avg_rate_bess_charge_from_grid = total_cost_bess_charge_from_grid / total_bess_charge_from_grid
-    avg_rate_bess_charge_from_solar = total_cost_bess_charge_from_solar / total_bess_charge_from_solar
-    avg_rate_bess_discharge_to_grid = total_cost_bess_discharge_to_grid / total_bess_discharge_to_grid
-    avg_rate_bess_discharge_to_load = total_cost_bess_discharge_to_load / total_bess_discharge_to_load
+    avg_int_rates: Dict[str, float] = {}
+    for flow_name, total_cost in total_int_costs.items():
+        avg_int_rates[flow_name] = total_cost / total_flows[flow_name]
+    avg_ext_rates: Dict[str, float] = {}
+    for flow_name, total_cost in total_ext_costs.items():
+        avg_ext_rates[flow_name] = total_cost / total_flows[flow_name]
 
-    avg_rate_solar_to_load = total_cost_solar_to_load / total_solar_to_load
-    avg_rate_solar_to_grid = total_cost_solar_to_grid / total_solar_to_grid
-    avg_rate_load_from_grid = total_cost_load_from_grid / total_load_from_grid
+    # Friendly names to present to the user
+    flow_name_map = {
+        "solar_to_grid": "solarToGrid",
+        "load_from_grid": "gridToLoad",
+        "solar_to_load": "solarToLoad",
+        "bess_discharge_to_load": "battToLoad",
+        "bess_discharge_to_grid": "battToGrid",
+        "bess_charge_from_solar": "solarToBatt",
+        "bess_charge_from_grid": "gridToBatt",
+        "bess_charge": "All batt charge",
+        "bess_discharge": "All batt discharge",
+        "solar": "All solar",
+        "load": "All load"
+    }
+
+    # Separate the more fundamental flows from the derived flows as they are presented to the user in separate tables.
+    fundamental_flow_names = list(final_int_rates_dfs.keys())
+    fundamental_flow_summary_df = pd.DataFrame()
+    derived_flow_summary_df = pd.DataFrame()
+    fundamental_flow_summary_df.index.name = "flow"
+    derived_flow_summary_df.index.name = "flow"
+    for flow_name in int_costs_dfs.keys():
+        output_flow_name = flow_name_map[flow_name]
+
+        if flow_name in fundamental_flow_names:
+            flow_summary_df = fundamental_flow_summary_df
+        else:
+            flow_summary_df = derived_flow_summary_df
+
+        flow_summary_df.loc[output_flow_name, "volume"] = total_flows[flow_name]
+        flow_summary_df.loc[output_flow_name, "int_cost"] = total_int_costs[flow_name] / 100  # pence to £
+        flow_summary_df.loc[output_flow_name, "int_avg_rate"] = avg_int_rates[flow_name]
+        flow_summary_df.loc[output_flow_name, "ext_cost"] = total_ext_costs[flow_name] / 100  # pence to £
+        flow_summary_df.loc[output_flow_name, "ext_avg_rate"] = avg_ext_rates[flow_name]
+
+    # Friendly names to present to the user
+    flow_summary_column_name_map = {
+        "volume": "Volume (kWh)",
+        "int_cost": "Int. Cost (£)",
+        "int_avg_rate": "Int. Avg Rate (p/kWh)",
+        "ext_cost": "Ext. Cost (£)",
+        "ext_avg_rate": "Ext. Avg Rate (p/kWh)",
+    }
+
+    print(tabulate(
+        tabular_data=fundamental_flow_summary_df.rename(columns=flow_summary_column_name_map),
+        headers='keys',
+        tablefmt='presto',
+        floatfmt=(None, ",.0f", ",.0f", ",.2f", ",.0f", ",.2f")
+    ))
+    print("")
+    print("* The internal prices assigned to battery flows are signed from the perspective of the battery strategy")
 
     print("")
-    print(f"Total BESS charge: {total_bess_charged_1:.1f} kWh, £{total_cost_bess_charge/100:.2f}, {avg_rate_bess_charge:.2f} p/kWh")
-    print(f"  Charge from grid: {total_bess_charge_from_grid:.1f} kWh, £{total_cost_bess_charge_from_grid/100:.2f}, {avg_rate_bess_charge_from_grid:.2f} p/kWh")
-    print(f"  Charge from solar: {total_bess_charge_from_solar:.1f} kWh, £{total_cost_bess_charge_from_solar/100:.2f}, {avg_rate_bess_charge_from_solar:.2f} p/kWh")
-    print(f"Total BESS discharge: {total_bess_discharged_1:.1f} kWh, £{total_cost_bess_discharge/100:.2f}, {avg_rate_bess_discharge:.2f} p/kWh")
-    print(f"  Discharge to grid: {total_bess_discharge_to_grid:.1f} kWh, £{total_cost_bess_discharge_to_grid/100:.2f}, {avg_rate_bess_discharge_to_grid:.2f} p/kWh")
-    print(f"  Discharge to load: {total_bess_discharge_to_load:.1f} kWh, £{total_cost_bess_discharge_to_load/100:.2f}, {avg_rate_bess_discharge_to_load:.2f} p/kWh")
-    print(f"Total BESS losses: {total_bess_losses:.1f} kWh")
+    print(tabulate(
+        tabular_data=derived_flow_summary_df.rename(columns=flow_summary_column_name_map),
+        headers='keys',
+        tablefmt='presto',
+        floatfmt=(None, ",.0f", ",.0f", ",.2f", ",.0f", ",.2f")
+    ))
 
     print("")
-    print(f"Total solar: {total_solar:.1f} kWh")
-    print(f"  Solar to load: {total_solar_to_load:.1f} kWh, £{total_cost_solar_to_load/100:.2f}, {avg_rate_solar_to_load:.2f} p/kWh")
-    print(f"  Solar to grid: {total_solar_to_grid:.1f} kWh, £{total_cost_solar_to_grid / 100:.2f}, {avg_rate_solar_to_grid:.2f} p/kWh")
-    print("  Solar to BESS: see above")
-    print(f"  Self-use (inc batt losses): {solar_self_use:.2f} kWh, {(solar_self_use/total_solar)*100:.1f}%")
-
-    print("")
-    print(f"Total load: {total_load:.1f} kWh")
-    print(f"  Load from grid: {total_load_from_grid:.1f} kWh, £{total_cost_load_from_grid / 100:.2f}, {avg_rate_load_from_grid:.2f} p/kWh")
-    print("  Load from solar: see above")
-    print("  Load from BESS: see above")
-
-    print("")
-    print(f"Total BESS gain over period: £{total_bess_gain/100:.2f}")
-    print(f"Average daily BESS gain over period: £{(total_bess_gain / 100)/sim_days:.2f}")
-
-    # Output a CSV file summarising the energy flows and costs (costs are in £ rather than pence)
-    summary_df = pd.DataFrame(index=[1])
-    summary_df["bess_charge_from_grid"] = total_bess_charge_from_grid
-    summary_df["bess_charge_from_grid_cost"] = total_cost_bess_charge_from_grid / 100
-    summary_df["bess_charge_from_solar"] = total_bess_charge_from_solar
-    summary_df["bess_charge_from_solar_cost"] = total_cost_bess_charge_from_solar / 100
-    summary_df["bess_discharge_to_grid"] = total_bess_discharge_to_grid
-    summary_df["bess_discharge_to_grid_cost"] = total_cost_bess_discharge_to_grid / 100
-    summary_df["bess_discharge_to_load"] = total_bess_discharge_to_load
-    summary_df["bess_discharge_to_load_cost"] = total_cost_bess_discharge_to_load / 100
-    summary_df["bess_losses"] = total_bess_losses
-    summary_df["solar_to_load"] = total_solar_to_load
-    summary_df["solar_to_load_cost"] = total_cost_solar_to_load / 100
-    summary_df["solar_to_grid"] = total_solar_to_grid
-    summary_df["solar_to_grid_cost"] = total_cost_solar_to_grid / 100
-    summary_df["load_from_grid"] = total_load_from_grid
-    summary_df["load_from_grid_cost"] = total_cost_load_from_grid / 100
-
-    if summary_output_config:
-        summary_df.to_csv(summary_output_config.csv, index=False)
+    print(f"Solar self-use (inc batt losses): {solar_self_use:,.2f} kWh, {(solar_self_use/total_flows['solar'])*100:.1f}% of the solar generation.")
 
     # Cycling
-    total_cycles = total_bess_discharged_1 / battery_energy_capacity
+    total_cycles = total_flows["bess_discharge"] / battery_energy_capacity
     cycles_per_day = total_cycles / sim_days
     print("")
-    print("- - CYCLING - - ")
     print(f"Total cycles over simulation: {total_cycles:.2f} cycles")
     print(f"Average cycles per day: {cycles_per_day:.2f} cycles/day")
+
+    print("")
+    print(f"Total BESS gain over period: £{total_int_bess_gain/100:,.2f}")
+    print(f"Average daily BESS gain over period: £{(total_int_bess_gain / 100)/sim_days:.2f}")
+
+    total_ext_cost = 0.0
+    for flow_name in fundamental_flow_names:
+        total_ext_cost += total_ext_costs[flow_name]
+
+    print("")
+    print(f"Total external costs: £{total_ext_cost / 100:,.2f}")
+
+    # Output a CSV file summarising the energy flows and costs
+    if summary_output_config:
+        fundamental_flow_summary_df.to_csv(summary_output_config.csv, index=True)
 
     # TODO: print warning if cycling is low - charge efficiency changes
 
@@ -149,9 +205,9 @@ def explore_results(
             df, site_import_limit, site_export_limit, battery_nameplate_power
         )
         # plot_costs_by_grouping(costs_dfs["bess_charge"], costs_dfs["bess_discharge"])
-        plot_daily_gains(costs_dfs)
+        plot_daily_gains(int_costs_dfs)
 
-    return summary_df
+    return fundamental_flow_summary_df
 
 
 def plot_hh_strategy(df: pd.DataFrame):

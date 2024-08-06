@@ -149,12 +149,13 @@ class ImbalanceDataSource:
 
 @dataclass
 class RatesFiles:
-    bess_charge_from_solar: List[PathType] = name_in_json("bessChargeFromSolar")
-    bess_charge_from_grid: List[PathType] = name_in_json("bessChargeFromGrid")
-    bess_discharge_to_grid: List[PathType] = name_in_json("bessDischargeToGrid")
-    bess_discharge_to_load: List[PathType] = name_in_json("bessDischargeToLoad")
+    bess_charge_from_solar: List[PathType] = name_in_json("solarToBatt")
+    bess_charge_from_grid: List[PathType] = name_in_json("gridToBatt")
+    bess_discharge_to_grid: List[PathType] = name_in_json("battToGrid")
+    bess_discharge_to_load: List[PathType] = name_in_json("battToLoad")
     solar_to_grid: List[PathType] = name_in_json("solarToGrid")
-    load_from_grid: List[PathType] = name_in_json("loadFromGrid")
+    solar_to_load: List[PathType] = name_in_json("solarToLoad")
+    load_from_grid: List[PathType] = name_in_json("gridToLoad")
 
 
 @dataclass
