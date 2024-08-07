@@ -35,23 +35,17 @@ class TestIntegration(unittest.TestCase):
 
         df = pd.read_csv("./src/tests/integration/output_summary.csv")
 
-        expected_df = pd.DataFrame(index=[0], data={
-            "bess_charge_from_grid": 29774.994364,
-            "bess_charge_from_grid_cost": 2421.649273,
-            "bess_charge_from_solar": 309.138352,
-            "bess_charge_from_solar_cost": 18.969905,
-            "bess_discharge_to_grid": 22557.510469,
-            "bess_discharge_to_grid_cost": -3956.128884,
-            "bess_discharge_to_load": 3339.945498,
-            "bess_discharge_to_load_cost": -728.922904,
-            "bess_losses": 4512.619907,
-            "solar_to_load": 5022.524864,
-            "solar_to_load_cost": -535.794159,
-            "solar_to_grid": 872.404967,
-            "solar_to_grid_cost": -72.345166,
-            "load_from_grid": 29364.752639,
-            "load_from_grid_cost": 3180.368026,
+        # The avg rate columns are a simple calculation from the other two columns, so don't bother testing these
+        df = df.drop(columns=["int_avg_rate", "ext_avg_rate"])
+        df = df.set_index("flow")
+
+        expected_df = pd.DataFrame.from_dict({
+            "flow": ["gridToBatt", "battToGrid", "solarToGrid", "gridToLoad", "solarToBatt", "battToLoad", "solarToLoad"],
+            "volume": [29774.99, 22557.51, 872.40, 29364.75, 309.14, 3339.95, 5022.52],
+            "int_cost": [2421.65, -3956.13, -72.35, 3180.37, 18.97, -728.92, -535.79],
+            "ext_cost": [2421.65, -3956.13, -72.35, 3180.37, 0.0, 0.0, 0.0]
         })
+        expected_df = expected_df.set_index("flow")
 
         self.assertEqual(df.columns.to_list(), expected_df.columns.to_list())
 
