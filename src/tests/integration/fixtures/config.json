@@ -104,26 +104,29 @@
     "rates": {
       "supplyPointsConfigFile": "./src/tests/integration/fixtures/rates/supply_points_a.json",
       "files": {
-         "bessChargeFromSolar": [
+         "solarToBatt": [
          ],
-         "bessChargeFromGrid": [
+         "gridToBatt": [
             "./src/tests/integration/fixtures/rates/supply_fees_bryt_import.json",
             "./src/tests/integration/fixtures/rates/dno_fees_wpd_import.json"
          ],
-         "bessDischargeToGrid": [
+         "battToGrid": [
            "./src/tests/integration/fixtures/rates/supply_fees_statkraft_export.json",
            "./src/tests/integration/fixtures/rates/dno_fees_wpd_export.json"
          ],
-         "bessDischargeToLoad": [
+         "battToLoad": [
          ],
          "solarToGrid": [
            "./src/tests/integration/fixtures/rates/supply_fees_statkraft_export.json",
            "./src/tests/integration/fixtures/rates/dno_fees_wpd_export.json"
          ],
-         "loadFromGrid": [
+         "gridToLoad": [
             "./src/tests/integration/fixtures/rates/supply_fees_bryt_import.json",
             "./src/tests/integration/fixtures/rates/dno_fees_wpd_import.json"
-         ]
+         ],
+        "solarToLoad": [
+
+        ]
        }
     }
   }
