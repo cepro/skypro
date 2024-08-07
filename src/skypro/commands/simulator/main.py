@@ -1,3 +1,4 @@
+import importlib.metadata
 import logging
 import os
 from datetime import timedelta
@@ -9,6 +10,7 @@ import plotly.graph_objects as go
 import pytz
 
 from simt_common.jsonconfig.rates import parse_supply_points, process_rates_for_all_energy_flows
+from simt_common.microgrid.output import save_microgrid_output
 from simt_common.rates.microgrid import get_rates_dfs
 from simt_common.timeutils.hh_math import floor_hh
 
@@ -18,7 +20,6 @@ from skypro.commands.simulator.algorithms.spread.algo import run_spread_based_al
 from skypro.commands.simulator.config import parse_config, Solar, Load, ConfigV3, ConfigV4
 from skypro.commands.simulator.config.config_v3 import SimulationCaseV3
 from skypro.commands.simulator.config.config_v4 import SimulationCaseV4, OutputSimulation, OutputSummary
-from skypro.commands.simulator.output import save_simulation_output
 from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data
 from skypro.commands.simulator.profiler import Profiler
 from skypro.commands.simulator.results import explore_results
@@ -165,15 +166,15 @@ def run_one_simulation(
             logging.info(f"Flow: {name}, Rate: {rate}")
 
     logging.info("Calculating predicted rates...")
-    predicted_rates_dfs, _ = get_rates_dfs(time_index, predicted_rates)
+    predicted_ext_rates_dfs, predicted_int_rates_dfs = get_rates_dfs(time_index, predicted_rates)
     logging.info("Calculating final rates...")
-    final_rates_dfs, final_int_rates_dfs = get_rates_dfs(time_index, final_rates)
+    final_ext_rates_dfs, final_int_rates_dfs = get_rates_dfs(time_index, final_rates)
     # Add the total rate of each energy flow to the dataframe
-    for set_name, rates_df in predicted_rates_dfs.items():
+    for set_name, rates_df in predicted_ext_rates_dfs.items():
         df[f"rate_predicted_{set_name}"] = rates_df.sum(axis=1, skipna=False)
-    for set_name, rates_df in final_rates_dfs.items():
+    for set_name, rates_df in final_ext_rates_dfs.items():
         df[f"rate_final_{set_name}"] = rates_df.sum(axis=1, skipna=False)
-    for set_name, rates_df in final_rates_dfs.items():
+    for set_name, rates_df in final_ext_rates_dfs.items():
         df[f"int_rate_final_{set_name}"] = rates_df.sum(axis=1, skipna=False)
 
     # Process solar profiles
@@ -302,12 +303,33 @@ def run_one_simulation(
     else:
         simulation_output_config = sim_config.output.simulation if sim_config.output else None
     if simulation_output_config:
-        save_simulation_output(
+        save_microgrid_output(
             df=df,
-            final_rates_dfs=final_rates_dfs,
+            int_final_rates_dfs=final_int_rates_dfs,
+            ext_final_rates_dfs=final_ext_rates_dfs,
+            int_predicted_rates_dfs=predicted_int_rates_dfs,
+            ext_predicted_rates_dfs=predicted_ext_rates_dfs,
             load_energy_breakdown_df=load_energy_breakdown_df,
-            sim_config=sim_config,
-            output_config=simulation_output_config
+            output_file_path=simulation_output_config.csv,
+            aggregate=simulation_output_config.aggregate,
+            rate_detail=simulation_output_config.rate_detail,
+            config_entries=[
+                ("skypro.version", importlib.metadata.version('skypro')),
+                ("start", sim_config.start.isoformat()),
+                ("end", sim_config.end.isoformat()),
+                ("site.gridConnection.importLimit", sim_config.site.grid_connection.import_limit),
+                ("site.gridConnection.exportLimit", sim_config.site.grid_connection.export_limit),
+                ("site.solar.constant", sim_config.site.solar.constant),
+                ("site.solar.profile", sim_config.site.solar.profile),
+                ("site.load.constant", sim_config.site.load.constant),
+                ("site.load.profile", sim_config.site.load.profile),
+                ("site.bess.energyCapacity", sim_config.site.bess.energy_capacity),
+                ("site.bess.nameplatePower", sim_config.site.bess.nameplate_power),
+                ("site.bess.chargeEfficiency", sim_config.site.bess.charge_efficiency),
+                ("strategy.priceCurveAlgo", sim_config.strategy.price_curve_algo),
+                ("imbalanceDataSource", sim_config.imbalance_data_source),
+                ("rates", sim_config.rates),
+            ]
         )
 
     # Generate a summary of the results to return
@@ -322,7 +344,7 @@ def run_one_simulation(
 
     sim_summary_df = explore_results(
         df=df,
-        final_rates_dfs=final_rates_dfs,
+        final_ext_rates_dfs=final_ext_rates_dfs,
         final_int_rates_dfs=final_int_rates_dfs,
         do_plots=do_plots,
         battery_energy_capacity=sim_config.site.bess.energy_capacity,
@@ -359,6 +381,10 @@ def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
 
     df["load_from_grid"] = df["load_not_supplied_by_solar"] - df["bess_discharge_to_load"]
     df["solar_to_grid"] = df["solar_not_supplying_load"] - df["bess_charge_from_solar"]
+
+    # For now, assume that all the match happens at the property level, and none happens at the microgrid level
+    df["solar_to_load_property_level"] = df["solar_to_load"]
+    df["solar_to_load_microgrid_level"] = 0.0
 
     return df
 
