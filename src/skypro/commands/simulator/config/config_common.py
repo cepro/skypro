@@ -254,7 +254,7 @@ class Optimiser:
 class Strategy:
     price_curve_algo: Optional[PriceCurveAlgo] = name_in_json("priceCurveAlgo")
     spread_algo: Optional[SpreadAlgo] = name_in_json("spreadAlgo")
-    optimiser: Optional[Optimiser] = name_in_json("optimiser")
+    optimiser: Optional[Optimiser] = name_in_json("perfectHindsightOptimiser")
 
     def __post_init__(self):
-        enforce_one_option([self.price_curve_algo, self.spread_algo, self.optimiser], "'priceCurveAlgo', 'spreadAlgo', 'optimiser'")
+        enforce_one_option([self.price_curve_algo, self.spread_algo, self.optimiser], "'priceCurveAlgo', 'spreadAlgo', 'perfectHindsightOptimiser'")
