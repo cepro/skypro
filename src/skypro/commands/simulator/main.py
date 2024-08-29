@@ -174,7 +174,7 @@ def run_one_simulation(
         df[f"rate_predicted_{set_name}"] = rates_df.sum(axis=1, skipna=False)
     for set_name, rates_df in final_ext_rates_dfs.items():
         df[f"rate_final_{set_name}"] = rates_df.sum(axis=1, skipna=False)
-    for set_name, rates_df in final_ext_rates_dfs.items():
+    for set_name, rates_df in final_int_rates_dfs.items():
         df[f"int_rate_final_{set_name}"] = rates_df.sum(axis=1, skipna=False)
 
     # Process solar profiles
