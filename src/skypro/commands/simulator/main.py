@@ -397,15 +397,13 @@ def check_algo_result_consistency(df_algo: pd.DataFrame, df_in: pd.DataFrame, ba
     tolerance = 0.01
 
     # Calculate the energy delta from the soe and check that it matches the energy delta given
-
     soe_diff = df_algo["soe"].diff().shift(-1)
     soe_diff.iloc[-1] = 0.0
-
-    # Check the energy delta is expected given the SoE
     energy_delta_check = soe_diff.copy()
     charges = energy_delta_check[energy_delta_check > 0] / battery_charge_efficiency
     discharges = energy_delta_check[energy_delta_check < 0]
     energy_delta_check.loc[charges.index] = charges
+    energy_delta_check.iloc[-1] = df_algo["energy_delta"].iloc[-1]  # There isn't a valid soe diff on the last row
     if (df_algo["energy_delta"] - energy_delta_check).abs().max() > tolerance:
         raise AssertionError("Algorithm solution has inconsistent energy delta")
 
