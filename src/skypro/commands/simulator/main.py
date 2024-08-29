@@ -15,6 +15,7 @@ from simt_common.rates.microgrid import get_rates_dfs
 from simt_common.timeutils.hh_math import floor_hh
 
 from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings
+from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
 from skypro.commands.simulator.algorithms.price_curve.algo import run_price_curve_imbalance_algo
 from skypro.commands.simulator.algorithms.spread.algo import run_spread_based_algo
 from skypro.commands.simulator.config import parse_config, Solar, Load, ConfigV3, ConfigV4
@@ -264,6 +265,26 @@ def run_one_simulation(
             battery_charge_efficiency=sim_config.site.bess.charge_efficiency,
             config=sim_config.strategy.price_curve_algo
         )
+    elif sim_config.strategy.optimiser:
+        cols_to_share_with_algo.extend([
+            "solar",
+            "load",
+            "bess_max_charge",
+            "bess_max_discharge",
+            "int_rate_final_bess_charge_from_solar",
+            "int_rate_final_bess_discharge_to_load",
+            "rate_final_bess_charge_from_grid",
+            "rate_final_bess_charge_from_solar",
+            "rate_final_bess_discharge_to_grid"
+        ])
+        opt = Optimiser(
+            config=sim_config.strategy.optimiser,
+            df=df[cols_to_share_with_algo],
+            battery_energy_capacity=sim_config.site.bess.energy_capacity,
+            battery_charge_efficiency=sim_config.site.bess.charge_efficiency,
+        )
+        df_algo = opt.run()
+
     elif sim_config.strategy.spread_algo:
         # TODO: there should be a more elegant way of doing this - but at the moment the spread based algo needs to know
         #  the "non imbalance" rates, seperated from the imbalance rates. These are calculated here, because if the algo
