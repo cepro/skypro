@@ -232,9 +232,29 @@ class SpreadAlgo:
 
 
 @dataclass
+class OptimiserBlocks:
+    """Defines how the whole simulation period is split into smaller duration optimisations that are stacked on top of
+    ech other."""
+    duration_hh: int = name_in_json("durationHH")
+    used_duration_hh: int = name_in_json("usedDurationHH")
+
+    def __post_init__(self):
+        if self.duration_hh <= 0 or self.used_duration_hh <= 0:
+            raise ValueError("both usedDurationHH and durationHH must be greater than 0.")
+        if self.used_duration_hh > self.duration_hh:
+            raise ValueError("usedDurationHH must not be larger than durationHH.")
+
+
+@dataclass
+class Optimiser:
+    blocks: OptimiserBlocks
+
+
+@dataclass
 class Strategy:
     price_curve_algo: Optional[PriceCurveAlgo] = name_in_json("priceCurveAlgo")
     spread_algo: Optional[SpreadAlgo] = name_in_json("spreadAlgo")
+    optimiser: Optional[Optimiser] = name_in_json("perfectHindsightOptimiser")
 
     def __post_init__(self):
-        enforce_one_option([self.price_curve_algo, self.spread_algo], "'priceCurveAlgo', 'spreadAlgo'")
+        enforce_one_option([self.price_curve_algo, self.spread_algo, self.optimiser], "'priceCurveAlgo', 'spreadAlgo', 'perfectHindsightOptimiser'")

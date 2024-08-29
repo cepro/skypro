@@ -15,6 +15,7 @@ from simt_common.rates.microgrid import get_rates_dfs
 from simt_common.timeutils.hh_math import floor_hh
 
 from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings
+from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
 from skypro.commands.simulator.algorithms.price_curve.algo import run_price_curve_imbalance_algo
 from skypro.commands.simulator.algorithms.spread.algo import run_spread_based_algo
 from skypro.commands.simulator.config import parse_config, Solar, Load, ConfigV3, ConfigV4
@@ -174,7 +175,7 @@ def run_one_simulation(
         df[f"rate_predicted_{set_name}"] = rates_df.sum(axis=1, skipna=False)
     for set_name, rates_df in final_ext_rates_dfs.items():
         df[f"rate_final_{set_name}"] = rates_df.sum(axis=1, skipna=False)
-    for set_name, rates_df in final_ext_rates_dfs.items():
+    for set_name, rates_df in final_int_rates_dfs.items():
         df[f"int_rate_final_{set_name}"] = rates_df.sum(axis=1, skipna=False)
 
     # Process solar profiles
@@ -264,6 +265,26 @@ def run_one_simulation(
             battery_charge_efficiency=sim_config.site.bess.charge_efficiency,
             config=sim_config.strategy.price_curve_algo
         )
+    elif sim_config.strategy.optimiser:
+        cols_to_share_with_algo.extend([
+            "solar",
+            "load",
+            "bess_max_charge",
+            "bess_max_discharge",
+            "int_rate_final_bess_charge_from_solar",
+            "int_rate_final_bess_discharge_to_load",
+            "rate_final_bess_charge_from_grid",
+            "rate_final_bess_charge_from_solar",
+            "rate_final_bess_discharge_to_grid"
+        ])
+        opt = Optimiser(
+            config=sim_config.strategy.optimiser,
+            df=df[cols_to_share_with_algo],
+            battery_energy_capacity=sim_config.site.bess.energy_capacity,
+            battery_charge_efficiency=sim_config.site.bess.charge_efficiency,
+        )
+        df_algo = opt.run()
+
     elif sim_config.strategy.spread_algo:
         # TODO: there should be a more elegant way of doing this - but at the moment the spread based algo needs to know
         #  the "non imbalance" rates, seperated from the imbalance rates. These are calculated here, because if the algo
@@ -285,6 +306,12 @@ def run_one_simulation(
         )
     else:
         raise ValueError("Unknown algorithm chosen")
+
+    check_algo_result_consistency(
+        df_algo=df_algo,
+        df_in=df,
+        battery_charge_efficiency=sim_config.site.bess.charge_efficiency,
+    )
 
     # Add the results of the algo into the main dataframe
     df = pd.concat([df, df_algo], axis=1)
@@ -355,6 +382,43 @@ def run_one_simulation(
     )
 
     return sim_summary_df
+
+
+def check_algo_result_consistency(df_algo: pd.DataFrame, df_in: pd.DataFrame, battery_charge_efficiency: float):
+    """
+    Does various checks to ensure that the algorithm results are viable. The algos generate their results in
+    different ways, so we want to check that they are all following basic rules here.
+    These could be written as unit tests, but they run quickly so there's no harm in running them over every
+    result set that is generated.
+    """
+
+    # TODO: rename energy_delta in whole project
+
+    tolerance = 0.01
+
+    # Calculate the energy delta from the soe and check that it matches the energy delta given
+    soe_diff = df_algo["soe"].diff().shift(-1)
+    soe_diff.iloc[-1] = 0.0
+    energy_delta_check = soe_diff.copy()
+    charges = energy_delta_check[energy_delta_check > 0] / battery_charge_efficiency
+    discharges = energy_delta_check[energy_delta_check < 0]
+    energy_delta_check.loc[charges.index] = charges
+    energy_delta_check.iloc[-1] = df_algo["energy_delta"].iloc[-1]  # There isn't a valid soe diff on the last row
+    if (df_algo["energy_delta"] - energy_delta_check).abs().max() > tolerance:
+        raise AssertionError("Algorithm solution has inconsistent energy delta")
+
+    # Check the bess losses are expected given the SoE
+    bess_losses = charges * (1 - battery_charge_efficiency)
+    bess_losses_check = pd.Series(index=df_algo.index, data=0.0)
+    bess_losses_check.loc[bess_losses.index] = bess_losses
+    if (bess_losses_check - df_algo["bess_losses"]).abs().max() > tolerance:
+        raise AssertionError("Algorithm solution has inconsistent bess losses")
+
+    if (charges.abs() > (df_in["bess_max_charge"].loc[charges.index] + tolerance)).sum() > 0:
+        raise AssertionError("Algorithm solution charges at too high a rate")
+
+    if (discharges.abs() > (df_in["bess_max_discharge"].loc[discharges.index] + tolerance)).sum() > 0:
+        raise AssertionError("Algorithm solution discharges at too high a rate")
 
 
 def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
