@@ -307,6 +307,12 @@ def run_one_simulation(
     else:
         raise ValueError("Unknown algorithm chosen")
 
+    check_algo_result_consistency(
+        df_algo=df_algo,
+        df_in=df,
+        battery_charge_efficiency=sim_config.site.bess.charge_efficiency,
+    )
+
     # Add the results of the algo into the main dataframe
     df = pd.concat([df, df_algo], axis=1)
 
@@ -376,6 +382,45 @@ def run_one_simulation(
     )
 
     return sim_summary_df
+
+
+def check_algo_result_consistency(df_algo: pd.DataFrame, df_in: pd.DataFrame, battery_charge_efficiency: float):
+    """
+    Does various checks to ensure that the algorithm results are viable. The algos generate their results in
+    different ways, so we want to check that they are all following basic rules here.
+    These could be written as unit tests, but they run quickly so there's no harm in running them over every
+    result set that is generated.
+    """
+
+    # TODO: rename energy_delta in whole project
+
+    tolerance = 0.01
+
+    # Calculate the energy delta from the soe and check that it matches the energy delta given
+
+    soe_diff = df_algo["soe"].diff().shift(-1)
+    soe_diff.iloc[-1] = 0.0
+
+    # Check the energy delta is expected given the SoE
+    energy_delta_check = soe_diff.copy()
+    charges = energy_delta_check[energy_delta_check > 0] / battery_charge_efficiency
+    discharges = energy_delta_check[energy_delta_check < 0]
+    energy_delta_check.loc[charges.index] = charges
+    if (df_algo["energy_delta"] - energy_delta_check).abs().max() > tolerance:
+        raise AssertionError("Algorithm solution has inconsistent energy delta")
+
+    # Check the bess losses are expected given the SoE
+    bess_losses = charges * (1 - battery_charge_efficiency)
+    bess_losses_check = pd.Series(index=df_algo.index, data=0.0)
+    bess_losses_check.loc[bess_losses.index] = bess_losses
+    if (bess_losses_check - df_algo["bess_losses"]).abs().max() > tolerance:
+        raise AssertionError("Algorithm solution has inconsistent bess losses")
+
+    if (charges.abs() > (df_in["bess_max_charge"].loc[charges.index] + tolerance)).sum() > 0:
+        raise AssertionError("Algorithm solution charges at too high a rate")
+
+    if (discharges.abs() > (df_in["bess_max_discharge"].loc[discharges.index] + tolerance)).sum() > 0:
+        raise AssertionError("Algorithm solution discharges at too high a rate")
 
 
 def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
