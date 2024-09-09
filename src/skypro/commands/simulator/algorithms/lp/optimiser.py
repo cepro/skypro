@@ -213,7 +213,9 @@ class Optimiser:
                 - lp_var_bess_discharges_to_grid[t - 1]
             )
 
-        problem.solve(pulp.PULP_CBC_CMD(msg=False))
+        status = problem.solve(pulp.PULP_CBC_CMD(msg=False))
+        if status != 1:
+            raise RuntimeError("Failed to solve optimisation problem")
 
         df_sol = _get_solution_as_dataframe(problem.variables(), df_in.index)
         df_sol = df_sol.iloc[:-1, :]  # Drop the last row because the last time slot is not actually optimised
