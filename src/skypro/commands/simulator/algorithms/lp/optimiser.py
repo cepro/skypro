@@ -95,8 +95,10 @@ class Optimiser:
         problem = pulp.LpProblem(name="MicrogridProblem", sense=pulp.LpMinimize)
 
         lp_var_bess_soe = []
+        lp_var_bess_discharges = []
         lp_var_bess_discharges_to_load = []
         lp_var_bess_discharges_to_grid = []
+        lp_var_bess_charges = []
         lp_var_bess_charges_from_solar = []
         lp_var_bess_charges_from_grid = []
         lp_var_bess_is_charging = []
@@ -142,6 +144,20 @@ class Optimiser:
                     name=f"bess_discharge_to_grid_{t}",
                     lowBound=0.0,
                     upBound=df_in.iloc[t]["max_discharge_to_load"]
+                )
+            )
+
+            # These totals of charge and discharge are just defined for convenience
+            lp_var_bess_charges.append(
+                pulp.LpVariable(
+                    name=f"bess_charge_{t}",
+                    lowBound=0.0,
+                )
+            )
+            lp_var_bess_discharges.append(
+                pulp.LpVariable(
+                    name=f"bess_discharge_{t}",
+                    lowBound=0.0,
                 )
             )
 
@@ -192,11 +208,15 @@ class Optimiser:
             problem += lp_var_bess_charges_from_grid[t] >= 0.0
             problem += lp_var_bess_discharges_to_load[t] >= 0.0
             problem += lp_var_bess_discharges_to_grid[t] >= 0.0
+
+            # Constraints to define the total of all charge flows and total of all discharge flows. This is just for
+            # convenience as the totals are used a few times later on.
+            problem += lp_var_bess_charges[t] == lp_var_bess_charges_from_solar[t] + lp_var_bess_charges_from_grid[t]
+            problem += lp_var_bess_discharges[t] == lp_var_bess_discharges_to_load[t] + lp_var_bess_discharges_to_grid[t]
+
             # Constraints for maximum charge/discharge rates AND make charge and discharge mutually exclusive
-            problem += lp_var_bess_charges_from_solar[t] + lp_var_bess_charges_from_grid[t] <= (
-                    df_in.iloc[t]["bess_max_charge"] * lp_var_bess_is_charging[t])
-            problem += lp_var_bess_discharges_to_load[t] + lp_var_bess_discharges_to_grid[t] <= (
-                    df_in.iloc[t]["bess_max_discharge"] * (1 - lp_var_bess_is_charging[t]))
+            problem += lp_var_bess_charges[t] <= (df_in.iloc[t]["bess_max_charge"] * lp_var_bess_is_charging[t])
+            problem += lp_var_bess_discharges[t] <= (df_in.iloc[t]["bess_max_discharge"] * (1 - lp_var_bess_is_charging[t]))
 
         # The objective function is the sum of costs across all timeslots, which will be minimised
         problem += pulp.lpSum(lp_costs)
