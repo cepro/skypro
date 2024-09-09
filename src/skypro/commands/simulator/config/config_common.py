@@ -237,6 +237,7 @@ class OptimiserBlocks:
     ech other."""
     duration_hh: int = name_in_json("durationHH")
     used_duration_hh: int = name_in_json("usedDurationHH")
+    max_avg_cycles_per_day: Optional[float] = name_in_json("maxAvgCyclesPerDay")
 
     def __post_init__(self):
         if self.duration_hh <= 0 or self.used_duration_hh <= 0:

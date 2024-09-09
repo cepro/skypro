@@ -86,7 +86,7 @@ def simulate(
     for sim_name, sim_config in simulations.items():
 
         print("\n\n")
-        logging.info(f"Running simulation '{sim_name}'...")
+        logging.info(f"Running simulation '{sim_name}' from {sim_config.start} to {sim_config.end}...")
 
         sim_summary_df = run_one_simulation(
             sim_config=sim_config,
@@ -131,6 +131,7 @@ def run_one_simulation(
         freq=STEP_SIZE
     )
     time_index = time_index.tz_convert("UTC")
+
     # Imbalance pricing/volume data can come from either Modo or Elexon, Modo is 'predictive' and it's predictions
     # change over the course of the SP, whereas Elexon publishes a single figure for each SP in hindsight.
     df = read_imbalance_data(

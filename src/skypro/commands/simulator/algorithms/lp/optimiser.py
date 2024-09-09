@@ -1,13 +1,13 @@
 import logging
 from datetime import timedelta
+from typing import Optional
 
 import numpy as np
 import pulp
 import pandas as pd
 
+from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
 from skypro.commands.simulator.config.config_common import Optimiser as OptimiserConfig
-
-
 
 
 class Optimiser:
@@ -22,8 +22,10 @@ class Optimiser:
         self._df_in["solar_to_load"] = self._df_in[["solar", "load"]].min(axis=1)
         self._df_in["load_not_supplied_by_solar"] = self._df_in["load"] - self._df_in["solar_to_load"]
         self._df_in["solar_not_supplying_load"] = self._df_in["solar"] - self._df_in["solar_to_load"]
-        self._df_in["max_charge_from_grid"] = self._df_in["bess_max_charge"] - self._df_in["solar_not_supplying_load"]
-        self._df_in["max_discharge_to_load"] = self._df_in["bess_max_discharge"] - self._df_in["load_not_supplied_by_solar"]
+        # When charging we must use excess solar first:
+        self._df_in["max_charge_from_grid"] = np.maximum(self._df_in["bess_max_charge"] - self._df_in["solar_not_supplying_load"], 0)
+        # When discharging we must send power to microgrid load first:
+        self._df_in["max_discharge_to_load"] = np.maximum(self._df_in["bess_max_discharge"] - self._df_in["load_not_supplied_by_solar"], 0)
 
     def run(self) -> pd.DataFrame:
         """
@@ -36,6 +38,7 @@ class Optimiser:
         """
 
         init_soe = self._battery_energy_capacity / 2
+        n_timeslots_with_nan_pricing = 0
 
         self._df_in = self._df_in.sort_index()
         n_timeslots = len(self._df_in)
@@ -60,7 +63,12 @@ class Optimiser:
             sub_opt_df_in = self._df_in.iloc[current_start_index:current_end_index+1]
 
             logging.info(f"Optimising range {sub_opt_df_in.index[0]} -> {sub_opt_df_in.index[-1]}...")
-            sub_opt_df_out = self._run_one_optimisation(df_in=sub_opt_df_in, init_soe=init_soe)
+            sub_opt_df_out, sub_opt_num_nan = self._run_one_optimisation(
+                df_in=sub_opt_df_in,
+                init_soe=init_soe,
+                max_avg_cycles_per_day=self._config.blocks.max_avg_cycles_per_day,
+            )
+            n_timeslots_with_nan_pricing += sub_opt_num_nan
 
             # Drop the end of the optimisation solution (this is discussed above)
             sub_opt_df_out_to_use = sub_opt_df_out.iloc[0:n_timeslots_per_block_to_use]
@@ -75,19 +83,30 @@ class Optimiser:
             else:
                 init_soe = np.nan  # this must be the last iteration
 
+        if n_timeslots_with_nan_pricing > 0:
+            get_user_ack_of_warning_or_exit(
+                f"{n_timeslots_with_nan_pricing} time slots had NaN pricing data and could not be optimised"
+            )
+
         return df_out
 
-    def _run_one_optimisation(self, df_in: pd.DataFrame, init_soe: float) -> pd.DataFrame:
+    def _run_one_optimisation(self, df_in: pd.DataFrame, init_soe: float, max_avg_cycles_per_day: Optional[float]) -> (pd.DataFrame, int):
         """
         Uses the pulp library to optimise the battery schedule as a linear programming optimisation problem.
         This is currently a 'perfect hindsight' view because in practice we wouldn't know the imbalance pricing or
         microgrid load and solar generation ahead of time.
+        It also returns the number of timeslots that had nan pricing for logging/warning purposes.
+
+        max_avg_cycles_per_day is applied to the entire optimisation block - so the *average* cycles per day of the
+        whole block will not exceed `max_avg_cycles_per_day`, but any given day may exceed `max_avg_cycles_per_day`.
         """
         problem = pulp.LpProblem(name="MicrogridProblem", sense=pulp.LpMinimize)
 
         lp_var_bess_soe = []
+        lp_var_bess_discharges = []
         lp_var_bess_discharges_to_load = []
         lp_var_bess_discharges_to_grid = []
+        lp_var_bess_charges = []
         lp_var_bess_charges_from_solar = []
         lp_var_bess_charges_from_grid = []
         lp_var_bess_is_charging = []
@@ -95,6 +114,8 @@ class Optimiser:
 
         # We use indexes rather than datetimes to represent each time slot
         timeslots = range(0, len(df_in))
+
+        n_timeslots_with_nan_pricing = 0
 
         for t in timeslots:
 
@@ -134,6 +155,20 @@ class Optimiser:
                 )
             )
 
+            # These totals of charge and discharge are just defined for convenience
+            lp_var_bess_charges.append(
+                pulp.LpVariable(
+                    name=f"bess_charge_{t}",
+                    lowBound=0.0,
+                )
+            )
+            lp_var_bess_discharges.append(
+                pulp.LpVariable(
+                    name=f"bess_discharge_{t}",
+                    lowBound=0.0,
+                )
+            )
+
             # This binary var is used to make charge and discharging mutually exclusive for each time period
             lp_var_bess_is_charging.append(
                 pulp.LpVariable(
@@ -142,19 +177,59 @@ class Optimiser:
                 )
             )
 
+            # Get the rates from the input dataframe, and check they are not nan - if they are then don't allow any
+            # activity in this period.
+            rate_final_bess_charge_from_grid = df_in.iloc[t]["rate_final_bess_charge_from_grid"]
+            int_rate_final_bess_charge_from_solar = df_in.iloc[t]["int_rate_final_bess_charge_from_solar"]
+            rate_final_bess_discharge_to_grid = df_in.iloc[t]["rate_final_bess_discharge_to_grid"]
+            int_rate_final_bess_discharge_to_load = df_in.iloc[t]["int_rate_final_bess_discharge_to_load"]
+            if np.any(np.isnan([
+                rate_final_bess_charge_from_grid,
+                int_rate_final_bess_charge_from_solar,
+                rate_final_bess_discharge_to_grid,
+                int_rate_final_bess_discharge_to_load
+            ])):
+                # the costs function throws an exception when these are NaN, so set to zero but disallow any activity
+                # by adding constraints
+                rate_final_bess_charge_from_grid = 0
+                int_rate_final_bess_charge_from_solar = 0
+                rate_final_bess_discharge_to_grid = 0
+                int_rate_final_bess_discharge_to_load = 0
+                problem += lp_var_bess_charges_from_solar[t] == 0
+                problem += lp_var_bess_charges_from_grid[t] == 0
+                problem += lp_var_bess_discharges_to_load[t] == 0
+                problem += lp_var_bess_discharges_to_grid[t] == 0
+
+                n_timeslots_with_nan_pricing += 1
+
             lp_costs.append(
-                lp_var_bess_charges_from_grid[t] * df_in.iloc[t]["rate_final_bess_charge_from_grid"] +
-                lp_var_bess_charges_from_solar[t] * df_in.iloc[t]["int_rate_final_bess_charge_from_solar"] +
-                lp_var_bess_discharges_to_grid[t] * df_in.iloc[t]["rate_final_bess_discharge_to_grid"] +
-                lp_var_bess_discharges_to_load[t] * df_in.iloc[t]["int_rate_final_bess_discharge_to_load"]
+                lp_var_bess_charges_from_grid[t] * rate_final_bess_charge_from_grid +
+                lp_var_bess_charges_from_solar[t] * int_rate_final_bess_charge_from_solar +
+                lp_var_bess_discharges_to_grid[t] * rate_final_bess_discharge_to_grid +
+                lp_var_bess_discharges_to_load[t] * int_rate_final_bess_discharge_to_load
             )
 
         for t in timeslots:
+
+            # Constraints to define that all the flows are positive - prevent the optimiser from using a negative
+            problem += lp_var_bess_charges_from_solar[t] >= 0.0
+            problem += lp_var_bess_charges_from_grid[t] >= 0.0
+            problem += lp_var_bess_discharges_to_load[t] >= 0.0
+            problem += lp_var_bess_discharges_to_grid[t] >= 0.0
+
+            # Constraints to define the total of all charge flows and total of all discharge flows. This is just for
+            # convenience as the totals are used a few times later on.
+            problem += lp_var_bess_charges[t] == lp_var_bess_charges_from_solar[t] + lp_var_bess_charges_from_grid[t]
+            problem += lp_var_bess_discharges[t] == lp_var_bess_discharges_to_load[t] + lp_var_bess_discharges_to_grid[t]
+
             # Constraints for maximum charge/discharge rates AND make charge and discharge mutually exclusive
-            problem += lp_var_bess_charges_from_solar[t] + lp_var_bess_charges_from_grid[t] <= (
-                    df_in.iloc[t]["bess_max_charge"] * lp_var_bess_is_charging[t])
-            problem += lp_var_bess_discharges_to_load[t] + lp_var_bess_discharges_to_grid[t] <= (
-                    df_in.iloc[t]["bess_max_discharge"] * (1 - lp_var_bess_is_charging[t]))
+            problem += lp_var_bess_charges[t] <= (df_in.iloc[t]["bess_max_charge"] * lp_var_bess_is_charging[t])
+            problem += lp_var_bess_discharges[t] <= (df_in.iloc[t]["bess_max_discharge"] * (1 - lp_var_bess_is_charging[t]))
+
+        # Apply cycling constraint to all timeslots
+        if max_avg_cycles_per_day:
+            days_in_block = (df_in.index[-1] - df_in.index[0]).total_seconds() / (3600 * 24)
+            problem += pulp.lpSum(lp_var_bess_discharges) <= (max_avg_cycles_per_day * days_in_block * self._battery_energy_capacity)
 
         # The objective function is the sum of costs across all timeslots, which will be minimised
         problem += pulp.lpSum(lp_costs)
@@ -179,7 +254,9 @@ class Optimiser:
                 - lp_var_bess_discharges_to_grid[t - 1]
             )
 
-        problem.solve(pulp.PULP_CBC_CMD(msg=False))
+        status = problem.solve(pulp.PULP_CBC_CMD(msg=False))
+        if status != 1:
+            raise RuntimeError("Failed to solve optimisation problem")
 
         df_sol = _get_solution_as_dataframe(problem.variables(), df_in.index)
         df_sol = df_sol.iloc[:-1, :]  # Drop the last row because the last time slot is not actually optimised
@@ -197,10 +274,9 @@ class Optimiser:
             (df_sol["bess_charge_from_solar"] + df_sol["bess_charge_from_grid"]) * (1 - self._battery_charge_efficiency)
         )
 
-
         # TODO: tidy up code generally - a good point to clean up interface to multiple algos?
 
-        return df_ret
+        return df_ret, n_timeslots_with_nan_pricing
 
     def _ensure_merit_order_of_charge_and_discharge(self, df_sol: pd.DataFrame) -> None:
         """
@@ -238,6 +314,11 @@ def _get_solution_as_dataframe(problem_variables, time_index: pd.Series) -> pd.D
     Pulp returns the variables as a list, with each variable named, e.g. the var named "bess_soe_23" would be the SoE at
     timeslot index 23.
     """
+
+    # Sometimes (but not always) pulp includes a dummy variable in the output - not sure why.
+    if problem_variables[0].name == "__dummy":
+        problem_variables = problem_variables[1:]
+
     variables_data = {
         "var_name": [v.name for v in problem_variables],
         "var_value": [v.varValue for v in problem_variables]
