@@ -21,8 +21,10 @@ class Optimiser:
         self._df_in["solar_to_load"] = self._df_in[["solar", "load"]].min(axis=1)
         self._df_in["load_not_supplied_by_solar"] = self._df_in["load"] - self._df_in["solar_to_load"]
         self._df_in["solar_not_supplying_load"] = self._df_in["solar"] - self._df_in["solar_to_load"]
-        self._df_in["max_charge_from_grid"] = self._df_in["bess_max_charge"] - self._df_in["solar_not_supplying_load"]
-        self._df_in["max_discharge_to_load"] = self._df_in["bess_max_discharge"] - self._df_in["load_not_supplied_by_solar"]
+        # When charging we must use excess solar first:
+        self._df_in["max_charge_from_grid"] = np.maximum(self._df_in["bess_max_charge"] - self._df_in["solar_not_supplying_load"], 0)
+        # When discharging we must send power to microgrid load first:
+        self._df_in["max_discharge_to_load"] = np.maximum(self._df_in["bess_max_discharge"] - self._df_in["load_not_supplied_by_solar"], 0)
 
     def run(self) -> pd.DataFrame:
         """
@@ -184,6 +186,12 @@ class Optimiser:
             )
 
         for t in timeslots:
+
+            # Constraints to define that all the flows are positive - prevent the optimiser from using a negative
+            problem += lp_var_bess_charges_from_solar[t] >= 0.0
+            problem += lp_var_bess_charges_from_grid[t] >= 0.0
+            problem += lp_var_bess_discharges_to_load[t] >= 0.0
+            problem += lp_var_bess_discharges_to_grid[t] >= 0.0
             # Constraints for maximum charge/discharge rates AND make charge and discharge mutually exclusive
             problem += lp_var_bess_charges_from_solar[t] + lp_var_bess_charges_from_grid[t] <= (
                     df_in.iloc[t]["bess_max_charge"] * lp_var_bess_is_charging[t])
