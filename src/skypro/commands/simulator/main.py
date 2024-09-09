@@ -86,7 +86,7 @@ def simulate(
     for sim_name, sim_config in simulations.items():
 
         print("\n\n")
-        logging.info(f"Running simulation '{sim_name}'...")
+        logging.info(f"Running simulation '{sim_name}' from {sim_config.timeframe.start} to {sim_config.timeframe.end}...")
 
         sim_summary_df = run_one_simulation(
             sim_config=sim_config,
