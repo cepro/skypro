@@ -43,8 +43,8 @@ def get_peak_power(
     # then we can get an improvement on the above 'dumb' method by choosing when we discharge into the peak.
     peak_end = peak_config.period.period.end_absolute(t)
 
-    # This is an approximation because we may be limited by grid constraints and the load and solar levels
-    # may change throughout the peak.
+    # This is an approximation because we may be limited by grid constraints which depend on the load and solar levels
+    # which, in turn, may change throughout the peak.
     assumed_time_to_empty_battery = timedelta(hours=(soe / bess_max_power_discharge))
 
     # We want to ensure that we empty the battery completely by the end of the peak period, and there is a
@@ -92,10 +92,11 @@ def get_peak_power(
             # Just do our best to service the residual load at this point:
             return -microgrid_residual_power
 
-        # Which, in turn, allows us to calculate the new max discharge rate which would allow us
+        # Knowing the reserve_energy allows us to calculate the new max discharge rate which would allow us
         # to keep that reserve for the end of the peak
         duration_before_reserve = (peak_end - reserve_duration) - t
         if duration_before_reserve.total_seconds() <= 0:
+            # TODO: this should return microgrid_residual_power?!
             return -bess_max_power_discharge
         energy_before_reserve = soe - reserve_energy
         return -energy_before_reserve / (duration_before_reserve.total_seconds() / 3600)
