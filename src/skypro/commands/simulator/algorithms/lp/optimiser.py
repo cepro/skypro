@@ -1,5 +1,6 @@
 import logging
 from datetime import timedelta
+from typing import Optional
 
 import numpy as np
 import pulp
@@ -62,7 +63,11 @@ class Optimiser:
             sub_opt_df_in = self._df_in.iloc[current_start_index:current_end_index+1]
 
             logging.info(f"Optimising range {sub_opt_df_in.index[0]} -> {sub_opt_df_in.index[-1]}...")
-            sub_opt_df_out, sub_opt_num_nan = self._run_one_optimisation(df_in=sub_opt_df_in, init_soe=init_soe)
+            sub_opt_df_out, sub_opt_num_nan = self._run_one_optimisation(
+                df_in=sub_opt_df_in,
+                init_soe=init_soe,
+                max_avg_cycles_per_day=self._config.blocks.max_avg_cycles_per_day,
+            )
             n_timeslots_with_nan_pricing += sub_opt_num_nan
 
             # Drop the end of the optimisation solution (this is discussed above)
@@ -85,12 +90,15 @@ class Optimiser:
 
         return df_out
 
-    def _run_one_optimisation(self, df_in: pd.DataFrame, init_soe: float) -> (pd.DataFrame, int):
+    def _run_one_optimisation(self, df_in: pd.DataFrame, init_soe: float, max_avg_cycles_per_day: Optional[float]) -> (pd.DataFrame, int):
         """
         Uses the pulp library to optimise the battery schedule as a linear programming optimisation problem.
         This is currently a 'perfect hindsight' view because in practice we wouldn't know the imbalance pricing or
         microgrid load and solar generation ahead of time.
         It also returns the number of timeslots that had nan pricing for logging/warning purposes.
+
+        max_avg_cycles_per_day is applied to the entire optimisation block - so the *average* cycles per day of the
+        whole block will not exceed `max_avg_cycles_per_day`, but any given day may exceed `max_avg_cycles_per_day`.
         """
         problem = pulp.LpProblem(name="MicrogridProblem", sense=pulp.LpMinimize)
 
@@ -217,6 +225,11 @@ class Optimiser:
             # Constraints for maximum charge/discharge rates AND make charge and discharge mutually exclusive
             problem += lp_var_bess_charges[t] <= (df_in.iloc[t]["bess_max_charge"] * lp_var_bess_is_charging[t])
             problem += lp_var_bess_discharges[t] <= (df_in.iloc[t]["bess_max_discharge"] * (1 - lp_var_bess_is_charging[t]))
+
+        # Apply cycling constraint to all timeslots
+        if max_avg_cycles_per_day:
+            days_in_block = (df_in.index[-1] - df_in.index[0]).total_seconds() / (3600 * 24)
+            problem += pulp.lpSum(lp_var_bess_discharges) <= (max_avg_cycles_per_day * days_in_block * self._battery_energy_capacity)
 
         # The objective function is the sum of costs across all timeslots, which will be minimised
         problem += pulp.lpSum(lp_costs)
