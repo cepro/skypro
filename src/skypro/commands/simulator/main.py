@@ -451,6 +451,11 @@ def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
     df["solar_to_load_property_level"] = df["solar_to_load"]
     df["solar_to_load_microgrid_level"] = 0.0
 
+    # The microgrid boundary flows are calculated here from the individual flows. These are needed for reporting in CSV
+    # output files, although they aren't used directly in Skypro at the moment.
+    df["grid_import"] = df["bess_charge_from_grid"] + df["load_from_grid"]
+    df["grid_export"] = df["bess_discharge_to_grid"] + df["solar_to_grid"]
+
     return df
 
 

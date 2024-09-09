@@ -15,8 +15,8 @@ marshmallow-dataclass = "^8.7.0"
 pyyaml = "^6.0.1"
 tabulate = "^0.9.0"
 ruff = "^0.5.6"
-simt-common = {version = "^2.0.0", source = "testpypi"}
 pulp = "^2.9.0"
+simt-common = {version = "^2.1.0", source = "testpypi"}
 
 [[tool.poetry.source]]
 name = "testpypi"
