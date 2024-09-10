@@ -234,10 +234,12 @@ class SpreadAlgo:
 @dataclass
 class OptimiserBlocks:
     """Defines how the whole simulation period is split into smaller duration optimisations that are stacked on top of
-    ech other."""
-    duration_hh: int = name_in_json("durationHH")
-    used_duration_hh: int = name_in_json("usedDurationHH")
-    max_avg_cycles_per_day: Optional[float] = name_in_json("maxAvgCyclesPerDay")
+    each other, and any settings that are applied to each of those smaller duration optimisations."""
+    max_avg_cycles_per_day: float = name_in_json("maxAvgCyclesPerDay")
+    max_optimal_tolerance: Optional[float] = name_in_json("maxOptimalTolerance")
+    max_computation_secs: Optional[int] = name_in_json("maxComputationSecs")
+    duration_hh: Optional[int] = field(metadata={"data_key": "durationHH"}, default=480)  # default to 10 days
+    used_duration_hh: Optional[int] = field(metadata={"data_key": "usedDurationHH"}, default=384)  # default to 8 days
 
     def __post_init__(self):
         if self.duration_hh <= 0 or self.used_duration_hh <= 0:
