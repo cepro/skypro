@@ -10,7 +10,16 @@ from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
 
 
 def read_imbalance_data(time_index: pd.DatetimeIndex, price_dir: str, volume_dir: str) -> pd.DataFrame:
+    """
+    Reads the imbalance price and volume CSV directories and returns a timeseries dataframe with the following columns:
+    - `imbalance_price_predicted`
+    - `imbalance_price_final`
+    - `imbalance_volume_predicted`
+    - `imbalance_volume_final`
 
+    The predicted values either relate directly to the predictions present in the underlying data, or if underlying data
+    is 'non-predictive' then it is assumed that a perfect prediction is made 20 minutes into each settlement period.
+    """
     logging.info("Reading imbalance files...")
 
     price_df = read_directory_of_csvs(price_dir)
@@ -47,6 +56,8 @@ def read_imbalance_data(time_index: pd.DatetimeIndex, price_dir: str, volume_dir
         df = normalise_non_predictive_imbalance_data(time_index, price_df, volume_df)
 
     df = df.sort_index()
+
+    breakpoint()
 
     return df
 

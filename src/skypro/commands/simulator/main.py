@@ -124,7 +124,7 @@ def run_one_simulation(
     supply_points = parse_supply_points(
         supply_points_config_file=sim_config.rates.supply_points_config_file
     )
-    # Run the simulation at 10 minute granularity
+    # The simulation runs at 10 minute granularity
     time_index = pd.date_range(
         start=sim_config.start.astimezone(pytz.UTC),
         end=sim_config.end.astimezone(pytz.UTC),
@@ -267,6 +267,8 @@ def run_one_simulation(
             config=sim_config.strategy.price_curve_algo
         )
     elif sim_config.strategy.optimiser:
+
+        # The perfect hindsight optimiser gets to know about the final rates:
         cols_to_share_with_algo.extend([
             "solar",
             "load",
@@ -415,9 +417,9 @@ def check_algo_result_consistency(df_algo: pd.DataFrame, df_in: pd.DataFrame, ba
     if (bess_losses_check - df_algo["bess_losses"]).abs().max() > tolerance:
         raise AssertionError("Algorithm solution has inconsistent bess losses")
 
+    # Check that the max charge/discharges are not breached
     if (charges.abs() > (df_in["bess_max_charge"].loc[charges.index] + tolerance)).sum() > 0:
         raise AssertionError("Algorithm solution charges at too high a rate")
-
     if (discharges.abs() > (df_in["bess_max_discharge"].loc[discharges.index] + tolerance)).sum() > 0:
         raise AssertionError("Algorithm solution discharges at too high a rate")
 

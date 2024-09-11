@@ -1,26 +1,56 @@
 import logging
+from dataclasses import dataclass
 from datetime import timedelta, datetime
+from typing import List
 
 import numpy as np
 import pandas as pd
+from simt_common.rates.microgrid import get_rates_dfs, RatesForEnergyFlows
+from simt_common.rates.rates import Rate
 
+from skypro.commands.simulator.algorithms.config import SiteConfig
 from skypro.commands.simulator.algorithms.peak import get_peak_approach_energies, get_peak_power
 from skypro.commands.simulator.algorithms.microgrid import get_microgrid_algo_energy
 from skypro.commands.simulator.algorithms.system_state import get_system_state, SystemState
 from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy
 from skypro.commands.simulator.cartesian import Curve, Point
-from skypro.commands.simulator.config import get_relevant_niv_config, PriceCurveAlgo
+from skypro.commands.simulator.config import get_relevant_niv_config, PriceCurveAlgo as PriceCurveAlgoConfig, Bess as BessConfig
+
+
+
+class PriceCurveAlgo:
+    def __init__(
+            self,
+            algo_config: PriceCurveAlgoConfig,
+            bess_config: BessConfig,
+            rates: List[Rate],
+            df: pd.DataFrame
+    ):
+        """
+        df columns:
+        - `solar`
+        - `load`
+        """
+        pass
 
 
 def run_price_curve_imbalance_algo(
         df_in: pd.DataFrame,
         battery_energy_capacity: float,
         battery_charge_efficiency: float,
-        config: PriceCurveAlgo
+        predicted_rates: RatesForEnergyFlows,
+        config: PriceCurveAlgoConfig
 ) -> pd.DataFrame:
 
     # Create a separate dataframe for working values
     df = pd.DataFrame(index=df_in.index)
+    #
+    # # TODO: do this here?
+    # for rate in predicted_rates:
+    #     if isinstance(rate, OSAMRate):
+    #         rate.
+    # predicted_ext_rates_dfs, predicted_int_rates_dfs = get_rates_dfs(df_in.index, predicted_rates)
+    #
 
     # These vars keep track of the previous settlement periods values
     last_soe = battery_energy_capacity / 2  # initial SoE is 50%
