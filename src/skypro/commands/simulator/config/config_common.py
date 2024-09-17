@@ -56,6 +56,7 @@ class Profile:
 
     energy_cols: Optional[str] = name_in_json("energyCols")
 
+    # These are deprecated - ClockTime will be automatically used as Europe/London if UTCTime can't be found
     parse_clock_time: Optional[bool] = name_in_json("parseClockTime")
     clock_time_zone: Optional[str] = name_in_json("clockTimeZone")
 

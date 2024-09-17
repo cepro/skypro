@@ -17,9 +17,7 @@ class Profiler:
             scaling_factor: float,
             profile_csv_dir: Optional[str] = None,
             profile_csv: Optional[str] = None,
-            energy_cols: Optional[str] = None,
-            parse_clock_time: Optional[bool] = False,
-            clock_time_zone: Optional[str] = None,
+            energy_cols: Optional[str] = None
     ):
         self._scaling_factor = scaling_factor
 
@@ -31,23 +29,21 @@ class Profiler:
         else:
             raise ValueError("Either a directory containing CSVs or CSV file must be specified")
 
-        if parse_clock_time:
-            # Temporary hack to support unusual CSV formats
+        # Prefer to use the UTCTime column, but if it's not present then use ClockTime with the Europe/London timezone
+        use_clocktime = "UTCTime" not in df.columns or np.all(pd.isnull(df["UTCTime"]))
+        if use_clocktime:
             df["ClockTime"] = pd.to_datetime(df["ClockTime"])
-            if clock_time_zone:
-                df["ClockTime"] = df["ClockTime"].dt.tz_localize(
-                    clock_time_zone,
-                    ambiguous="NaT",
-                    nonexistent="NaT"
-                )
-
-                num_inc_nan = len(df)
-                df = df.dropna(subset=["ClockTime"])
-                num_dropped = num_inc_nan - len(df)
-                if num_dropped > 0:
-                    logging.warning(f"Dropped {num_dropped} NaT rows from profile (probably because the UTC time could "
-                                    f"not be inferred from the ClockTime")
-
+            df["ClockTime"] = df["ClockTime"].dt.tz_localize(
+                "Europe/London",
+                ambiguous="NaT",
+                nonexistent="NaT"
+            )
+            num_inc_nan = len(df)
+            df = df.dropna(subset=["ClockTime"])
+            num_dropped = num_inc_nan - len(df)
+            if num_dropped > 0:
+                logging.warning(f"Dropped {num_dropped} NaT rows from profile (probably because the UTC time could "
+                                f"not be inferred from the ClockTime")
             df["UTCTime"] = df["ClockTime"].dt.tz_convert("UTC")
         else:
             df["UTCTime"] = pd.to_datetime(df["UTCTime"], utc=True)
@@ -58,12 +54,10 @@ class Profiler:
         if "ClockTime" in df.columns:
             df = df.drop("ClockTime", axis=1)
 
-        if energy_cols is None:
-            if "energy" not in df.columns:
-                raise KeyError("Expected a column called 'energy' in profile")
-            self._profile = df["energy"]
-        elif energy_cols == "sum-all":
+        if energy_cols == "sum-all" or ((energy_cols is None) and ("energy" not in df.columns)):
             self._profile = df.sum(axis=1)
+        elif energy_cols is None and "energy" in df.columns:
+            self._profile = df["energy"]
         else:
             raise ValueError(f"Unknown energy column option: '{energy_cols}'")
 
