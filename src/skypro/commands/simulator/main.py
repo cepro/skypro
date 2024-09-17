@@ -495,8 +495,6 @@ def process_profiles(
             profile_csv=profile_config.profile_csv,
             profile_csv_dir=profile_config.profile_dir,
             energy_cols=profile_config.energy_cols,
-            parse_clock_time=profile_config.parse_clock_time,
-            clock_time_zone=profile_config.clock_time_zone,
         )
         energy = profiler.get_for(time_index)
         power = energy / (STEP_SIZE.total_seconds() / 3600)
