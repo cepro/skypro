@@ -40,10 +40,6 @@ class PriceCurveAlgo:
 
     def run(self):
 
-
-        # TODO:
-        #  - OSAM itself
-
         # These vars keep track of the previous settlement periods values
         last_soe = self._bess_config.energy_capacity / 2  # initial SoE is 50%
         last_energy_delta = 0
@@ -203,6 +199,13 @@ class PriceCurveAlgo:
         Adds the rates for the day starting at `t` to the dataframe
         """
 
+        has_osam_rates = False
+        for _, rates in self._live_rates.get_all_sets_named():
+            for rate in rates:
+                if isinstance(rate, OSAMRate):
+                    has_osam_rates = True
+                    break
+
         # TODO: this index calc isn't right over daylight savings
         end_of_today = add_wallclock_days(t, 1)
         start_of_yesterday = add_wallclock_days(t, -1)
@@ -222,24 +225,25 @@ class PriceCurveAlgo:
         else:
             logging.info("Couldn't calculate microgrid flows as there's no data")
 
-        # Next we can calculate the OSAM NCSP factor for today
-        # TODO: this isn't working - it looks like the input df is empty?
-        self._df.loc[todays_index, "osam_ncsp"] = calculate_osam_ncsp(
-            df=self._df,
-            index_to_calc_for=todays_index,
-            imp_bp_col="grid_import",
-            exp_bp_col="grid_export",
-            imp_stor_col="bess_charge",
-            exp_stor_col="bess_discharge",
-            imp_gen_col=None,
-            exp_gen_col="solar",
-        )
+        if has_osam_rates:
+            # Next we can calculate the OSAM NCSP factor for today
+            # TODO: this isn't working - it looks like the input df is empty?
+            self._df.loc[todays_index, "osam_ncsp"] = calculate_osam_ncsp(
+                df=self._df,
+                index_to_calc_for=todays_index,
+                imp_bp_col="grid_import",
+                exp_bp_col="grid_export",
+                imp_stor_col="bess_charge",
+                exp_stor_col="bess_discharge",
+                imp_gen_col=None,
+                exp_gen_col="solar",
+            )
 
-        # Inform any OSAM rate objects about the NCSP for today
-        for _, rates in self._live_rates.get_all_sets_named():
-            for rate in rates:
-                if isinstance(rate, OSAMRate):
-                    rate.add_ncsp(self._df.loc[todays_index, "osam_ncsp"])
+            # Inform any OSAM rate objects about the NCSP for today
+            for _, rates in self._live_rates.get_all_sets_named():
+                for rate in rates:
+                    if isinstance(rate, OSAMRate):
+                        rate.add_ncsp(self._df.loc[todays_index, "osam_ncsp"])
 
         # Next we can calculate the individual p/kWh rates that apply for today
         live_ext_rates_dfs, live_int_rates_dfs = get_rates_dfs(todays_index, self._live_rates, log=False)
