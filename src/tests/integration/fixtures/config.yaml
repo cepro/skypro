@@ -101,5 +101,7 @@ simulations:
           volumeDir: "./src/tests/integration/fixtures/elexon_imbalance_volume/"
       final: *rates
     output:
+      simulation:
+        csv: "./src/tests/integration/output_sim.csv"
       summary:
         csv: "./src/tests/integration/output_summary.csv"
