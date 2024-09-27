@@ -17,10 +17,10 @@ def get_system_state(df_in, t, volume_cutoff_for_assumption: float) -> SystemSta
     """
     # TODO: optionally only allow this for the first 10m? df_in.loc[t, "time_into_sp"]<timedelta(minutes=10)
 
-    imbalance_volume_assumed = df_in.loc[t, "imbalance_volume_predicted"]
+    imbalance_volume_assumed = df_in.loc[t, "imbalance_volume_live"]
     if np.isnan(imbalance_volume_assumed) and \
-            abs(df_in.loc[t, "prev_sp_imbalance_volume_final"]) * 1e3 >= volume_cutoff_for_assumption:
-        imbalance_volume_assumed = df_in.loc[t, "prev_sp_imbalance_volume_final"]
+            abs(df_in.loc[t, "prev_sp_imbalance_volume_live"]) * 1e3 >= volume_cutoff_for_assumption:
+        imbalance_volume_assumed = df_in.loc[t, "prev_sp_imbalance_volume_live"]
 
     if np.isnan(imbalance_volume_assumed):
         return SystemState.UNKNOWN

@@ -48,13 +48,17 @@ class AllSimulations:
 
 
 @dataclass
+class AllRates:
+    live: Rates
+    final: Rates
+
+@dataclass
 class SimulationCaseV4:
     output: Optional[SimOutput]
     timeframe: TimeFrame = name_in_json("timeFrame")
     site: Site
     strategy: Strategy
-    imbalance_data_source: ImbalanceDataSource = name_in_json("imbalanceDataSource")
-    rates: Rates
+    rates: AllRates
 
     @property
     def start(self) -> datetime:
