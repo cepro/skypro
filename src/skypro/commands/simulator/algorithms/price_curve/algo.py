@@ -46,7 +46,8 @@ class PriceCurveAlgo:
         last_bess_losses = 0
         num_skipped_periods = 0
 
-        time_step = pd.to_timedelta(self._df.index.freq)
+        time_step = timedelta(seconds=pd.to_timedelta(self._df.index.freq).total_seconds())
+        time_steps_per_sp = int(timedelta(minutes=30)/ time_step)
         time_step_hours = time_step.total_seconds() / 3600
 
         # Run through each row (where each row represents a time step) and apply the strategy
@@ -60,6 +61,18 @@ class PriceCurveAlgo:
                 # If this is the first timestep of the day then calculate the rates for the coming day.
                 # This is done on each day in turn because OSAM rates vary day-by-day depending on historical volumes.
                 self.calculate_rates_for_day(t)
+
+                # This algo also uses the last live rate from the previous SP to inform actions, so make that available
+                # on each df row:
+                # TODO: this shifts all rows for every day, it may be a speed improvement to make it so only the days
+                #  data is shifted
+                cols_to_shift = [
+                    "rate_live_bess_charge_from_grid",
+                    "rate_live_bess_discharge_to_grid",
+                    "imbalance_volume_live",
+                ]
+                for col in cols_to_shift:
+                    self._df[f"prev_sp_{col}"] = self._df[col].shift(time_steps_per_sp).bfill(limit=time_steps_per_sp-1)
 
             # Set the `soe` column to the value at the start of this time step (the previous value plus the energy
             # transferred in the previous time step)
@@ -250,19 +263,9 @@ class PriceCurveAlgo:
 
         # Then we sum up the individual rates to create a total for each flow
         for set_name, rates_df in live_ext_rates_dfs.items():
-            self._df[f"rate_live_{set_name}"] = rates_df.sum(axis=1, skipna=False)
+            self._df.loc[todays_index, f"rate_live_{set_name}"] = rates_df.sum(axis=1, skipna=False)
         for set_name, rates_df in live_int_rates_dfs.items():
-            self._df[f"int_rate_live_{set_name}"] = rates_df.sum(axis=1, skipna=False)
-
-        # This algo also uses the last live rate from the previous SP to inform actions, so make that available on each
-        # df row:
-        cols_to_shift = [
-            "rate_live_bess_charge_from_grid",
-            "rate_live_bess_discharge_to_grid",
-            "imbalance_volume_live",
-        ]
-        for col in cols_to_shift:
-            self._df.loc[todays_index, f"prev_sp_{col}"] = self._df.loc[todays_index, col].shift(3).bfill(limit=2)  # TODO: magic numbers
+            self._df.loc[todays_index, f"int_rate_live_{set_name}"] = rates_df.sum(axis=1, skipna=False)
 
 
 def get_target_energy_delta_from_shifted_curves(
