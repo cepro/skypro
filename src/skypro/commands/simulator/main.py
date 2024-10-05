@@ -20,7 +20,6 @@ from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warni
 from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
 from skypro.commands.simulator.algorithms.price_curve.algo import PriceCurveAlgo
 from skypro.commands.simulator.config import parse_config, Solar, Load, ConfigV4
-from skypro.commands.simulator.config.config_common import Rates
 from skypro.commands.simulator.config.config_v4 import SimulationCaseV4, AllRates
 from skypro.commands.simulator.microgrid import calculate_microgrid_flows
 from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data, normalise_final_imbalance_data, \

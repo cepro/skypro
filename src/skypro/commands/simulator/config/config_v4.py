@@ -6,7 +6,7 @@ from marshmallow_dataclass import dataclass
 
 from simt_common.jsonconfig.utility import name_in_json
 
-from skypro.commands.simulator.config.config_common import Site, Strategy, ImbalanceDataSource, Rates, PathType
+from skypro.commands.simulator.config.config_common import Site, Strategy, Rates, PathType
 
 """
 This file contains configuration schema specific to V4
