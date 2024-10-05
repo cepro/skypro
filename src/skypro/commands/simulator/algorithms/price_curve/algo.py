@@ -219,7 +219,6 @@ class PriceCurveAlgo:
                     has_osam_rates = True
                     break
 
-        # TODO: this index calc isn't right over daylight savings
         end_of_today = add_wallclock_days(t, 1)
         start_of_yesterday = add_wallclock_days(t, -1)
         todays_index = self._df.loc[t:end_of_today].iloc[:-1].index
