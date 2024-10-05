@@ -51,7 +51,7 @@ class Curve:
         return np.nan
 
 
-# TODO: should be able to remove this if we specify Python 3.10
+# We should be able to remove this if we specify Python 3.10
 def pairwise(iterable):
     "s -> (s0,s1), (s1,s2), (s2, s3), ..."
     a, b = tee(iterable)

@@ -174,7 +174,7 @@ class PriceCurveAlgo:
                 else:
                     target_energy_delta = target_energy_delta + microgrid_algo_energy
 
-                power = get_power(target_energy_delta, time_step)  # TODO: check this tme step
+                power = get_power(target_energy_delta, time_step)
 
             power = cap_power(power, self._df.loc[t, "bess_max_power_charge"], self._df.loc[t, "bess_max_power_discharge"])
             energy_delta = get_energy(power, time_step)
@@ -237,7 +237,6 @@ class PriceCurveAlgo:
                 pass
 
             # Next we can calculate the OSAM NCSP factor for today
-            # TODO: this isn't working - it looks like the input df is empty?
             self._df.loc[todays_index, "osam_ncsp"] = calculate_osam_ncsp(
                 df=self._df,
                 index_to_calc_for=todays_index,

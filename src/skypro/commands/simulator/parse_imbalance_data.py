@@ -163,7 +163,8 @@ def normalise_elexon_data_for_live(
     df["sp"] = df.index.to_series().apply(lambda t: floor_hh(t))
     df["time_into_sp"] = df.index.to_series() - df["sp"]
 
-    # TODO: predictions are currently hard-coded to become available 20 minutes into the SP - this should be from config
+    # Predictions are currently hard-coded to become available 20 minutes into the SP - this duration could come from
+    # config instead.
     predictions_available = df["time_into_sp"] >= timedelta(minutes=20)
     df.loc[predictions_available, "imbalance_price_live"] = final_df["imbalance_price_final"]
     df.loc[predictions_available, "imbalance_volume_live"] = final_df["imbalance_volume_final"]

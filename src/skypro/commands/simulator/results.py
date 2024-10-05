@@ -111,8 +111,6 @@ def explore_results(
     if summary_output_config:
         breakdown.fundamental_flows_summary_df.to_csv(summary_output_config.csv, index=True)
 
-    # TODO: print warning if cycling is low - charge efficiency changes
-
     # Plot energy flows with charge / discharge limits
     if do_plots:
         plot_hh_strategy(df)

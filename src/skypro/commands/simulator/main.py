@@ -240,8 +240,8 @@ def run_one_simulation(
             df=df,
             int_final_rates_dfs=final_int_rates_dfs,
             ext_final_rates_dfs=final_ext_rates_dfs,
-            int_live_rates_dfs=None,  # TODO: these aren't available
-            ext_live_rates_dfs=None,
+            int_live_rates_dfs=None,  # These 'live' rates aren't available in the output CSV at the moment as they are
+            ext_live_rates_dfs=None,  # calculated by the price curve algo internally and not returned
             load_energy_breakdown_df=load_energy_breakdown_df,
             output_file_path=simulation_output_config.csv,
             aggregate=simulation_output_config.aggregate,
