@@ -35,6 +35,8 @@ class PriceCurveAlgo:
         self._bess_config = bess_config
         self._live_rates = live_rates
 
+        self._cached_has_osam_rates = None
+
         self._df = df.copy()
 
     def run(self):
@@ -211,32 +213,29 @@ class PriceCurveAlgo:
         Adds the rates for the day starting at `t` to the dataframe
         """
 
-        has_osam_rates = False
-        for _, rates in self._live_rates.get_all_sets_named():
-            for rate in rates:
-                if isinstance(rate, OSAMRate):
-                    has_osam_rates = True
-                    break
-
         end_of_today = add_wallclock_days(t, 1)
-        start_of_yesterday = add_wallclock_days(t, -1)
         todays_index = self._df.loc[t:end_of_today].iloc[:-1].index
 
-        mg_flow_calc_start = start_of_yesterday
-        if mg_flow_calc_start < self._df.index[0]:
-            mg_flow_calc_start = self._df.index[0]
-        if mg_flow_calc_start < t:
-            # To calculate OSAM rates we first need to work out the microgrid energy flows for yesterday given the
-            # simulated actions
-            df_with_mg_flows = calculate_microgrid_flows(self._df.loc[mg_flow_calc_start:t])
+        if self._has_osam_rates():
 
-            # The below loc command doesn't work unless all the columns are already present.
-            match_columns(self._df, df_with_mg_flows)
-            self._df.loc[mg_flow_calc_start:t] = calculate_microgrid_flows(self._df.loc[mg_flow_calc_start:t])
-        else:
-            logging.info("Couldn't calculate microgrid flows as there's no data")
+            start_of_yesterday = add_wallclock_days(t, -1)
 
-        if has_osam_rates:
+            # Calculate the microgrid flows for yesterday, as these impact the OSAM NCSP
+            mg_flow_calc_start = start_of_yesterday
+            if mg_flow_calc_start < self._df.index[0]:
+                mg_flow_calc_start = self._df.index[0]
+            if mg_flow_calc_start < t:
+                # To calculate OSAM rates we first need to work out the microgrid energy flows for yesterday given the
+                # simulated actions
+                df_with_mg_flows = calculate_microgrid_flows(self._df.loc[mg_flow_calc_start:t])
+
+                # The below loc command doesn't work unless all the columns are already present.
+                match_columns(self._df, df_with_mg_flows)
+                self._df.loc[mg_flow_calc_start:t] = calculate_microgrid_flows(self._df.loc[mg_flow_calc_start:t])
+            else:
+                # We haven't simulated yesterday, so skip the calculation
+                pass
+
             # Next we can calculate the OSAM NCSP factor for today
             # TODO: this isn't working - it looks like the input df is empty?
             self._df.loc[todays_index, "osam_ncsp"] = calculate_osam_ncsp(
@@ -264,6 +263,21 @@ class PriceCurveAlgo:
             self._df.loc[todays_index, f"rate_live_{set_name}"] = rates_df.sum(axis=1, skipna=False)
         for set_name, rates_df in live_int_rates_dfs.items():
             self._df.loc[todays_index, f"int_rate_live_{set_name}"] = rates_df.sum(axis=1, skipna=False)
+
+    def _has_osam_rates(self):
+        """
+        Returns true if any of the rates are OSAM (which require extra processing)
+        """
+
+        if self._cached_has_osam_rates is None:
+            self._cached_has_osam_rates = False
+            for _, rates in self._live_rates.get_all_sets_named():
+                for rate in rates:
+                    if isinstance(rate, OSAMRate):
+                        self._cached_has_osam_rates = True
+                        break
+
+        return self._cached_has_osam_rates
 
 
 def get_target_energy_delta_from_shifted_curves(
