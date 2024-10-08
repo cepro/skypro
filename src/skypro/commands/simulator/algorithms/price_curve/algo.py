@@ -213,8 +213,13 @@ class PriceCurveAlgo:
         Adds the rates for the day starting at `t` to the dataframe
         """
 
-        end_of_today = add_wallclock_days(t, 1)
-        todays_index = self._df.loc[t:end_of_today].iloc[:-1].index
+        start_of_tomorrow = add_wallclock_days(t, 1)
+        todays_index = self._df.loc[t:start_of_tomorrow].index
+
+        # The above `loc` includes the `start_of_tomorrow` if we are simulating the whole day, which de don't want, so
+        # remove it:
+        if todays_index[-1] == start_of_tomorrow:
+            todays_index = todays_index[:-1]
 
         if self._has_osam_rates():
 
