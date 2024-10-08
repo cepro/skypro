@@ -24,9 +24,9 @@ class TestIntegration(unittest.TestCase):
             './src/tests/integration/fixtures/env.json',
             '-y',
             '--config',
-            './src/tests/integration/fixtures/config.json',
-            '--output-summary',
-            './src/tests/integration/output_summary.csv',
+            './src/tests/integration/fixtures/config.yaml',
+            '--sim',
+            'integrationTest',
         ])
         logging.info("Skypro finished running")
 

@@ -12,7 +12,8 @@ from .config_common import (
     NivPeriod as NivPeriod,
     SpreadAlgo as SpreadAlgo,
     Solar as Solar,
+    Bess as Bess,
+    GridConnection as GridConnection,
 )
 
-from .config_v3 import ConfigV3 as ConfigV3
 from .config_v4 import ConfigV4 as ConfigV4

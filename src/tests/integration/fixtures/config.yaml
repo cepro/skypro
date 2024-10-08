@@ -1,0 +1,107 @@
+configFormatVersion: 4.0.0
+simulations:
+  integrationTest:
+    timeFrame:
+      start: "2024-01-01T00:00:00+00:00"
+      end: "2024-01-30T23:30:00+00:00"
+    site:
+      gridConnection:
+        importLimit: 220
+        exportLimit: 475
+      solar:
+        profile:
+          profileDir: "./src/tests/integration/fixtures/solar/"
+          profiledSizeKwp: 4.4
+          scaledSizeKwp: 210
+      load:
+        profile:
+          profileDir: "./src/tests/integration/fixtures/load/"
+          profiledNumPlots: 12
+          scaledNumPlots: 54
+      bess:
+        energyCapacity: 1280
+        nameplatePower: 565
+        chargeEfficiency: 0.85
+    strategy:
+      priceCurveAlgo:
+        peak:
+          period:
+            days: "weekdays:Europe/London"
+            start: "17:00:00:Europe/London"
+            end: "19:00:00:Europe/London"
+          approach:
+            toSoe: 1050
+            assumedChargePower: 200
+            forceChargeDurationFactor: 1
+            encourageChargeDurationFactor: 0
+            chargeCushionMins: 20
+        nivChasePeriods:
+        - period:
+            days: "weekdays:Europe/London"
+            start: "00:00:00:Europe/London"
+            end: "23:59:59:Europe/London"
+          niv:
+            chargeCurve: [
+              {x: -Infinity, y: 1280},
+              {x: 4, y: 1280},
+              {x: 6, y: 1000},
+              {x: 12, y: 0}
+            ]
+            dischargeCurve: [
+              {x: 8, y: 1280},
+              {x: 18, y: 1000},
+              {x: 25, y: 1000},
+              {x: 35, y: 0},
+              {x: Infinity, y: 0}
+            ]
+            curveShiftLong: 6
+            curveShiftShort: 2
+            volumeCutoffForPrediction: 150000
+        - period:
+            days: "weekends:Europe/London"
+            start: "00:00:00:Europe/London"
+            end: "23:59:59:Europe/London"
+          niv:
+            chargeCurve: [
+              {x: -Infinity, y: 1280},
+              {x: -2, y: 1280},
+              {x: 6, y: 400},
+              {x: 12, y: 0}
+            ]
+            dischargeCurve: [
+              {x: 8, y: 1280},
+              {x: 14, y: 400},
+              {x: 35, y: 100},
+              {x: Infinity, y: 0}
+            ]
+            curveShiftLong: 3
+            curveShiftShort: 3
+            volumeCutoffForPrediction: 150000
+    rates:
+      live: &rates
+        supplyPointsConfigFile: "./src/tests/integration/fixtures/rates/supply_points_a.json"
+        files:
+          solarToBatt: []
+          gridToBatt:
+          - "./src/tests/integration/fixtures/rates/supply_fees_bryt_import.json"
+          - "./src/tests/integration/fixtures/rates/dno_fees_wpd_import.json"
+          battToGrid:
+          - "./src/tests/integration/fixtures/rates/supply_fees_statkraft_export.json"
+          - "./src/tests/integration/fixtures/rates/dno_fees_wpd_export.json"
+          battToLoad: []
+          solarToGrid:
+          - "./src/tests/integration/fixtures/rates/supply_fees_statkraft_export.json"
+          - "./src/tests/integration/fixtures/rates/dno_fees_wpd_export.json"
+          gridToLoad:
+          - "./src/tests/integration/fixtures/rates/supply_fees_bryt_import.json"
+          - "./src/tests/integration/fixtures/rates/dno_fees_wpd_import.json"
+          solarToLoad: []
+        imbalanceDataSource:
+          priceDir: "./src/tests/integration/fixtures/elexon_imbalance_price/"
+          volumeDir: "./src/tests/integration/fixtures/elexon_imbalance_volume/"
+      final: *rates
+    output:
+      simulation:
+        csv: "./src/tests/integration/output_sim.csv"
+      summary:
+        csv: "./src/tests/integration/output_summary.csv"

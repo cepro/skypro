@@ -166,6 +166,7 @@ class Rates:
     contents of these files is done in the common.config.rates module.
     """
     supply_points_config_file: PathType = name_in_json("supplyPointsConfigFile")
+    imbalance_data_source: ImbalanceDataSource = name_in_json("imbalanceDataSource")
     files: RatesFiles
 
 

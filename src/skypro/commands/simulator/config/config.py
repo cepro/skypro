@@ -6,7 +6,6 @@ import yaml
 from simt_common.cli_utils.cliutils import substitute_vars
 
 from skypro.commands.simulator.config.config_common import NivPeriod, PathField
-from skypro.commands.simulator.config.config_v3 import ConfigV3
 from skypro.commands.simulator.config.config_v4 import ConfigV4, SimulationCaseV4
 
 """
@@ -15,7 +14,7 @@ Marshmallow (and marshmallow-dataclass) is used to validate and parse the JSON i
 """
 
 
-def parse_config(file_path: str, env_vars: dict) -> ConfigV3 | ConfigV4:
+def parse_config(file_path: str, env_vars: dict) -> ConfigV4:
     # Read in the main config file
     with open(file_path) as config_file:
         # Here we parse the config file as YAML, which is a superset of JSON so allows us to parse JSON files as well
@@ -36,13 +35,7 @@ def parse_config(file_path: str, env_vars: dict) -> ConfigV3 | ConfigV4:
                 file_vars[name] = substitute_vars(value, env_vars)
             PathField.vars_for_substitution = env_vars | file_vars
 
-        # Parse the configs
-        if version.major == 3:
-            config = ConfigV3.Schema().load(config_dict)
-        elif version.major == 4:
-            config = ConfigV4.Schema().load(config_dict)
-        else:
-            raise ValueError(f"Unknown config version: {config_dict['configFormatVersion']}")
+        config = ConfigV4.Schema().load(config_dict)
 
         if version.major == 4:
             # There is also a special variable `$CASE_NAME` which should resolve to the name of the case, which can't

@@ -56,36 +56,6 @@ def main():
         action="store_true",
         help='If specified, command line warnings will be auto-accepted.'
     )
-    parser_simulate.add_argument(  # TODO: how should this behave with a V4 config file
-        '-o', '--output',
-        dest='v3_output_file_path',
-        default=None,
-        help='For V3 config files only. '
-             'Output CSV file location, by default no output file is generated.'
-    )
-    parser_simulate.add_argument(
-        '-s', '--output-summary',
-        dest='v3_output_summary_file_path',
-        default=None,
-        help='For V3 config files only. '
-             'Output CSV file location for a summary, by default no summary output file is generated.'
-    )
-    parser_simulate.add_argument(
-        '-a', '--aggregate',
-        dest='v3_output_aggregate',
-        default=None,
-        help='For V3 config files only. '
-             'Aggregate the output files to the given time period, options available: "30min".'
-    )
-    parser_simulate.add_argument(
-        '-r', '--rate-detail',
-        dest='v3_output_rate_detail',
-        default=None,
-        help='For V3 config files only. '
-             'Puts detailed rate information in the output file. This can either be: "all" to include a breakdown of '
-             'all the rates in the output file; or a comma-seperated list of individual rate names that correspond '
-             'to the rate names in the configuration file, e.g: "duosGreen,duosAmber,duosRed"'
-    )
 
     kwargs = vars(parser.parse_args())
 

@@ -4,8 +4,9 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+import pytz
 from simt_common.dataparse.dataparse import read_directory_of_csvs
-from simt_common.timeutils.hh_math import floor_hh
+from simt_common.timeutils.math import floor_hh
 
 
 class Profiler:
@@ -34,7 +35,7 @@ class Profiler:
         if use_clocktime:
             df["ClockTime"] = pd.to_datetime(df["ClockTime"])
             df["ClockTime"] = df["ClockTime"].dt.tz_localize(
-                "Europe/London",
+                pytz.timezone("Europe/London"),
                 ambiguous="NaT",
                 nonexistent="NaT"
             )

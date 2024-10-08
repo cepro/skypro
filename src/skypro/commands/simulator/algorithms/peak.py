@@ -9,8 +9,8 @@ from skypro.commands.simulator.algorithms.system_state import SystemState
 from skypro.commands.simulator.cartesian import Curve, Point
 from skypro.commands.simulator.config import Peak
 
-TIMEZONE_STR = "Europe/London"
-REF_DATETIME = pytz.timezone(TIMEZONE_STR).localize(datetime(year=2000, month=1, day=1))
+TIMEZONE = pytz.timezone("Europe/London")
+REF_DATETIME = TIMEZONE.localize(datetime(year=2000, month=1, day=1))
 
 
 def get_peak_power(
@@ -125,7 +125,7 @@ def get_peak_approach_energies(
     if not peak_config.period or peak_config.approach.to_soe == 0:
         return 0.0, 0.0
 
-    t = t.astimezone(pytz.timezone(TIMEZONE_STR))
+    t = t.astimezone(TIMEZONE)
 
     if not peak_config.period.days.is_on_day(t):
         return 0.0, 0.0

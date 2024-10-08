@@ -6,7 +6,7 @@ from marshmallow_dataclass import dataclass
 
 from simt_common.jsonconfig.utility import name_in_json
 
-from skypro.commands.simulator.config.config_common import Site, Strategy, ImbalanceDataSource, Rates, PathType
+from skypro.commands.simulator.config.config_common import Site, Strategy, Rates, PathType
 
 """
 This file contains configuration schema specific to V4
@@ -48,13 +48,17 @@ class AllSimulations:
 
 
 @dataclass
+class AllRates:
+    live: Rates
+    final: Rates
+
+@dataclass
 class SimulationCaseV4:
     output: Optional[SimOutput]
     timeframe: TimeFrame = name_in_json("timeFrame")
     site: Site
     strategy: Strategy
-    imbalance_data_source: ImbalanceDataSource = name_in_json("imbalanceDataSource")
-    rates: Rates
+    rates: AllRates
 
     @property
     def start(self) -> datetime:
