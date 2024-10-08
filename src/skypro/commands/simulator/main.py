@@ -219,10 +219,11 @@ def run_one_simulation(
         exp_gen_col="solar",
     )
     # Inform any OSAM rate objects about the NCSP
-    for _, rates in final_rates.get_all_sets_named():
-        for rate in rates:
-            if isinstance(rate, OSAMRate):
-                rate.add_ncsp(df["osam_ncsp"])
+    total_osam_rates = 0.0
+    for rate in final_rates.bess_charge_from_grid:
+        if isinstance(rate, OSAMRate):
+            rate.add_ncsp(df["osam_ncsp"])
+            total_osam_rates += rate.rate
 
     # Next we can calculate the individual p/kWh rates that apply for today
     final_ext_rates_dfs, final_int_rates_dfs = get_rates_dfs(df.index, final_rates)
