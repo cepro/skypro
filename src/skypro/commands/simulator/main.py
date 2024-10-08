@@ -276,6 +276,7 @@ def run_one_simulation(
         battery_nameplate_power=sim_config.site.bess.nameplate_power,
         site_import_limit=sim_config.site.grid_connection.import_limit,
         site_export_limit=sim_config.site.grid_connection.export_limit,
+        total_osam_rates=total_osam_rates,
         summary_output_config=summary_output_config
     )
 
