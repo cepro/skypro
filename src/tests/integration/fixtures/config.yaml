@@ -45,6 +45,11 @@ sandbox:
       priceDir: "./src/tests/integration/fixtures/elexon_imbalance_price/"
       volumeDir: "./src/tests/integration/fixtures/elexon_imbalance_volume/"
 
+  output: &output
+    simulation:
+      csv: "./src/tests/integration/output_sim.csv"
+    summary:
+      csv: "./src/tests/integration/output_summary.csv"
 
 simulations:
   integrationTestPriceCurve:
@@ -108,8 +113,16 @@ simulations:
     rates:
       live: *rates
       final: *rates
-    output:
-      simulation:
-        csv: "./src/tests/integration/output_price_curve_sim.csv"
-      summary:
-        csv: "./src/tests/integration/output_price_curve_summary.csv"
+    output: *output
+
+  integrationTestPerfectHindsightLP:
+    timeFrame: *timeframe
+    site: *site
+    strategy:
+      perfectHindsightOptimiser:
+        blocks:
+          maxAvgCyclesPerDay: 1.5
+    rates:
+      live: *rates
+      final: *rates
+    output: *output

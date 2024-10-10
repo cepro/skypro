@@ -1,6 +1,7 @@
 import logging
 import unittest
 import subprocess
+from dataclasses import dataclass
 
 import pandas as pd
 
@@ -15,45 +16,68 @@ class TestIntegration(unittest.TestCase):
         genuinely changes then we should expect the results to change and update them appropriately here.
         """
 
-        logging.info("Starting integration test...")
-        res = subprocess.run([
-            'python3',
-            './src/skypro/main.py',
-            'simulate',
-            '--env',
-            './src/tests/integration/fixtures/env.json',
-            '-y',
-            '--config',
-            './src/tests/integration/fixtures/config.yaml',
-            '--sim',
-            'integrationTestPriceCurve',
-        ])
-        logging.info("Skypro finished running")
+        @dataclass
+        class SubTest:
+            msg: str
+            sim_name: str
+            expected_summary_df: pd.DataFrame
 
-        if res.returncode != 0:
-            raise ValueError("Non zero exit code")
+        subtests = [
+            SubTest(
+                msg="below",
+                sim_name="integrationTestPriceCurve",
+                expected_summary_df=pd.DataFrame.from_dict({
+                    "flow": ["gridToBatt", "battToGrid", "solarToGrid", "gridToLoad", "solarToBatt", "battToLoad", "solarToLoad"],
+                    "volume": [29774.99, 22557.51, 872.40, 29364.75, 309.14, 3339.95, 5022.52],
+                    "int_cost": [2421.65, -3956.13, -72.35, 3180.37, 18.97, -728.92, -535.79],
+                    "ext_cost": [2421.65, -3956.13, -72.35, 3180.37, 0.0, 0.0, 0.0]
+                }).set_index("flow")
+            ),
+            SubTest(
+                msg="below",
+                sim_name="integrationTestPerfectHindsightLP",
+                expected_summary_df=pd.DataFrame.from_dict({
+                    "flow":     ["gridToBatt", "battToGrid",    "solarToGrid",  "gridToLoad",   "solarToBatt",  "battToLoad",   "solarToLoad"],
+                    "volume":   [51352.98,      31305.08,       277.51,         18951.33,       904.03,         13753.37,       5022.52],
+                    "int_cost": [3835.42,       -5146.23,       -30.05,         1739.89,        61.26,          -2169.41,       -535.79],
+                    "ext_cost": [3835.42,       -5146.23,       -30.05,         1739.89,        0.0,            0.0,            0.0]
+                }).set_index("flow")
+            ),
+        ]
 
-        df = pd.read_csv("./src/tests/integration/output_price_curve_summary.csv")
+        for sub in subtests:
+            with self.subTest(sub.msg):
+                logging.info(f"Starting integration test '{sub.msg}'...")
+                res = subprocess.run([
+                    'python3',
+                    './src/skypro/main.py',
+                    'simulate',
+                    '--env',
+                    './src/tests/integration/fixtures/env.json',
+                    '-y',
+                    '--config',
+                    './src/tests/integration/fixtures/config.yaml',
+                    '--sim',
+                    sub.sim_name,
+                ])
+                logging.info("Skypro finished running")
 
-        # The avg rate columns are a simple calculation from the other two columns, so don't bother testing these
-        df = df.drop(columns=["int_avg_rate", "ext_avg_rate"])
-        df = df.set_index("flow")
+                if res.returncode != 0:
+                    raise ValueError("Non zero exit code")
 
-        expected_df = pd.DataFrame.from_dict({
-            "flow": ["gridToBatt", "battToGrid", "solarToGrid", "gridToLoad", "solarToBatt", "battToLoad", "solarToLoad"],
-            "volume": [29774.99, 22557.51, 872.40, 29364.75, 309.14, 3339.95, 5022.52],
-            "int_cost": [2421.65, -3956.13, -72.35, 3180.37, 18.97, -728.92, -535.79],
-            "ext_cost": [2421.65, -3956.13, -72.35, 3180.37, 0.0, 0.0, 0.0]
-        })
-        expected_df = expected_df.set_index("flow")
+                df = pd.read_csv("./src/tests/integration/output_summary.csv")
 
-        self.assertEqual(df.columns.to_list(), expected_df.columns.to_list())
+                # The avg rate columns are a simple calculation from the other two columns, so don't bother testing these
+                df = df.drop(columns=["int_avg_rate", "ext_avg_rate"])
+                df = df.set_index("flow")
 
-        error = (df - expected_df).abs()
-        tolerance = 0.1
+                self.assertEqual(df.columns.to_list(), sub.expected_summary_df.columns.to_list())
 
-        self.assertEqual(
-            (error > tolerance).sum().sum(),
-            0,
-            msg=f"Summary value out of tolerance:\n{error.transpose()}"
-        )
+                error = (df - sub.expected_summary_df).abs()
+                tolerance = 0.1
+
+                self.assertEqual(
+                    (error > tolerance).sum().sum(),
+                    0,
+                    msg=f"Summary value out of tolerance:\n{error.transpose()}"
+                )
