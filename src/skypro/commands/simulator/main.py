@@ -200,7 +200,7 @@ def run_one_simulation(
 
     # The algorithm has used the 'live' rates that were available at the simulated time, now we ascertain the 'final'
     # rates for use in reporting.
-    df["osam_ncsp"] = calculate_osam_ncsp(
+    df["osam_ncsp"], _ = calculate_osam_ncsp(
         df=df,
         index_to_calc_for=df.index,
         imp_bp_col="grid_import",
