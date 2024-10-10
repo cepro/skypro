@@ -4,18 +4,15 @@ from datetime import timedelta, datetime
 import numpy as np
 import pandas as pd
 import pytz
-from simt_common.rates.microgrid import get_rates_dfs, RatesForEnergyFlows
-from simt_common.rates.osam import calculate_osam_ncsp
-from simt_common.rates.rates import OSAMRate
-from simt_common.timeutils.math import add_wallclock_days
+from simt_common.rates.microgrid import RatesForEnergyFlows
 
 from skypro.commands.simulator.algorithms.peak import get_peak_approach_energies, get_peak_power
 from skypro.commands.simulator.algorithms.microgrid import get_microgrid_algo_energy
+from skypro.commands.simulator.algorithms.rate_management import run_osam_calcs_for_day, add_total_rates_to_df
 from skypro.commands.simulator.algorithms.system_state import get_system_state, SystemState
 from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy
 from skypro.commands.simulator.cartesian import Curve, Point
 from skypro.commands.simulator.config import get_relevant_niv_config, PriceCurveAlgo as PriceCurveAlgoConfig, Bess as BessConfig
-from skypro.commands.simulator.microgrid import calculate_microgrid_flows
 
 
 class PriceCurveAlgo:
@@ -34,8 +31,6 @@ class PriceCurveAlgo:
         self._algo_config = algo_config
         self._bess_config = bess_config
         self._live_rates = live_rates
-
-        self._cached_has_osam_rates = None
 
         self._df = df.copy()
 
@@ -61,7 +56,14 @@ class PriceCurveAlgo:
             if (t == self._df.index[0]) or is_first_timeslot_of_day(t):
                 # If this is the first timestep of the day then calculate the rates for the coming day.
                 # This is done on each day in turn because OSAM rates vary day-by-day depending on historical volumes.
-                self.calculate_rates_for_day(t)
+                self._df, todays_index = run_osam_calcs_for_day(self._df, t)
+
+                self._df = add_total_rates_to_df(
+                    df=self._df,
+                    index_to_add_for=todays_index,
+                    rates=self._live_rates,
+                    live_or_final="live"
+                )
 
                 # This algo also uses the last live rate from the previous SP to inform actions, so make that available
                 # on each df row:
@@ -208,81 +210,6 @@ class PriceCurveAlgo:
 
         return self._df[["soe", "energy_delta", "bess_losses", "red_approach_distance", "amber_approach_distance"]]
 
-    def calculate_rates_for_day(self, t):
-        """
-        Adds the rates for the day starting at `t` to the dataframe
-        """
-
-        start_of_tomorrow = add_wallclock_days(t, 1)
-        todays_index = self._df.loc[t:start_of_tomorrow].index
-
-        # The above `loc` includes the `start_of_tomorrow` if we are simulating the whole day, which de don't want, so
-        # remove it:
-        if todays_index[-1] == start_of_tomorrow:
-            todays_index = todays_index[:-1]
-
-        if self._has_osam_rates():
-
-            start_of_yesterday = add_wallclock_days(t, -1)
-
-            # Calculate the microgrid flows for yesterday, as these impact the OSAM NCSP
-            mg_flow_calc_start = start_of_yesterday
-            if mg_flow_calc_start < self._df.index[0]:
-                mg_flow_calc_start = self._df.index[0]
-            if mg_flow_calc_start < t:
-                # To calculate OSAM rates we first need to work out the microgrid energy flows for yesterday given the
-                # simulated actions
-                df_with_mg_flows = calculate_microgrid_flows(self._df.loc[mg_flow_calc_start:t])
-
-                # The below loc command doesn't work unless all the columns are already present.
-                match_columns(self._df, df_with_mg_flows)
-                self._df.loc[mg_flow_calc_start:t] = calculate_microgrid_flows(self._df.loc[mg_flow_calc_start:t])
-            else:
-                # We haven't simulated yesterday, so skip the calculation
-                pass
-
-            # Next we can calculate the OSAM NCSP factor for today
-            self._df.loc[todays_index, "osam_ncsp"] = calculate_osam_ncsp(
-                df=self._df,
-                index_to_calc_for=todays_index,
-                imp_bp_col="grid_import",
-                exp_bp_col="grid_export",
-                imp_stor_col="bess_charge",
-                exp_stor_col="bess_discharge",
-                imp_gen_col=None,
-                exp_gen_col="solar",
-            )
-
-            # Inform any OSAM rate objects about the NCSP for today
-            for _, rates in self._live_rates.get_all_sets_named():
-                for rate in rates:
-                    if isinstance(rate, OSAMRate):
-                        rate.add_ncsp(self._df.loc[todays_index, "osam_ncsp"])
-
-        # Next we can calculate the individual p/kWh rates that apply for today
-        live_ext_rates_dfs, live_int_rates_dfs = get_rates_dfs(todays_index, self._live_rates, log=False)
-
-        # Then we sum up the individual rates to create a total for each flow
-        for set_name, rates_df in live_ext_rates_dfs.items():
-            self._df.loc[todays_index, f"rate_live_{set_name}"] = rates_df.sum(axis=1, skipna=False)
-        for set_name, rates_df in live_int_rates_dfs.items():
-            self._df.loc[todays_index, f"int_rate_live_{set_name}"] = rates_df.sum(axis=1, skipna=False)
-
-    def _has_osam_rates(self):
-        """
-        Returns true if any of the rates are OSAM (which require extra processing)
-        """
-
-        if self._cached_has_osam_rates is None:
-            self._cached_has_osam_rates = False
-            for _, rates in self._live_rates.get_all_sets_named():
-                for rate in rates:
-                    if isinstance(rate, OSAMRate):
-                        self._cached_has_osam_rates = True
-                        break
-
-        return self._cached_has_osam_rates
-
 
 def get_target_energy_delta_from_shifted_curves(
         df_in: pd.DataFrame,
@@ -362,16 +289,6 @@ def get_target_energy_delta_from_curves(
             target_energy_delta = discharge_distance
 
     return target_energy_delta
-
-
-def match_columns(target_df, source_df):
-    """
-    Makes sure that all the columns in `source_df` are also present in `target_df`, by creating the columns with NaN
-    values if they are not present.
-    """
-    for col in source_df.columns:
-        if col not in target_df:
-            target_df[col] = np.nan
 
 
 def is_first_timeslot_of_day(t: pd.Timestamp) -> bool:

@@ -238,16 +238,16 @@ class OptimiserBlocks:
     """Defines how the whole simulation period is split into smaller duration optimisations that are stacked on top of
     each other, and any settings that are applied to each of those smaller duration optimisations."""
     max_avg_cycles_per_day: float = name_in_json("maxAvgCyclesPerDay")
-    max_optimal_tolerance: Optional[float] = name_in_json("maxOptimalTolerance")
-    max_computation_secs: Optional[int] = name_in_json("maxComputationSecs")
-    duration_hh: Optional[int] = field(metadata={"data_key": "durationHH"}, default=480)  # default to 10 days
-    used_duration_hh: Optional[int] = field(metadata={"data_key": "usedDurationHH"}, default=384)  # default to 8 days
+    max_optimal_tolerance: Optional[float] = field(metadata={"data_key": "maxOptimalTolerance"}, default=0.02)
+    max_computation_secs: Optional[int] = field(metadata={"data_key": "maxComputationSecs"}, default=10)
+    duration_days: Optional[int] = field(metadata={"data_key": "durationDays"}, default=5)
+    used_duration_days: Optional[int] = field(metadata={"data_key": "usedDurationDays"}, default=3)
 
     def __post_init__(self):
-        if self.duration_hh <= 0 or self.used_duration_hh <= 0:
-            raise ValueError("both usedDurationHH and durationHH must be greater than 0.")
-        if self.used_duration_hh > self.duration_hh:
-            raise ValueError("usedDurationHH must not be larger than durationHH.")
+        if self.duration_days <= 0 or self.used_duration_days <= 0:
+            raise ValueError("both usedDurationDays and durationDays must be greater than 0.")
+        if self.used_duration_days > self.duration_days:
+            raise ValueError("usedDurationDays must not be larger than durationDays.")
 
 
 @dataclass
