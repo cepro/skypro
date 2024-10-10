@@ -30,5 +30,5 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 skypro = "skypro.main:main"
-test = "tests:run_tests"
-lint = "tests:run_linter"
+blah = "tests:run_tests"
+lints = "tests:run_linter"

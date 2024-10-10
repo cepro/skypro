@@ -50,7 +50,7 @@ def run_osam_calcs_for_day(
         pass
 
     # Next we can calculate the OSAM NCSP factor for today
-    df.loc[todays_index, "osam_ncsp"] = calculate_osam_ncsp(
+    df.loc[todays_index, "osam_ncsp"], _ = calculate_osam_ncsp(
         df=df,
         index_to_calc_for=todays_index,
         imp_bp_col="grid_import",

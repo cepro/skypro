@@ -26,14 +26,14 @@ class TestIntegration(unittest.TestCase):
             '--config',
             './src/tests/integration/fixtures/config.yaml',
             '--sim',
-            'integrationTest',
+            'integrationTestPriceCurve',
         ])
         logging.info("Skypro finished running")
 
         if res.returncode != 0:
             raise ValueError("Non zero exit code")
 
-        df = pd.read_csv("./src/tests/integration/output_summary.csv")
+        df = pd.read_csv("./src/tests/integration/output_price_curve_summary.csv")
 
         # The avg rate columns are a simple calculation from the other two columns, so don't bother testing these
         df = df.drop(columns=["int_avg_rate", "ext_avg_rate"])

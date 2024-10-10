@@ -1,27 +1,55 @@
 configFormatVersion: 4.0.0
+sandbox:
+  timeFrame: &timeframe
+    start: "2024-01-01T00:00:00+00:00"
+    end: "2024-01-30T23:30:00+00:00"
+
+  site: &site
+    gridConnection:
+      importLimit: 220
+      exportLimit: 475
+    solar:
+      profile:
+        profileDir: "./src/tests/integration/fixtures/solar/"
+        profiledSizeKwp: 4.4
+        scaledSizeKwp: 210
+    load:
+      profile:
+        profileDir: "./src/tests/integration/fixtures/load/"
+        profiledNumPlots: 12
+        scaledNumPlots: 54
+    bess:
+      energyCapacity: 1280
+      nameplatePower: 565
+      chargeEfficiency: 0.85
+
+  rates: &rates
+    supplyPointsConfigFile: "./src/tests/integration/fixtures/rates/supply_points_a.json"
+    files:
+      solarToBatt: [ ]
+      gridToBatt:
+        - "./src/tests/integration/fixtures/rates/supply_fees_bryt_import.json"
+        - "./src/tests/integration/fixtures/rates/dno_fees_wpd_import.json"
+      battToGrid:
+        - "./src/tests/integration/fixtures/rates/supply_fees_statkraft_export.json"
+        - "./src/tests/integration/fixtures/rates/dno_fees_wpd_export.json"
+      battToLoad: [ ]
+      solarToGrid:
+        - "./src/tests/integration/fixtures/rates/supply_fees_statkraft_export.json"
+        - "./src/tests/integration/fixtures/rates/dno_fees_wpd_export.json"
+      gridToLoad:
+        - "./src/tests/integration/fixtures/rates/supply_fees_bryt_import.json"
+        - "./src/tests/integration/fixtures/rates/dno_fees_wpd_import.json"
+      solarToLoad: [ ]
+    imbalanceDataSource:
+      priceDir: "./src/tests/integration/fixtures/elexon_imbalance_price/"
+      volumeDir: "./src/tests/integration/fixtures/elexon_imbalance_volume/"
+
+
 simulations:
-  integrationTest:
-    timeFrame:
-      start: "2024-01-01T00:00:00+00:00"
-      end: "2024-01-30T23:30:00+00:00"
-    site:
-      gridConnection:
-        importLimit: 220
-        exportLimit: 475
-      solar:
-        profile:
-          profileDir: "./src/tests/integration/fixtures/solar/"
-          profiledSizeKwp: 4.4
-          scaledSizeKwp: 210
-      load:
-        profile:
-          profileDir: "./src/tests/integration/fixtures/load/"
-          profiledNumPlots: 12
-          scaledNumPlots: 54
-      bess:
-        energyCapacity: 1280
-        nameplatePower: 565
-        chargeEfficiency: 0.85
+  integrationTestPriceCurve:
+    timeFrame: *timeframe
+    site: *site
     strategy:
       priceCurveAlgo:
         peak:
@@ -78,30 +106,10 @@ simulations:
             curveShiftShort: 3
             volumeCutoffForPrediction: 150000
     rates:
-      live: &rates
-        supplyPointsConfigFile: "./src/tests/integration/fixtures/rates/supply_points_a.json"
-        files:
-          solarToBatt: []
-          gridToBatt:
-          - "./src/tests/integration/fixtures/rates/supply_fees_bryt_import.json"
-          - "./src/tests/integration/fixtures/rates/dno_fees_wpd_import.json"
-          battToGrid:
-          - "./src/tests/integration/fixtures/rates/supply_fees_statkraft_export.json"
-          - "./src/tests/integration/fixtures/rates/dno_fees_wpd_export.json"
-          battToLoad: []
-          solarToGrid:
-          - "./src/tests/integration/fixtures/rates/supply_fees_statkraft_export.json"
-          - "./src/tests/integration/fixtures/rates/dno_fees_wpd_export.json"
-          gridToLoad:
-          - "./src/tests/integration/fixtures/rates/supply_fees_bryt_import.json"
-          - "./src/tests/integration/fixtures/rates/dno_fees_wpd_import.json"
-          solarToLoad: []
-        imbalanceDataSource:
-          priceDir: "./src/tests/integration/fixtures/elexon_imbalance_price/"
-          volumeDir: "./src/tests/integration/fixtures/elexon_imbalance_volume/"
+      live: *rates
       final: *rates
     output:
       simulation:
-        csv: "./src/tests/integration/output_sim.csv"
+        csv: "./src/tests/integration/output_price_curve_sim.csv"
       summary:
-        csv: "./src/tests/integration/output_summary.csv"
+        csv: "./src/tests/integration/output_price_curve_summary.csv"
