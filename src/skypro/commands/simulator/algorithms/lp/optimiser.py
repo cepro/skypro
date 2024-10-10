@@ -1,20 +1,29 @@
 import logging
-from datetime import timedelta
 
 import numpy as np
 import pulp
 import pandas as pd
+from simt_common.rates.microgrid import RatesForEnergyFlows
+from simt_common.timeutils.math import floor_day, add_wallclock_days
+
+from skypro.commands.simulator.algorithms.rate_management import run_osam_calcs_for_day, add_total_rates_to_df
 
 from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
-from skypro.commands.simulator.config.config_common import Optimiser as OptimiserConfig, OptimiserBlocks
+from skypro.commands.simulator.config.config_common import Optimiser as OptimiserConfig, OptimiserBlocks, Bess
 
 
 class Optimiser:
-    def __init__(self, config: OptimiserConfig, df: pd.DataFrame, battery_energy_capacity: float, battery_charge_efficiency: float):
-        self._config = config
+    def __init__(
+        self,
+        algo_config: OptimiserConfig,
+        bess_config: Bess,
+        final_rates: RatesForEnergyFlows,
+        df: pd.DataFrame,
+    ):
+        self._algo_config = algo_config
+        self._bess_config = bess_config
+        self._final_rates = final_rates
         self._df_in = df.copy()
-        self._battery_energy_capacity = battery_energy_capacity
-        self._battery_charge_efficiency = battery_charge_efficiency
 
         # Calculate some of the microgrid flows - at the moment this is the only algo that uses these values, but in
         # the future it may make sense to pass these values in rather than have each algo calculate them independently.
@@ -36,49 +45,61 @@ class Optimiser:
         last day).
         """
 
-        init_soe = self._battery_energy_capacity / 2
+        init_soe = self._bess_config.energy_capacity / 2
         n_timeslots_with_nan_pricing = 0
 
         self._df_in = self._df_in.sort_index()
-        n_timeslots = len(self._df_in)
-        # The native Python timedelta class seems more reliable that the pandas equivalent
-        period = timedelta(seconds=pd.to_timedelta(self._df_in.index.freq).total_seconds())
-
-        block_duration = self._config.blocks.duration_hh * timedelta(minutes=30)
-        block_duration_to_use = self._config.blocks.used_duration_hh * timedelta(minutes=30)
-
-        n_timeslots_per_block = int(block_duration / period)
-        n_timeslots_per_block_to_use = int(block_duration_to_use / period)
 
         df_out = pd.DataFrame()
 
-        current_start_index = 0
-        while current_start_index < n_timeslots:
-            current_end_index = current_start_index + n_timeslots_per_block
-            if current_end_index > n_timeslots:
-                current_end_index = n_timeslots
+        current_start_t = self._df_in.index[0]
+        end_t = self._df_in.index[-1]
+        while current_start_t < end_t:
+            current_end_t = add_wallclock_days(floor_day(current_start_t), self._algo_config.blocks.duration_days)
+            current_end_to_use_t = add_wallclock_days(floor_day(current_start_t), self._algo_config.blocks.used_duration_days)
+            if current_end_t > end_t:
+                current_end_t = end_t
+            if current_end_to_use_t > end_t:
+                current_end_to_use_t = end_t
 
-            # Create a smaller dataframe for the optimisation of the smaller period of time
-            sub_opt_df_in = self._df_in.iloc[current_start_index:current_end_index+1]
+            # Create a smaller dataframe for the optimisation of the number of days in the block
+            block_df_in = self._df_in.loc[current_start_t:current_end_t]
 
-            logging.info(f"Optimising range {sub_opt_df_in.index[0]} -> {sub_opt_df_in.index[-1]}...")
-            sub_opt_df_out, sub_opt_num_nan = self._run_one_optimisation(
-                df_in=sub_opt_df_in,
-                init_soe=init_soe,
-                block_config=self._config.blocks
+            # Calculate the OSAM flows and NCSP for the upcoming day
+            block_df_in, _ = run_osam_calcs_for_day(block_df_in, current_start_t)
+
+            # We know the NCSP for the upcoming day, but not for any days thereafter, so we estimate that it will stay
+            # the same for the following days so that we can optimise multiple days in one block.
+            # If this is a significant source of error then the simulation could be configured to only use a single day
+            # from the optimisation block. E.g. blocks.duration_days = 3, blocks.used_duration_hh = 1
+            block_df_in["osam_ncsp"] = block_df_in["osam_ncsp"].ffill()
+
+            # Calculate the total rates in p/kWh for the whole block
+            block_df_in = add_total_rates_to_df(
+                df=block_df_in,
+                index_to_add_for=block_df_in.index,
+                rates=self._final_rates,
+                live_or_final="final"
             )
-            n_timeslots_with_nan_pricing += sub_opt_num_nan
 
-            # Drop the end of the optimisation solution (this is discussed above)
-            sub_opt_df_out_to_use = sub_opt_df_out.iloc[0:n_timeslots_per_block_to_use]
+            logging.info(f"Optimising range {block_df_in.index[0]} -> {block_df_in.index[-1]}...")
+            block_df_out, block_num_nan = self._run_one_optimisation(
+                df_in=block_df_in,
+                init_soe=init_soe,
+                block_config=self._algo_config.blocks
+            )
+            n_timeslots_with_nan_pricing += block_num_nan
+
+            # Only keep the time range that we 'should use' (this is discussed above)
+            block_df_out_to_use = block_df_out.loc[:current_end_to_use_t].iloc[:-1]
 
             # Create a single dataframe with the results of all the individual optimisations
-            df_out = pd.concat([df_out, sub_opt_df_out_to_use], axis=0)
+            df_out = pd.concat([df_out, block_df_out_to_use], axis=0)
 
             # Prepare for the next iteration
-            current_start_index += n_timeslots_per_block_to_use
-            if len(sub_opt_df_out) > len(sub_opt_df_out_to_use):
-                init_soe = sub_opt_df_out.iloc[len(sub_opt_df_out_to_use)]["soe"]
+            current_start_t = current_end_to_use_t
+            if len(block_df_out) > len(block_df_out_to_use):
+                init_soe = block_df_out.iloc[len(block_df_out_to_use)]["soe"]
             else:
                 init_soe = np.nan  # this must be the last iteration
 
@@ -127,7 +148,7 @@ class Optimiser:
                 pulp.LpVariable(
                     name=f"bess_soe_{t}",
                     lowBound=0.0,
-                    upBound=self._battery_energy_capacity
+                    upBound=self._bess_config.energy_capacity
                 )
             )
             lp_var_bess_charges_from_solar.append(
@@ -233,7 +254,7 @@ class Optimiser:
         # Apply cycling constraint to all timeslots
         if block_config.max_avg_cycles_per_day:
             days_in_block = (df_in.index[-1] - df_in.index[0]).total_seconds() / (3600 * 24)
-            problem += pulp.lpSum(lp_var_bess_discharges) <= (block_config.max_avg_cycles_per_day * days_in_block * self._battery_energy_capacity)
+            problem += pulp.lpSum(lp_var_bess_discharges) <= (block_config.max_avg_cycles_per_day * days_in_block * self._bess_config.energy_capacity)
 
         # The objective function is the sum of costs across all timeslots, which will be minimised
         problem += pulp.lpSum(lp_costs)
@@ -252,8 +273,8 @@ class Optimiser:
         for t in timeslots[1:]:
             problem += (
                 lp_var_bess_soe[t] == lp_var_bess_soe[t - 1]
-                + lp_var_bess_charges_from_solar[t - 1] * self._battery_charge_efficiency
-                + lp_var_bess_charges_from_grid[t - 1] * self._battery_charge_efficiency
+                + lp_var_bess_charges_from_solar[t - 1] * self._bess_config.charge_efficiency
+                + lp_var_bess_charges_from_grid[t - 1] * self._bess_config.charge_efficiency
                 - lp_var_bess_discharges_to_load[t - 1]
                 - lp_var_bess_discharges_to_grid[t - 1]
             )
@@ -279,7 +300,7 @@ class Optimiser:
             - df_sol["bess_discharge_to_grid"] - df_sol["bess_discharge_to_load"]
         )
         df_ret["bess_losses"] = (
-            (df_sol["bess_charge_from_solar"] + df_sol["bess_charge_from_grid"]) * (1 - self._battery_charge_efficiency)
+            (df_sol["bess_charge_from_solar"] + df_sol["bess_charge_from_grid"]) * (1 - self._bess_config.charge_efficiency)
         )
 
         # TODO: tidy up code generally - a good point to clean up interface to multiple algos?

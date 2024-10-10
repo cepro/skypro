@@ -173,23 +173,15 @@ def run_one_simulation(
         df_algo = algo.run()
     elif sim_config.strategy.optimiser:
 
-        # The perfect hindsight optimiser gets to know about the final rates:
         cols_to_share_with_algo.extend([
-            "solar",
-            "load",
             "bess_max_charge",
             "bess_max_discharge",
-            "int_rate_final_bess_charge_from_solar",
-            "int_rate_final_bess_discharge_to_load",
-            "rate_final_bess_charge_from_grid",
-            "rate_final_bess_charge_from_solar",
-            "rate_final_bess_discharge_to_grid"
         ])
         opt = Optimiser(
-            config=sim_config.strategy.optimiser,
+            algo_config=sim_config.strategy.optimiser,
+            bess_config=sim_config.site.bess,
+            final_rates=final_rates,
             df=df[cols_to_share_with_algo],
-            battery_energy_capacity=sim_config.site.bess.energy_capacity,
-            battery_charge_efficiency=sim_config.site.bess.charge_efficiency,
         )
         df_algo = opt.run()
     else:
