@@ -240,8 +240,8 @@ class OptimiserBlocks:
     max_avg_cycles_per_day: float = name_in_json("maxAvgCyclesPerDay")
     max_optimal_tolerance: Optional[float] = field(metadata={"data_key": "maxOptimalTolerance"}, default=0.02)
     max_computation_secs: Optional[int] = field(metadata={"data_key": "maxComputationSecs"}, default=10)
-    duration_days: Optional[int] = field(metadata={"data_key": "durationDays"}, default=3)
-    used_duration_days: Optional[int] = field(metadata={"data_key": "usedDurationDays"}, default=5)
+    duration_days: Optional[int] = field(metadata={"data_key": "durationDays"}, default=5)
+    used_duration_days: Optional[int] = field(metadata={"data_key": "usedDurationDays"}, default=3)
 
     def __post_init__(self):
         if self.duration_days <= 0 or self.used_duration_days <= 0:
