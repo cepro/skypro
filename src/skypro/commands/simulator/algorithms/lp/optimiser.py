@@ -33,7 +33,7 @@ class Optimiser:
         # When charging we must use excess solar first:
         self._df_in["max_charge_from_grid"] = np.maximum(self._df_in["bess_max_charge"] - self._df_in["solar_not_supplying_load"], 0)
         # When discharging we must send power to microgrid load first:
-        self._df_in["max_discharge_to_load"] = np.maximum(self._df_in["bess_max_discharge"] - self._df_in["load_not_supplied_by_solar"], 0)
+        self._df_in["max_discharge_to_grid"] = np.maximum(self._df_in["bess_max_discharge"] - self._df_in["load_not_supplied_by_solar"], 0)
 
     def run(self) -> pd.DataFrame:
         """
@@ -176,7 +176,7 @@ class Optimiser:
                 pulp.LpVariable(
                     name=f"bess_discharge_to_grid_{t}",
                     lowBound=0.0,
-                    upBound=df_in.iloc[t]["max_discharge_to_load"]
+                    upBound=df_in.iloc[t]["max_discharge_to_grid"],
                 )
             )
 
