@@ -1,4 +1,5 @@
 import logging
+import math
 
 import numpy as np
 import pulp
@@ -34,6 +35,16 @@ class Optimiser:
         self._df_in["max_charge_from_grid"] = np.maximum(self._df_in["bess_max_charge"] - self._df_in["solar_not_supplying_load"], 0)
         # When discharging we must send power to microgrid load first:
         self._df_in["max_discharge_to_grid"] = np.maximum(self._df_in["bess_max_discharge"] - self._df_in["load_not_supplied_by_solar"], 0)
+
+        if algo_config.blocks.do_active_export_constraint_management:
+            self._df_in["min_charge"] = self._df_in[self._df_in["bess_max_discharge"] < 0]["bess_max_discharge"] * -1
+            self._df_in["min_charge"] = self._df_in["min_charge"].fillna(0)
+            # If the min charge is a floating point error away from solar_not_supplying_load then make them equal
+            # to avoid constraint issues
+            close_idx = self._df_in.index[np.isclose(self._df_in["min_charge"], self._df_in["solar_not_supplying_load"])]
+            self._df_in.loc[close_idx, "min_charge"] = self._df_in.loc[close_idx, "solar_not_supplying_load"]
+        else:
+            self._df_in["min_charge"] = 0.0
 
     def run(self) -> pd.DataFrame:
         """
@@ -154,7 +165,12 @@ class Optimiser:
             lp_var_bess_charges_from_solar.append(
                 pulp.LpVariable(
                     name=f"bess_charge_from_solar_{t}",
-                    lowBound=0.0,
+                    # Sometimes a minimum charge constraint applies, for example if we model a site that has more solar
+                    # than the grid connection can handle and want the battery to charge from any excess solar.
+                    # TODO: a better way of handling this could be to value the energy that would be curtailed at 0p/kWh
+                    #       as this would allow the possibility of curtailment rather than failing optimisation in
+                    #       circumstances where there is too much solar for both the export connection and the battery.
+                    lowBound=df_in.iloc[t]["min_charge"],
                     upBound=df_in.iloc[t]["solar_not_supplying_load"]
                 )
             )
