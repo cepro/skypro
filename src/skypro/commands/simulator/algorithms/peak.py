@@ -45,7 +45,10 @@ def get_peak_power(
 
     # This is an approximation because we may be limited by grid constraints which depend on the load and solar levels
     # which, in turn, may change throughout the peak.
-    assumed_time_to_empty_battery = timedelta(hours=(soe / bess_max_power_discharge))
+    if bess_max_power_discharge <= 0:
+        assumed_time_to_empty_battery = timedelta(minutes=0)
+    else:
+        assumed_time_to_empty_battery = timedelta(hours=(soe / bess_max_power_discharge))
 
     # We want to ensure that we empty the battery completely by the end of the peak period, and there is a
     # point into the peak where we must discharge at the max power to ensure that.

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "skypro"
-version = "0.11.0"
+version = "0.11.2"
 description = "Skyprospector command line tool by Cepro"
 authors = ["damonrand <damon@cepro.energy>"]
 license = "AGPL-3.0"
@@ -30,5 +30,5 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 skypro = "skypro.main:main"
-blah = "tests:run_tests"
-lints = "tests:run_linter"
+test = "tests:run_tests"
+lint = "tests:run_linter"
