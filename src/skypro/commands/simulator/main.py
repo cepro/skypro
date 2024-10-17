@@ -200,7 +200,7 @@ def run_one_simulation(
 
     # The algorithm has used the 'live' rates that were available at the simulated time, now we ascertain the 'final'
     # rates for use in reporting.
-    df["osam_ncsp"], _ = calculate_osam_ncsp(
+    df["osam_ncsp"], osam_df = calculate_osam_ncsp(
         df=df,
         index_to_calc_for=df.index,
         imp_bp_col="grid_import",
@@ -211,11 +211,11 @@ def run_one_simulation(
         exp_gen_col="solar",
     )
     # Inform any OSAM rate objects about the NCSP
-    total_osam_rates = 0.0
+    osam_rates = []
     for rate in final_rates.bess_charge_from_grid:
         if isinstance(rate, OSAMRate):
             rate.add_ncsp(df["osam_ncsp"])
-            total_osam_rates += rate.rate
+            osam_rates.append(rate)
 
     # Next we can calculate the individual p/kWh rates that apply for today
     final_ext_rates_dfs, final_int_rates_dfs = get_rates_dfs(df.index, final_rates)
@@ -268,7 +268,8 @@ def run_one_simulation(
         battery_nameplate_power=sim_config.site.bess.nameplate_power,
         site_import_limit=sim_config.site.grid_connection.import_limit,
         site_export_limit=sim_config.site.grid_connection.export_limit,
-        total_osam_rates=total_osam_rates,
+        osam_rates=osam_rates,
+        osam_df=osam_df,
         summary_output_config=summary_output_config
     )
 

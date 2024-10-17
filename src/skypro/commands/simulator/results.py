@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 import pandas as pd
 
@@ -7,6 +7,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from simt_common.microgrid.breakdown import breakdown_microgrid_flows
+from simt_common.rates.bill_match import bill_match
+from simt_common.rates.rates import OSAMRate
 from tabulate import tabulate
 
 from simt_common.analysis.daily_gains import plot_daily_gains
@@ -23,7 +25,8 @@ def explore_results(
         battery_nameplate_power: float,
         site_import_limit: float,
         site_export_limit: float,
-        total_osam_rates: float,
+        osam_rates: List[OSAMRate],
+        osam_df: pd.DataFrame,
         summary_output_config: Optional[OutputSummary]
 ) -> pd.DataFrame:
     """
@@ -90,6 +93,10 @@ def explore_results(
     print("")
     print(f"Solar self-use (inc batt losses): {breakdown.solar_self_use:,.2f} kWh, {(breakdown.solar_self_use/breakdown.total_flows['solar'])*100:.1f}% of the solar generation.")
 
+    total_osam_rates = 0.0
+    for rate in osam_rates:
+        total_osam_rates += rate.rate
+
     print("")
     print(f"Total OSAM rates: {total_osam_rates:.2f} p/kWh, Weighted average OSAM NCSP: {breakdown.avg_osam_ncsp:,.3f}, Weighted average rate: {(1-breakdown.avg_osam_ncsp)*total_osam_rates:.2f} p/kWh")
 
@@ -110,6 +117,18 @@ def explore_results(
 
     print("")
     print(f"Total external costs: £{total_ext_cost / 100:,.2f}")
+
+    bill_match(
+        grid_energy_flow=df["grid_import"],
+        # use the grid rates for bess_charge_from_grid as these include info about any OSAM rates
+        grid_rates=final_ext_rates_dfs["bess_charge_from_grid"],
+        osam_rates=osam_rates,
+        osam_df=osam_df,
+        cepro_bill_total_expected=breakdown.total_ext_costs["bess_charge_from_grid"] + breakdown.total_ext_costs[
+            "load_from_grid"],
+        context="import",
+        line_items=None,
+    )
 
     # Output a CSV file summarising the energy flows and costs
     if summary_output_config:
