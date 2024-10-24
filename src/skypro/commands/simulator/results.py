@@ -137,7 +137,7 @@ def explore_results(
     # Plot energy flows with charge / discharge limits
     if do_plots:
         plot_hh_strategy(df)
-        plot_microgrid_energy_flows(
+        plot_constraints(
             df, site_import_limit, site_export_limit, battery_nameplate_power
         )
         # plot_costs_by_grouping(costs_dfs["bess_charge"], costs_dfs["bess_discharge"])
@@ -197,7 +197,7 @@ def plot_hh_strategy(df: pd.DataFrame):
     fig.show()
 
 
-def plot_microgrid_energy_flows(df, site_import_limit, site_export_limit, battery_nameplate_power):
+def plot_constraints(df, site_import_limit, site_export_limit, battery_nameplate_power):
     """
     This plots the various power flows in teh microgrid with site import/export limits.
     """
@@ -208,6 +208,7 @@ def plot_microgrid_energy_flows(df, site_import_limit, site_export_limit, batter
     df_tmp["bess_power"] = df["energy_delta"] / time_step_hours
     df_tmp["solar_to_grid_power"] = -df["solar_to_grid"] / time_step_hours
     df_tmp["load_from_grid_power"] = df["load_from_grid"] / time_step_hours
+    df_tmp["grid_net"] = df_tmp["load_power"] + df_tmp["solar_power"] + df_tmp["bess_power"]
 
     fig = px.line(df_tmp, line_shape='hv')
     fig.add_hline(y=site_import_limit, line_dash="dot", annotation_text="Site import limit")
