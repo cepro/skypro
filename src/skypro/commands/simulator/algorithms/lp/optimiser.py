@@ -38,12 +38,24 @@ class Optimiser:
         if algo_config.blocks.do_active_export_constraint_management:
             self._df_in["min_charge"] = self._df_in[self._df_in["bess_max_discharge"] < 0]["bess_max_discharge"] * -1
             self._df_in["min_charge"] = self._df_in["min_charge"].fillna(0)
-            # If the min charge is a floating point error away from solar_not_supplying_load then make them equal
-            # to avoid constraint issues
+            # The min_charge constraint is currently applied to the 'charge from solar' flow, as it was used to
+            # manage excess solar power. If the min charge is a floating point error away from solar_not_supplying_load
+            # then make them equal to avoid constraint issues.
             close_idx = self._df_in.index[np.isclose(self._df_in["min_charge"], self._df_in["solar_not_supplying_load"])]
             self._df_in.loc[close_idx, "min_charge"] = self._df_in.loc[close_idx, "solar_not_supplying_load"]
         else:
             self._df_in["min_charge"] = 0.0
+
+        if algo_config.blocks.do_active_import_constraint_management:
+            self._df_in["min_discharge"] = self._df_in[self._df_in["bess_max_charge"] < 0]["bess_max_charge"] * -1
+            self._df_in["min_discharge"] = self._df_in["min_discharge"].fillna(0)
+            # The min_discharge constraint is currently applied to the 'discharge to load' flow, as it was used to
+            # manage excess load. If the min discharge is a floating point error away from load_not_supplied_by_solar
+            # then make them equal to avoid constraint issues.
+            close_idx = self._df_in.index[np.isclose(self._df_in["min_discharge"], self._df_in["load_not_supplied_by_solar"])]
+            self._df_in.loc[close_idx, "min_discharge"] = self._df_in.loc[close_idx, "load_not_supplied_by_solar"]
+        else:
+            self._df_in["min_discharge"] = 0.0
 
     def run(self) -> pd.DataFrame:
         """
@@ -183,7 +195,7 @@ class Optimiser:
             lp_var_bess_discharges_to_load.append(
                 pulp.LpVariable(
                     name=f"bess_discharge_to_load_{t}",
-                    lowBound=0.0,
+                    lowBound=df_in.iloc[t]["min_discharge"],
                     upBound=df_in.iloc[t]["load_not_supplied_by_solar"]
                 )
             )
