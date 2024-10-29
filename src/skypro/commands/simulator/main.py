@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 import pytz
 
 from simt_common.jsonconfig.rates import parse_supply_points, process_rates_for_all_energy_flows
-from simt_common.microgrid.output import save_microgrid_output
+from simt_common.microgrid.output import generate_output_df
 from simt_common.rates.microgrid import get_rates_dfs, RatesForEnergyFlows
 from simt_common.rates.osam import calculate_osam_ncsp
 from simt_common.rates.rates import OSAMRate
@@ -73,9 +73,7 @@ def simulate(
             sim_config=sim_config,
             do_plots=do_plots
         )
-
         # Maintain a dataframe containing the summaries of each simulation
-        sim_summary_df = sim_summary_df.reset_index()
         sim_summary_df.insert(0, "sim_name", sim_name)
         summary_df = pd.concat([summary_df, sim_summary_df], axis=0)
 
@@ -228,16 +226,16 @@ def run_one_simulation(
 
     # Generate an output file if configured to do so
     simulation_output_config = sim_config.output.simulation if sim_config.output else None
-    if simulation_output_config:
-        save_microgrid_output(
+    if simulation_output_config and simulation_output_config.csv:
+        logging.info(f"Generating output to {simulation_output_config.csv}...")
+        generate_output_df(
             df=df,
             int_final_rates_dfs=final_int_rates_dfs,
             ext_final_rates_dfs=final_ext_rates_dfs,
             int_live_rates_dfs=None,  # These 'live' rates aren't available in the output CSV at the moment as they are
             ext_live_rates_dfs=None,  # calculated by the price curve algo internally and not returned
             load_energy_breakdown_df=load_energy_breakdown_df,
-            output_file_path=simulation_output_config.csv,
-            aggregate=simulation_output_config.aggregate,
+            aggregate_timebase=simulation_output_config.aggregate,
             rate_detail=simulation_output_config.rate_detail,
             config_entries=[
                 ("skypro.version", importlib.metadata.version('skypro')),
@@ -255,11 +253,34 @@ def run_one_simulation(
                 ("strategy.priceCurveAlgo", sim_config.strategy.price_curve_algo),
                 ("rates", sim_config.rates),
             ]
+        ).to_csv(
+            simulation_output_config.csv,
+            index_label="utctime"
         )
 
-    # Generate a summary of the results to return
-    summary_output_config = sim_config.output.summary if sim_config.output else None
-    sim_summary_df = explore_results(
+    save_summary = sim_config.output and sim_config.output.summary and sim_config.output.summary.csv
+    if save_summary:
+        logging.info(f"Generating summary to {sim_config.output.summary.csv}...")
+    else:
+        logging.info("Generating summary...")
+
+    # The summary dataframe is just an output dataframe with aggregate_timebase set to 'all'
+    sim_summary_df = generate_output_df(
+        df=df,
+        int_final_rates_dfs=final_int_rates_dfs,
+        ext_final_rates_dfs=final_ext_rates_dfs,
+        int_live_rates_dfs=None,  # These 'live' rates aren't available in the output CSV at the moment as they are
+        ext_live_rates_dfs=None,  # calculated by the price curve algo internally and not returned
+        load_energy_breakdown_df=load_energy_breakdown_df,
+        aggregate_timebase="all",
+        rate_detail=None,
+        config_entries=[],
+    )
+
+    if save_summary:
+        sim_summary_df.to_csv(sim_config.output.summary.csv, index=False)
+
+    explore_results(
         df=df,
         final_ext_rates_dfs=final_ext_rates_dfs,
         final_int_rates_dfs=final_int_rates_dfs,
@@ -270,7 +291,6 @@ def run_one_simulation(
         site_export_limit=sim_config.site.grid_connection.export_limit,
         osam_rates=osam_rates,
         osam_df=osam_df,
-        summary_output_config=summary_output_config
     )
 
     return sim_summary_df
