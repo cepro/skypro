@@ -381,7 +381,9 @@ def check_algo_result_consistency(df_algo: pd.DataFrame, df_in: pd.DataFrame, ba
     bess_losses = charges * (1 - battery_charge_efficiency)
     bess_losses_check = pd.Series(index=df_algo.index, data=0.0)
     bess_losses_check.loc[bess_losses.index] = bess_losses
-    if (bess_losses_check - df_algo["bess_losses"]).abs().max() > tolerance:
+    bess_losses_error = bess_losses_check - df_algo["bess_losses"]
+    bess_losses_error = bess_losses_error.iloc[:-1]  # There isn't a valid check for the last row
+    if bess_losses_error.abs().max() > tolerance:
         raise AssertionError("Algorithm solution has inconsistent bess losses")
 
     # Check that the max charge/discharges are not breached
