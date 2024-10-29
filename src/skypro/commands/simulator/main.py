@@ -95,7 +95,7 @@ def run_one_simulation(
     # The simulation runs at 10 minute granularity, create a time index for that
     time_index = pd.date_range(
         start=sim_config.start.astimezone(pytz.UTC),
-        end=sim_config.end.astimezone(pytz.UTC),
+        end=sim_config.end.astimezone(pytz.UTC) - STEP_SIZE,
         freq=STEP_SIZE
     )
     time_index = time_index.tz_convert(pytz.timezone("Europe/London"))
