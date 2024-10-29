@@ -24,24 +24,62 @@ class TestIntegration(unittest.TestCase):
 
         subtests = [
             SubTest(
-                msg="below",
+                msg="integrationTestPriceCurve",
                 sim_name="integrationTestPriceCurve",
                 expected_summary_df=pd.DataFrame.from_dict({
-                    "flow": ["gridToBatt", "battToGrid", "solarToGrid", "gridToLoad", "solarToBatt", "battToLoad", "solarToLoad"],
-                    "volume": [29774.99, 22557.51, 872.40, 29364.75, 309.14, 3339.95, 5022.52],
-                    "int_cost": [2421.65, -3956.13, -72.35, 3180.37, 18.97, -728.92, -535.79],
-                    "ext_cost": [2421.65, -3956.13, -72.35, 3180.37, 0.0, 0.0, 0.0]
-                }).set_index("flow")
+                    "c:solarToGrid": [872.40],
+                    "c:gridToLoad": [29364.75],
+                    "c:solarToLoad": [5022.52],
+                    "c:battToLoad": [3339.95],
+                    "c:battToGrid": [22557.51],
+                    "c:solarToBatt": [309.14],
+                    "c:gridToBatt": [29774.99],
+
+                    "irate:gridToBatt.final": [8.1332],
+                    "irate:battToGrid.final": [-17.5380],
+                    "irate:solarToGrid.final": [-8.2932],
+                    "irate:gridToLoad.final": [10.8306],
+                    "irate:solarToBatt.final": [6.1364],
+                    "irate:battToLoad.final": [-21.8243],
+                    "irate:solarToLoad.final": [-10.6678],
+
+                    "rate:gridToBatt.final": [8.1332],
+                    "rate:battToGrid.final": [-17.5380],
+                    "rate:solarToGrid.final": [-8.2932],
+                    "rate:gridToLoad.final": [10.8306],
+                    "rate:solarToBatt.final": [0.0],
+                    "rate:battToLoad.final": [0.0],
+                    "rate:solarToLoad.final": [0.0],
+                })
             ),
             SubTest(
-                msg="below",
+                msg="integrationTestPerfectHindsightLP",
                 sim_name="integrationTestPerfectHindsightLP",
                 expected_summary_df=pd.DataFrame.from_dict({
-                    "flow":     ["gridToBatt", "battToGrid",    "solarToGrid",  "gridToLoad",   "solarToBatt",  "battToLoad",   "solarToLoad"],
-                    "volume":   [51352.98,      31305.08,       277.51,         18951.33,       904.03,         13753.37,       5022.52],
-                    "int_cost": [3835.42,       -5146.23,       -30.05,         1739.89,        61.26,          -2169.41,       -535.79],
-                    "ext_cost": [3835.42,       -5146.23,       -30.05,         1739.89,        0.0,            0.0,            0.0]
-                }).set_index("flow")
+                    "c:solarToGrid": [277.51],
+                    "c:gridToLoad": [18951.33],
+                    "c:solarToLoad": [5022.52],
+                    "c:battToLoad": [13753.37],
+                    "c:battToGrid": [31305.08],
+                    "c:solarToBatt": [904.03],
+                    "c:gridToBatt": [51352.98],
+
+                    "irate:gridToBatt.final": [7.4687],
+                    "irate:battToGrid.final": [-16.4390],
+                    "irate:solarToGrid.final": [-10.8284],
+                    "irate:gridToLoad.final": [9.1808],
+                    "irate:solarToBatt.final": [6.7763],
+                    "irate:battToLoad.final": [-15.7736],
+                    "irate:solarToLoad.final": [-10.6678],
+
+                    "rate:gridToBatt.final": [7.4687],
+                    "rate:battToGrid.final": [-16.4390],
+                    "rate:solarToGrid.final": [-10.8284],
+                    "rate:gridToLoad.final": [9.1808],
+                    "rate:solarToBatt.final": [0.0],
+                    "rate:battToLoad.final": [0.0],
+                    "rate:solarToLoad.final": [0.0],
+                })
             ),
         ]
 
@@ -67,14 +105,11 @@ class TestIntegration(unittest.TestCase):
 
                 df = pd.read_csv("./src/tests/integration/output_summary.csv")
 
-                # The avg rate columns are a simple calculation from the other two columns, so don't bother testing these
-                df = df.drop(columns=["int_avg_rate", "ext_avg_rate"])
-                df = df.set_index("flow")
-
-                self.assertEqual(df.columns.to_list(), sub.expected_summary_df.columns.to_list())
+                columns_to_compare = sub.expected_summary_df.columns
+                df = df[columns_to_compare]
 
                 error = (df - sub.expected_summary_df).abs()
-                tolerance = 0.1
+                tolerance = 0.01
 
                 self.assertEqual(
                     (error > tolerance).sum().sum(),
