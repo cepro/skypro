@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Dict, Optional, List
+from typing import Dict, List
 
 import pandas as pd
 
@@ -12,8 +12,6 @@ from simt_common.rates.rates import OSAMRate
 from tabulate import tabulate
 
 from simt_common.analysis.daily_gains import plot_daily_gains
-
-from skypro.commands.simulator.config.config_v4 import OutputSummary
 
 
 def explore_results(
