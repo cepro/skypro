@@ -243,6 +243,7 @@ class OptimiserBlocks:
     duration_days: Optional[int] = field(metadata={"data_key": "durationDays"}, default=5)
     used_duration_days: Optional[int] = field(metadata={"data_key": "usedDurationDays"}, default=3)
     do_active_export_constraint_management: Optional[bool] = field(metadata={"data_key": "doActiveExportConstraintManagement"}, default=False)
+    do_active_import_constraint_management: Optional[bool] = field(metadata={"data_key": "doActiveImportConstraintManagement"}, default=False)
 
     def __post_init__(self):
         if self.duration_days <= 0 or self.used_duration_days <= 0:
