@@ -96,9 +96,9 @@ A JSON configuration file defines the simulation scenario and is in the format s
 ```
 
 ## Running tests
-To run the unit tests: `python -m unittest discover  --start-directory src`
+To run the unit tests: `PYTHONPATH=src python -m unittest discover  --start-directory src`
 
-To run integration test directly: `simulate --env /Users/marcuswood/Desktop/all/repos/skypro-cli/src/tests/integration/fixtures/env.json --config /Users/marcuswood/Desktop/all/repos/skypro-cli/src/tests/integration/fixtures/config_2.yaml -y --sim integrationTestPerfectHindsightLP`
+To run integration test directly: `simulate --env /Users/marcuswood/Desktop/all/repos/skypro-cli/src/tests/integration/fixtures/env.json --config /Users/marcuswood/Desktop/all/repos/skypro-cli/src/tests/integration/fixtures/config.yaml -y --sim integrationTestPerfectHindsightLP`
 
 ### Publishing to test pypi
 To publish the repository to test.pypi:
