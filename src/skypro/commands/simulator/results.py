@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Dict, Optional, List
+from typing import Dict, List
 
 import pandas as pd
 
@@ -13,8 +13,6 @@ from tabulate import tabulate
 
 from simt_common.analysis.daily_gains import plot_daily_gains
 
-from skypro.commands.simulator.config.config_v4 import OutputSummary
-
 
 def explore_results(
         df: pd.DataFrame,
@@ -27,11 +25,10 @@ def explore_results(
         site_export_limit: float,
         osam_rates: List[OSAMRate],
         osam_df: pd.DataFrame,
-        summary_output_config: Optional[OutputSummary]
-) -> pd.DataFrame:
+):
     """
     Generally explores/plots the results, including logging the weighted average prices, cycling statistics, and
-    benchmark £/kW and £/kWh values for the simulation. Returns a dataframe summarising the results
+    benchmark £/kW and £/kWh values for the simulation.
     """
 
     df = df.copy()
@@ -130,10 +127,6 @@ def explore_results(
         line_items=None,
     )
 
-    # Output a CSV file summarising the energy flows and costs
-    if summary_output_config:
-        breakdown.fundamental_flows_summary_df.to_csv(summary_output_config.csv, index=True)
-
     # Plot energy flows with charge / discharge limits
     if do_plots:
         plot_hh_strategy(df)
@@ -143,7 +136,7 @@ def explore_results(
         # plot_costs_by_grouping(costs_dfs["bess_charge"], costs_dfs["bess_discharge"])
         plot_daily_gains(breakdown.int_costs_dfs)
 
-    return breakdown.fundamental_flows_summary_df
+    return
 
 
 def plot_hh_strategy(df: pd.DataFrame):

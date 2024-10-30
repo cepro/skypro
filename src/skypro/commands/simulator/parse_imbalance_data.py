@@ -34,9 +34,11 @@ def read_imbalance_data(
     if "predictionUTCTime" in volume_df.columns:
         volume_df["predictionUTCTime"] = pd.to_datetime(volume_df["predictionUTCTime"], format="ISO8601")
 
+    end_floor_hh = floor_hh(end)
+
     if start < min(price_df["spUTCTime"]) or start < min(volume_df["spUTCTime"]):
         raise ValueError("Simulation start time is outside of imbalance data range. Do you need to download more imbalance data?")
-    if end > max(price_df["spUTCTime"]) or end > max(volume_df["spUTCTime"]):
+    if end_floor_hh > max(price_df["spUTCTime"]) or end_floor_hh > max(volume_df["spUTCTime"]):
         raise ValueError("Simulation end time is outside of imbalance volume data range. Do you need to download more imbalance data?")
 
     # Remove data out of the time range of interest

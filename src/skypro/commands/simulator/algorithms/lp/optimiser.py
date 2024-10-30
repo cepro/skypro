@@ -5,6 +5,7 @@ import pulp
 import pandas as pd
 from simt_common.rates.microgrid import RatesForEnergyFlows
 from simt_common.timeutils.math import floor_day, add_wallclock_days
+from simt_common.timeutils.timeseries import get_step_size
 
 from skypro.commands.simulator.algorithms.rate_management import run_osam_calcs_for_day, add_total_rates_to_df
 
@@ -74,11 +75,13 @@ class Optimiser:
 
         df_out = pd.DataFrame()
 
+        step_size = get_step_size(self._df_in.index)
+
         current_start_t = self._df_in.index[0]
         end_t = self._df_in.index[-1]
         while current_start_t < end_t:
-            current_end_t = add_wallclock_days(floor_day(current_start_t), self._algo_config.blocks.duration_days)
-            current_end_to_use_t = add_wallclock_days(floor_day(current_start_t), self._algo_config.blocks.used_duration_days)
+            current_end_t = add_wallclock_days(floor_day(current_start_t), self._algo_config.blocks.duration_days) - step_size
+            current_end_to_use_t = add_wallclock_days(floor_day(current_start_t), self._algo_config.blocks.used_duration_days) - step_size
             if current_end_t > end_t:
                 current_end_t = end_t
             if current_end_to_use_t > end_t:
@@ -113,13 +116,13 @@ class Optimiser:
             n_timeslots_with_nan_pricing += block_num_nan
 
             # Only keep the time range that we 'should use' (this is discussed above)
-            block_df_out_to_use = block_df_out.loc[:current_end_to_use_t].iloc[:-1]
+            block_df_out_to_use = block_df_out.loc[:current_end_to_use_t]
 
             # Create a single dataframe with the results of all the individual optimisations
             df_out = pd.concat([df_out, block_df_out_to_use], axis=0)
 
             # Prepare for the next iteration
-            current_start_t = current_end_to_use_t
+            current_start_t = current_end_to_use_t + step_size
             if len(block_df_out) > len(block_df_out_to_use):
                 init_soe = block_df_out.iloc[len(block_df_out_to_use)]["soe"]
             else:
@@ -290,7 +293,7 @@ class Optimiser:
         problem += lp_var_bess_soe[0] == init_soe
 
         # Don't allow any battery activity in the last period as this requires more complicated constraints to make it
-        # work, instead just ignore the last period and drop it from the results.
+        # work (the end of each optimisation is dropped anyway as the individual optimisations runs are combined)
         problem += lp_var_bess_charges_from_solar[-1] == 0
         problem += lp_var_bess_charges_from_grid[-1] == 0
         problem += lp_var_bess_discharges_to_load[-1] == 0
@@ -315,7 +318,6 @@ class Optimiser:
             raise RuntimeError("Failed to solve optimisation problem")
 
         df_sol = _get_solution_as_dataframe(problem.variables(), df_in.index)
-        df_sol = df_sol.iloc[:-1, :]  # Drop the last row because the last time slot is not actually optimised
 
         self._ensure_merit_order_of_charge_and_discharge(df_sol)
 
