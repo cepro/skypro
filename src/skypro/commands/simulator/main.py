@@ -96,6 +96,11 @@ def run_one_simulation(
     Runs a single simulation as defined by the configuration and returns a dataframe containing a summary of the results
     """
 
+    time_index_start = sim_config.start.astimezone(pytz.UTC)
+    time_index_end = sim_config.end.astimezone(pytz.UTC) - STEP_SIZE
+    if time_index_end <= time_index_start:
+        raise ValueError("Simulation end time is before the start time")
+
     # The simulation runs at 10 minute granularity, create a time index for that
     time_index = pd.date_range(
         start=sim_config.start.astimezone(pytz.UTC),
