@@ -62,6 +62,12 @@ def simulate(
     else:
         raise KeyError(f"Simulation case '{chosen_sim_name}' is not defined in the configuration.")
 
+    if config.all_sims and config.all_sims.output and config.all_sims.output.summary and config.all_sims.output.summary.rate_detail:
+        raise ValueError(
+            "The 'rateDetail' option is invalid for allSimulations - please specify the rateDetail option within"
+            " each simulations' summary output configuration."
+        )
+
     summary_df = pd.DataFrame()
 
     for sim_name, sim_config in simulations.items():
@@ -89,6 +95,11 @@ def run_one_simulation(
     """
     Runs a single simulation as defined by the configuration and returns a dataframe containing a summary of the results
     """
+
+    time_index_start = sim_config.start.astimezone(pytz.UTC)
+    time_index_end = sim_config.end.astimezone(pytz.UTC) - STEP_SIZE
+    if time_index_end <= time_index_start:
+        raise ValueError("Simulation end time is before the start time")
 
     # The simulation runs at 10 minute granularity, create a time index for that
     time_index = pd.date_range(
@@ -273,7 +284,7 @@ def run_one_simulation(
         ext_live_rates_dfs=None,  # calculated by the price curve algo internally and not returned
         load_energy_breakdown_df=load_energy_breakdown_df,
         aggregate_timebase="all",
-        rate_detail=None,
+        rate_detail=sim_config.output.summary.rate_detail if (sim_config.output and sim_config.output.summary) else None,
         config_entries=[],
     )
 
