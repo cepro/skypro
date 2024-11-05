@@ -62,6 +62,12 @@ def simulate(
     else:
         raise KeyError(f"Simulation case '{chosen_sim_name}' is not defined in the configuration.")
 
+    if config.all_sims and config.all_sims.output and config.all_sims.output.summary and config.all_sims.output.summary.rate_detail:
+        raise ValueError(
+            "The 'rateDetail' option is invalid for allSimulations - please specify the rateDetail option within"
+            " each simulations' summary output configuration."
+        )
+
     summary_df = pd.DataFrame()
 
     for sim_name, sim_config in simulations.items():
@@ -273,7 +279,7 @@ def run_one_simulation(
         ext_live_rates_dfs=None,  # calculated by the price curve algo internally and not returned
         load_energy_breakdown_df=load_energy_breakdown_df,
         aggregate_timebase="all",
-        rate_detail=None,
+        rate_detail=sim_config.output.summary.rate_detail if (sim_config.output and sim_config.output.summary) else None,
         config_entries=[],
     )
 

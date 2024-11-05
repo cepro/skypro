@@ -22,6 +22,7 @@ class TimeFrame:
 @dataclass
 class OutputSummary:
     csv: PathType
+    rate_detail: Optional[str] = name_in_json("rateDetail")
 
 
 @dataclass
