@@ -155,10 +155,14 @@ def get_peak_approach_energies(
         force_energy = 0
 
     if is_long:
+        if peak_config.approach.encourage_to_soe:
+            encourage_to_soe = peak_config.approach.encourage_to_soe
+        else:
+            encourage_to_soe = peak_config.approach.to_soe
         encourage_curve = _get_approach_curve(
             peak_start=peak_start,
             peak_end=peak_end,
-            to_soe=peak_config.approach.to_soe,
+            to_soe=encourage_to_soe,
             charge_efficiency=charge_efficiency,
             assumed_charge_power=peak_config.approach.assumed_charge_power,
             charge_cushion=peak_config.approach.charge_cushion,
