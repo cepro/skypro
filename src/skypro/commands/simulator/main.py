@@ -418,10 +418,11 @@ def process_profiles(
 
     if config.profile:
         profile_configs = [config.profile]
-    elif config.profiles:
+    elif isinstance(config, Load) and config.profiles:
         profile_configs = config.profiles
     elif not np.isnan(config.constant):
-        return pd.Series(index=time_index, data=config.constant)
+        energy = pd.Series(index=time_index, data=config.constant)
+        return energy.to_frame(), energy_to_power(energy)
     else:
         raise ValueError("Configuration must have either 'profile', 'profiles' or 'constant'")
 
@@ -442,7 +443,7 @@ def process_profiles(
             energy_cols=profile_config.energy_cols,
         )
         energy = profiler.get_for(time_index)
-        power = energy / (STEP_SIZE.total_seconds() / 3600)
+        power = energy_to_power(energy)
 
         # There may be multiple profiles under the same tag - in which case the profiles are added together under the
         # tag name.
@@ -473,3 +474,7 @@ def process_profiles(
         fig.show()
 
     return energy_df, total_power
+
+
+def energy_to_power(energy: pd.Series) -> pd.Series:
+    return energy / (STEP_SIZE.total_seconds() / 3600)
