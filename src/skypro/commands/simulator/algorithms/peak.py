@@ -125,7 +125,7 @@ def get_peak_approach_energies(
     """
     # TODO: this approach won't work if the approach curve crosses over a midnight boundary
 
-    if not peak_config.period or peak_config.approach.to_soe == 0:
+    if not peak_config.period or (peak_config.approach.to_soe == 0 and peak_config.approach.encourage_to_soe == 0):
         return 0.0, 0.0
 
     t = t.astimezone(TIMEZONE)
