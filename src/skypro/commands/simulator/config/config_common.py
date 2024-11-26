@@ -173,6 +173,7 @@ class Rates:
 @dataclass
 class Approach:
     to_soe: float = name_in_json("toSoe")
+    encourage_to_soe: Optional[float] = name_in_json("encourageToSoe")
     assumed_charge_power: float = name_in_json("assumedChargePower")
     encourage_charge_duration_factor: float = name_in_json("encourageChargeDurationFactor")
     force_charge_duration_factor: float = name_in_json("forceChargeDurationFactor")
