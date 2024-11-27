@@ -2,19 +2,18 @@ import importlib.metadata
 import logging
 import os
 from datetime import timedelta
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import pytz
 
-from simt_common.jsonconfig.rates import parse_supply_points, process_rates_for_all_energy_flows
-from simt_common.jsonconfig.rates_fixed import process_fixed_rates
+from simt_common.jsonconfig.rates import parse_supply_points, process_rates_for_all_energy_flows, process_rate_files
 from simt_common.microgrid.output import generate_output_df
 from simt_common.rates.microgrid import get_rates_dfs, RatesForEnergyFlows
 from simt_common.rates.osam import calculate_osam_ncsp
-from simt_common.rates.rates import OSAMRate
+from simt_common.rates.rates import OSAMRate, FixedRate, Rate
 from simt_common.timeutils.math import floor_hh
 
 from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings
@@ -111,7 +110,7 @@ def run_one_simulation(
     time_index = time_index.tz_convert(pytz.timezone("Europe/London"))
 
     # Extract the rates objects from the config files
-    live_rates, final_rates, imbalance_df = get_rates_from_config(time_index, sim_config.rates)
+    live_rates, final_rates, imbalance_df, fixed_market_rates, customer_rates = get_rates_from_config(time_index, sim_config.rates)
 
     # Log the parsed rates for user information
     for name, rate_set in live_rates.get_all_sets_named():
@@ -236,8 +235,6 @@ def run_one_simulation(
     for set_name, rates_df in final_int_rates_dfs.items():
         df[f"int_rate_final_{set_name}"] = rates_df.sum(axis=1, skipna=False)
 
-    # Read in fixed rates just to output them in the CSV
-    fixed_rates = process_fixed_rates(files=sim_config.rates.final.experimental.fixed_files)
 
     # Generate an output file if configured to do so
     simulation_output_config = sim_config.output.simulation if sim_config.output else None
@@ -249,7 +246,8 @@ def run_one_simulation(
             ext_final_rates_dfs=final_ext_rates_dfs,
             int_live_rates_dfs=None,  # These 'live' rates aren't available in the output CSV at the moment as they are
             ext_live_rates_dfs=None,  # calculated by the price curve algo internally and not returned
-            fixed_rates=fixed_rates,
+            fixed_market_rates=fixed_market_rates,
+            customer_rates=customer_rates,
             load_energy_breakdown_df=load_energy_breakdown_df,
             aggregate_timebase=simulation_output_config.aggregate,
             rate_detail=simulation_output_config.rate_detail,
@@ -287,7 +285,8 @@ def run_one_simulation(
         ext_final_rates_dfs=final_ext_rates_dfs,
         int_live_rates_dfs=None,  # These 'live' rates aren't available in the output CSV at the moment as they are
         ext_live_rates_dfs=None,  # calculated by the price curve algo internally and not returned
-        fixed_rates=fixed_rates,
+        fixed_market_rates=fixed_market_rates,
+        customer_rates=customer_rates,
         load_energy_breakdown_df=load_energy_breakdown_df,
         aggregate_timebase="all",
         rate_detail=sim_config.output.summary.rate_detail if (sim_config.output and sim_config.output.summary) else None,
@@ -316,7 +315,7 @@ def run_one_simulation(
 def get_rates_from_config(
         time_index: pd.DatetimeIndex,
         rates_config: AllRates
-) -> Tuple[RatesForEnergyFlows, RatesForEnergyFlows, pd.DataFrame]:
+) -> Tuple[RatesForEnergyFlows, RatesForEnergyFlows, pd.DataFrame, List[FixedRate], List[Rate]]:
     """
     This reads the files defined in the given rates configuration block and returns the live and final rates objects,
     and a dataframe containing live and final imbalance data.
@@ -368,7 +367,22 @@ def get_rates_from_config(
         imbalance_pricing=df["imbalance_price_live"]
     )
 
-    return live_rates, final_rates, df
+    # Read in fixed rates just to output them in the CSV
+    fixed_market_rates = process_rate_files(
+        files=rates_config.final.experimental.fixed_market_files,
+        supply_points=final_supply_points,
+        imbalance_pricing=None,
+    )
+
+    customer_rates = process_rate_files(
+        files=rates_config.final.experimental.customer_load_files,
+        supply_points=final_supply_points,
+        imbalance_pricing=None,
+    )
+
+    # TODO: we need to be sure that there are no fixed rates in live + final, and only fixed rates in fixed_market_rates
+
+    return live_rates, final_rates, df, fixed_market_rates, customer_rates
 
 
 def check_algo_result_consistency(df_algo: pd.DataFrame, df_in: pd.DataFrame, battery_charge_efficiency: float):

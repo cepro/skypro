@@ -161,7 +161,8 @@ class RatesFiles:
 
 @dataclass
 class ExperimentalRates:
-    fixed_files: List[PathType] = name_in_json("fixedFiles")
+    fixed_market_files: List[PathType] = name_in_json("fixedMarketCostFiles")
+    customer_load_files: List[PathType] = name_in_json("customerLoadFiles")
 
 
 @dataclass
