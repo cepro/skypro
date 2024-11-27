@@ -10,6 +10,7 @@ import plotly.graph_objects as go
 import pytz
 
 from simt_common.jsonconfig.rates import parse_supply_points, process_rates_for_all_energy_flows
+from simt_common.jsonconfig.rates_fixed import process_fixed_rates
 from simt_common.microgrid.output import generate_output_df
 from simt_common.rates.microgrid import get_rates_dfs, RatesForEnergyFlows
 from simt_common.rates.osam import calculate_osam_ncsp
@@ -235,6 +236,9 @@ def run_one_simulation(
     for set_name, rates_df in final_int_rates_dfs.items():
         df[f"int_rate_final_{set_name}"] = rates_df.sum(axis=1, skipna=False)
 
+    # Read in fixed rates just to output them in the CSV
+    fixed_rates = process_fixed_rates(files=sim_config.rates.final.experimental.fixed_files)
+
     # Generate an output file if configured to do so
     simulation_output_config = sim_config.output.simulation if sim_config.output else None
     if simulation_output_config and simulation_output_config.csv:
@@ -245,6 +249,7 @@ def run_one_simulation(
             ext_final_rates_dfs=final_ext_rates_dfs,
             int_live_rates_dfs=None,  # These 'live' rates aren't available in the output CSV at the moment as they are
             ext_live_rates_dfs=None,  # calculated by the price curve algo internally and not returned
+            fixed_rates=fixed_rates,
             load_energy_breakdown_df=load_energy_breakdown_df,
             aggregate_timebase=simulation_output_config.aggregate,
             rate_detail=simulation_output_config.rate_detail,
@@ -282,6 +287,7 @@ def run_one_simulation(
         ext_final_rates_dfs=final_ext_rates_dfs,
         int_live_rates_dfs=None,  # These 'live' rates aren't available in the output CSV at the moment as they are
         ext_live_rates_dfs=None,  # calculated by the price curve algo internally and not returned
+        fixed_rates=fixed_rates,
         load_energy_breakdown_df=load_energy_breakdown_df,
         aggregate_timebase="all",
         rate_detail=sim_config.output.summary.rate_detail if (sim_config.output and sim_config.output.summary) else None,

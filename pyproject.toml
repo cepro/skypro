@@ -17,7 +17,7 @@ tabulate = "^0.9.0"
 ruff = "^0.5.6"
 pulp = "^2.9.0"
 pendulum = "^3.0.0"
-simt-common = {version = "^4.1.1", source = "testpypi"}
+simt-common = {path = "../simt-common", develop = true}
 
 [[tool.poetry.source]]
 name = "testpypi"

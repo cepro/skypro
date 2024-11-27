@@ -28,7 +28,7 @@ class PathField(fields.Field):
     vars_for_substitution = {}  # class variable defines any variables for substitution into the paths
 
     def _serialize(self, value, attr, obj, **kwargs):
-        raise ValueError("Serialization not yet defined")
+        raise NotImplementedError("Serialization not yet defined")
 
     def _deserialize(self, value, attr, data, **kwargs):
         # Expand any `~/` syntax and $ENV_VARS that are used
@@ -160,6 +160,11 @@ class RatesFiles:
 
 
 @dataclass
+class ExperimentalRates:
+    fixed_files: List[PathType] = name_in_json("fixedFiles")
+
+
+@dataclass
 class Rates:
     """
     Note that this class just holds the paths to the rates/supply point configuration files. The actual parsing of the
@@ -168,6 +173,7 @@ class Rates:
     supply_points_config_file: PathType = name_in_json("supplyPointsConfigFile")
     imbalance_data_source: ImbalanceDataSource = name_in_json("imbalanceDataSource")
     files: RatesFiles
+    experimental: Optional[ExperimentalRates]
 
 
 @dataclass
