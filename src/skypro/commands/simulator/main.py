@@ -1,7 +1,7 @@
 import importlib.metadata
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Optional, Tuple, List
 
@@ -41,10 +41,10 @@ class ParsedRates:
     This is just a container to hold the various rates
     """
     # TODO: Rename live_vol -> live_sup_vol? and fixed_market -> sup_fix?
-    live_vol: VolRatesForEnergyFlows   # Volume-based (p/kWh) rates for each energy flow, as predicted in real-time
-    final_vol: VolRatesForEnergyFlows  # Volume-based (p/kWh) rates for each energy flow
-    fixed_market: List[FixedRate]      # Fixed p/day rates associated with suppliers
-    customer: List[Rate]               # Volume and fixed rates charged to customers
+    live_vol: VolRatesForEnergyFlows = VolRatesForEnergyFlows()   # Volume-based (p/kWh) rates for each energy flow, as predicted in real-time
+    final_vol: VolRatesForEnergyFlows = VolRatesForEnergyFlows()  # Volume-based (p/kWh) rates for each energy flow
+    fixed_market: List[FixedRate] = field(default_factory=list)      # Fixed p/day rates associated with suppliers
+    customer: List[Rate] = field(default_factory=list)               # Volume and fixed rates charged to customers
 
 
 def simulate(
@@ -356,7 +356,9 @@ def get_rates_from_config(
     live_df = normalise_live_imbalance_data(time_index, live_price_df, live_volume_df)
     df = pd.concat([final_df, live_df], axis=1)
 
-    final_vol_rates = parse_rates_files_for_all_energy_flows(
+    parsed_rates = ParsedRates()
+
+    parsed_rates.final_vol = parse_rates_files_for_all_energy_flows(
         bess_charge_from_solar=rates_config.final.files.bess_charge_from_solar,
         bess_charge_from_grid=rates_config.final.files.bess_charge_from_grid,
         bess_discharge_to_load=rates_config.final.files.bess_discharge_to_load,
@@ -367,7 +369,7 @@ def get_rates_from_config(
         supply_points=final_supply_points,
         imbalance_pricing=df["imbalance_price_final"]
     )
-    live_vol_rates = parse_rates_files_for_all_energy_flows(
+    parsed_rates.live_vol = parse_rates_files_for_all_energy_flows(
         bess_charge_from_solar=rates_config.live.files.bess_charge_from_solar,
         bess_charge_from_grid=rates_config.live.files.bess_charge_from_grid,
         bess_discharge_to_load=rates_config.live.files.bess_discharge_to_load,
@@ -379,25 +381,21 @@ def get_rates_from_config(
         imbalance_pricing=df["imbalance_price_live"]
     )
 
-    # Read in fixed rates just to output them in the CSV
-    fixed_market_rates = parse_rate_files(
-        files=rates_config.final.experimental.fixed_market_files,
-        supply_points=final_supply_points,
-        imbalance_pricing=None,
-    )
+    if rates_config.final.experimental:
+        if rates_config.final.experimental.fixed_market_files:
+            # Read in fixed rates just to output them in the CSV
+            parsed_rates.fixed_market = parse_rate_files(
+                files=rates_config.final.experimental.fixed_market_files,
+                supply_points=final_supply_points,
+                imbalance_pricing=None,
+            )
 
-    customer_rates = parse_rate_files(
-        files=rates_config.final.experimental.customer_load_files,
-        supply_points=final_supply_points,
-        imbalance_pricing=None,
-    )
-
-    parsed_rates = ParsedRates(
-        live_vol=live_vol_rates,
-        final_vol=final_vol_rates,
-        fixed_market=fixed_market_rates,
-        customer=customer_rates,
-    )
+        if rates_config.final.experimental.customer_load_files:
+            parsed_rates.customer = parse_rate_files(
+                files=rates_config.final.experimental.customer_load_files,
+                supply_points=final_supply_points,
+                imbalance_pricing=None,
+            )
 
     # TODO: we need to be sure that there are no fixed rates in live + final, and only fixed rates in fixed_market_rates
 
