@@ -41,8 +41,8 @@ class ParsedRates:
     This is just a container to hold the various rates
     """
     # TODO: Rename live_vol -> live_sup_vol? and fixed_market -> sup_fix?
-    live_vol: VolRatesForEnergyFlows = VolRatesForEnergyFlows()   # Volume-based (p/kWh) rates for each energy flow, as predicted in real-time
-    final_vol: VolRatesForEnergyFlows = VolRatesForEnergyFlows()  # Volume-based (p/kWh) rates for each energy flow
+    live_vol: VolRatesForEnergyFlows = field(default_factory=VolRatesForEnergyFlows)   # Volume-based (p/kWh) rates for each energy flow, as predicted in real-time
+    final_vol: VolRatesForEnergyFlows = field(default_factory=VolRatesForEnergyFlows)  # Volume-based (p/kWh) rates for each energy flow
     fixed_market: List[FixedRate] = field(default_factory=list)      # Fixed p/day rates associated with suppliers
     customer: List[Rate] = field(default_factory=list)               # Volume and fixed rates charged to customers
 
