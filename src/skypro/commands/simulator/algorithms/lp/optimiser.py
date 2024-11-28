@@ -3,11 +3,11 @@ import logging
 import numpy as np
 import pulp
 import pandas as pd
-from simt_common.rates.microgrid import RatesForEnergyFlows
+from simt_common.rates.microgrid import VolRatesForEnergyFlows
 from simt_common.timeutils.math import floor_day, add_wallclock_days
 from simt_common.timeutils.timeseries import get_step_size
 
-from skypro.commands.simulator.algorithms.rate_management import run_osam_calcs_for_day, add_total_rates_to_df
+from skypro.commands.simulator.algorithms.rate_management import run_osam_calcs_for_day, add_total_vol_rates_to_df
 
 from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
 from skypro.commands.simulator.config.config_common import Optimiser as OptimiserConfig, OptimiserBlocks, Bess
@@ -18,12 +18,12 @@ class Optimiser:
         self,
         algo_config: OptimiserConfig,
         bess_config: Bess,
-        final_rates: RatesForEnergyFlows,
+        final_vol_rates: VolRatesForEnergyFlows,
         df: pd.DataFrame,
     ):
         self._algo_config = algo_config
         self._bess_config = bess_config
-        self._final_rates = final_rates
+        self._final_vol_rates = final_vol_rates
         self._df_in = df.copy()
 
         # Calculate some of the microgrid flows - at the moment this is the only algo that uses these values, but in
@@ -100,10 +100,10 @@ class Optimiser:
             block_df_in["osam_ncsp"] = block_df_in["osam_ncsp"].ffill()
 
             # Calculate the total rates in p/kWh for the whole block
-            block_df_in = add_total_rates_to_df(
+            block_df_in = add_total_vol_rates_to_df(
                 df=block_df_in,
                 index_to_add_for=block_df_in.index,
-                rates=self._final_rates,
+                vol_rates=self._final_vol_rates,
                 live_or_final="final"
             )
 
@@ -234,10 +234,10 @@ class Optimiser:
 
             # Get the rates from the input dataframe, and check they are not nan - if they are then don't allow any
             # activity in this period.
-            rate_final_bess_charge_from_grid = df_in.iloc[t]["rate_final_bess_charge_from_grid"]
-            int_rate_final_bess_charge_from_solar = df_in.iloc[t]["int_rate_final_bess_charge_from_solar"]
-            rate_final_bess_discharge_to_grid = df_in.iloc[t]["rate_final_bess_discharge_to_grid"]
-            int_rate_final_bess_discharge_to_load = df_in.iloc[t]["int_rate_final_bess_discharge_to_load"]
+            rate_final_bess_charge_from_grid = df_in.iloc[t]["vol_rate_final_bess_charge_from_grid"]
+            int_rate_final_bess_charge_from_solar = df_in.iloc[t]["int_vol_rate_final_bess_charge_from_solar"]
+            rate_final_bess_discharge_to_grid = df_in.iloc[t]["vol_rate_final_bess_discharge_to_grid"]
+            int_rate_final_bess_discharge_to_load = df_in.iloc[t]["int_vol_rate_final_bess_discharge_to_load"]
             if np.any(np.isnan([
                 rate_final_bess_charge_from_grid,
                 int_rate_final_bess_charge_from_solar,

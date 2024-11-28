@@ -4,11 +4,11 @@ from datetime import timedelta, datetime
 import numpy as np
 import pandas as pd
 import pytz
-from simt_common.rates.microgrid import RatesForEnergyFlows
+from simt_common.rates.microgrid import VolRatesForEnergyFlows
 
 from skypro.commands.simulator.algorithms.peak import get_peak_approach_energies, get_peak_power
 from skypro.commands.simulator.algorithms.microgrid import get_microgrid_algo_energy
-from skypro.commands.simulator.algorithms.rate_management import run_osam_calcs_for_day, add_total_rates_to_df
+from skypro.commands.simulator.algorithms.rate_management import run_osam_calcs_for_day, add_total_vol_rates_to_df
 from skypro.commands.simulator.algorithms.system_state import get_system_state, SystemState
 from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy
 from skypro.commands.simulator.cartesian import Curve, Point
@@ -20,7 +20,7 @@ class PriceCurveAlgo:
             self,
             algo_config: PriceCurveAlgoConfig,
             bess_config: BessConfig,
-            live_rates: RatesForEnergyFlows,
+            live_vol_rates: VolRatesForEnergyFlows,
             df: pd.DataFrame
     ):
         """
@@ -30,7 +30,7 @@ class PriceCurveAlgo:
         """
         self._algo_config = algo_config
         self._bess_config = bess_config
-        self._live_rates = live_rates
+        self._live_vol_rates = live_vol_rates
 
         self._df = df.copy()
 
@@ -58,10 +58,10 @@ class PriceCurveAlgo:
                 # This is done on each day in turn because OSAM rates vary day-by-day depending on historical volumes.
                 self._df, todays_index = run_osam_calcs_for_day(self._df, t)
 
-                self._df = add_total_rates_to_df(
+                self._df = add_total_vol_rates_to_df(
                     df=self._df,
                     index_to_add_for=todays_index,
-                    rates=self._live_rates,
+                    vol_rates=self._live_vol_rates,
                     live_or_final="live"
                 )
 
@@ -70,8 +70,8 @@ class PriceCurveAlgo:
                 # TODO: this shifts all rows for every day, it may be a speed improvement to make it so only the days
                 #  data is shifted
                 cols_to_shift = [
-                    "rate_live_bess_charge_from_grid",
-                    "rate_live_bess_discharge_to_grid",
+                    "vol_rate_live_bess_charge_from_grid",
+                    "vol_rate_live_bess_discharge_to_grid",
                     "imbalance_volume_live",
                 ]
                 for col in cols_to_shift:
@@ -114,16 +114,16 @@ class PriceCurveAlgo:
                 self._df.loc[t, "red_approach_distance"] = red_approach_energy
                 self._df.loc[t, "amber_approach_distance"] = amber_approach_energy
 
-                if not np.isnan(self._df.loc[t, "rate_live_bess_charge_from_grid"]) and \
-                        not np.isnan(self._df.loc[t, "rate_live_bess_discharge_to_grid"]) and \
+                if not np.isnan(self._df.loc[t, "vol_rate_live_bess_charge_from_grid"]) and \
+                        not np.isnan(self._df.loc[t, "vol_rate_live_bess_discharge_to_grid"]) and \
                         not np.isnan(self._df.loc[t, "imbalance_volume_live"]):
 
                     # If we have predictions then use them
                     target_energy_delta = get_target_energy_delta_from_shifted_curves(
                         df_in=self._df,
                         t=t,
-                        charge_rate_col="rate_live_bess_charge_from_grid",
-                        discharge_rate_col="rate_live_bess_discharge_to_grid",
+                        charge_rate_col="vol_rate_live_bess_charge_from_grid",
+                        discharge_rate_col="vol_rate_live_bess_discharge_to_grid",
                         imbalance_volume_col="imbalance_volume_live",
                         soe=soe,
                         battery_charge_efficiency=self._bess_config.charge_efficiency,
@@ -131,8 +131,8 @@ class PriceCurveAlgo:
                     )
 
                 elif self._df.loc[t, "time_into_sp"] < timedelta(minutes=10) and \
-                        not np.isnan(self._df.loc[t, "prev_sp_rate_live_bess_charge_from_grid"]) and \
-                        not np.isnan(self._df.loc[t, "prev_sp_rate_live_bess_discharge_to_grid"]) and \
+                        not np.isnan(self._df.loc[t, "prev_sp_vol_rate_live_bess_charge_from_grid"]) and \
+                        not np.isnan(self._df.loc[t, "prev_sp_vol_rate_live_bess_discharge_to_grid"]) and \
                         not np.isnan(self._df.loc[t, "prev_sp_imbalance_volume_live"]):
 
                     # If we don't have predictions yet, then in the first 10mins of the SP we can use the previous SP's
@@ -144,8 +144,8 @@ class PriceCurveAlgo:
                         target_energy_delta = get_target_energy_delta_from_shifted_curves(
                             df_in=self._df,
                             t=t,
-                            charge_rate_col="prev_sp_rate_live_bess_charge_from_grid",
-                            discharge_rate_col="prev_sp_rate_live_bess_discharge_to_grid",
+                            charge_rate_col="prev_sp_vol_rate_live_bess_charge_from_grid",
+                            discharge_rate_col="prev_sp_vol_rate_live_bess_discharge_to_grid",
                             imbalance_volume_col="prev_sp_imbalance_volume_live",
                             soe=soe,
                             battery_charge_efficiency=self._bess_config.charge_efficiency,

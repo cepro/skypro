@@ -3,9 +3,9 @@ from typing import Tuple
 
 import numpy as np
 import pandas as pd
-from simt_common.rates.microgrid import RatesForEnergyFlows, get_rates_dfs
+from simt_common.rates.microgrid import VolRatesForEnergyFlows, get_vol_rates_dfs
 from simt_common.rates.osam import calculate_osam_ncsp
-from simt_common.rates.rates import OSAMRate
+from simt_common.rates.rates import OSAMFlatVolRate
 from simt_common.timeutils.math import add_wallclock_days
 
 from skypro.commands.simulator.microgrid import calculate_microgrid_flows
@@ -64,10 +64,10 @@ def run_osam_calcs_for_day(
     return df, todays_index
 
 
-def add_total_rates_to_df(
+def add_total_vol_rates_to_df(
     df: pd.DataFrame,
     index_to_add_for: pd.DatetimeIndex,
-    rates: RatesForEnergyFlows,
+    vol_rates: VolRatesForEnergyFlows,
     live_or_final: str,  # TODO: this isn't helpful for the LP optimiser? as it's neither live nor final
 ) -> pd.DataFrame:
     """
@@ -77,18 +77,18 @@ def add_total_rates_to_df(
     df = df.copy()
 
     # Inform any OSAM rate objects about the NCSP for today
-    for rate in rates.bess_charge_from_grid:
-        if isinstance(rate, OSAMRate):
+    for rate in vol_rates.bess_charge_from_grid:
+        if isinstance(rate, OSAMFlatVolRate):
             rate.add_ncsp(df.loc[index_to_add_for, "osam_ncsp"])
 
     # Next we can calculate the individual p/kWh rates that apply for today
-    ext_rates_dfs, int_rates_dfs = get_rates_dfs(index_to_add_for, rates, log=False)
+    ext_vol_rates_dfs, int_vol_rates_dfs = get_vol_rates_dfs(index_to_add_for, vol_rates, log=False)
 
     # Then we sum up the individual rates to create a total for each flow
-    for set_name, rates_df in ext_rates_dfs.items():
-        df.loc[index_to_add_for, f"rate_{live_or_final}_{set_name}"] = rates_df.sum(axis=1, skipna=False)
-    for set_name, rates_df in int_rates_dfs.items():
-        df.loc[index_to_add_for, f"int_rate_{live_or_final}_{set_name}"] = rates_df.sum(axis=1, skipna=False)
+    for set_name, vol_rates_df in ext_vol_rates_dfs.items():
+        df.loc[index_to_add_for, f"vol_rate_{live_or_final}_{set_name}"] = vol_rates_df.sum(axis=1, skipna=False)
+    for set_name, vol_rates_df in int_vol_rates_dfs.items():
+        df.loc[index_to_add_for, f"int_vol_rate_{live_or_final}_{set_name}"] = vol_rates_df.sum(axis=1, skipna=False)
 
     return df
 
@@ -101,13 +101,3 @@ def _match_columns(target_df, source_df):
     for col in source_df.columns:
         if col not in target_df:
             target_df[col] = np.nan
-
-#
-# def _has_osam_rates(rates: RatesForEnergyFlows):
-#     """
-#     Returns true if any of the rates are OSAM (which require extra processing)
-#     """
-#     for rate in rates.bess_charge_from_grid:
-#         if isinstance(rate, OSAMRate):
-#             return True
-#     return False
