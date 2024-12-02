@@ -3,7 +3,8 @@ import logging
 import os
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import Optional, Tuple, List
+from functools import partial
+from typing import Optional, Tuple, List, Dict
 
 import numpy as np
 import pandas as pd
@@ -22,6 +23,7 @@ from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
 from skypro.commands.simulator.algorithms.price_curve.algo import PriceCurveAlgo
 from skypro.commands.simulator.config import parse_config, Solar, Load, ConfigV4
 from skypro.commands.simulator.config.config_v4 import SimulationCaseV4, AllRates
+from skypro.commands.simulator.config.path_field import resolve_file_path
 from skypro.commands.simulator.microgrid import calculate_microgrid_flows
 from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data, normalise_final_imbalance_data, \
     normalise_live_imbalance_data
@@ -90,7 +92,8 @@ def simulate(
 
         sim_summary_df = run_one_simulation(
             sim_config=sim_config,
-            do_plots=do_plots
+            do_plots=do_plots,
+            env_vars=env_vars
         )
         # Maintain a dataframe containing the summaries of each simulation
         sim_summary_df.insert(0, "sim_name", sim_name)
@@ -104,6 +107,7 @@ def simulate(
 def run_one_simulation(
         sim_config: SimulationCaseV4,
         do_plots: bool,
+        env_vars: Dict,
 ) -> pd.DataFrame:
     """
     Runs a single simulation as defined by the configuration and returns a dataframe containing a summary of the results
@@ -123,7 +127,7 @@ def run_one_simulation(
     time_index = time_index.tz_convert(pytz.timezone("Europe/London"))
 
     # Extract the rates objects from the config files
-    rates, imbalance_df = get_rates_from_config(time_index, sim_config.rates)
+    rates, imbalance_df = get_rates_from_config(time_index, sim_config.rates, env_vars)
 
     # Log the parsed rates for user information
     for name, rate_set in rates.live_vol.get_all_sets_named():
@@ -326,7 +330,8 @@ def run_one_simulation(
 
 def get_rates_from_config(
         time_index: pd.DatetimeIndex,
-        rates_config: AllRates
+        rates_config: AllRates,
+        env_vars: Dict
 ) -> Tuple[ParsedRates, pd.DataFrame]:
     """
     This reads the rates files defined in the given rates configuration block and returns the ParsedRates,
@@ -358,6 +363,8 @@ def get_rates_from_config(
 
     parsed_rates = ParsedRates()
 
+    file_path_resolver_func = partial(resolve_file_path, env_vars=env_vars)
+
     parsed_rates.final_vol = parse_rates_files_for_all_energy_flows(
         bess_charge_from_solar=rates_config.final.files.bess_charge_from_solar,
         bess_charge_from_grid=rates_config.final.files.bess_charge_from_grid,
@@ -367,7 +374,8 @@ def get_rates_from_config(
         solar_to_load=rates_config.final.files.solar_to_load,
         load_from_grid=rates_config.final.files.load_from_grid,
         supply_points=final_supply_points,
-        imbalance_pricing=df["imbalance_price_final"]
+        imbalance_pricing=df["imbalance_price_final"],
+        file_path_resolver_func=file_path_resolver_func
     )
     parsed_rates.live_vol = parse_rates_files_for_all_energy_flows(
         bess_charge_from_solar=rates_config.live.files.bess_charge_from_solar,
@@ -378,7 +386,8 @@ def get_rates_from_config(
         solar_to_load=rates_config.live.files.solar_to_load,
         load_from_grid=rates_config.live.files.load_from_grid,
         supply_points=live_supply_points,
-        imbalance_pricing=df["imbalance_price_live"]
+        imbalance_pricing=df["imbalance_price_live"],
+        file_path_resolver_func=file_path_resolver_func
     )
 
     if rates_config.final.experimental:
@@ -388,6 +397,7 @@ def get_rates_from_config(
                 files=rates_config.final.experimental.fixed_market_files,
                 supply_points=final_supply_points,
                 imbalance_pricing=None,
+                file_path_resolver_func=file_path_resolver_func,
             )
 
         if rates_config.final.experimental.customer_load_files:
@@ -395,6 +405,7 @@ def get_rates_from_config(
                 files=rates_config.final.experimental.customer_load_files,
                 supply_points=final_supply_points,
                 imbalance_pricing=None,
+                file_path_resolver_func=file_path_resolver_func,
             )
 
     # TODO: we need to be sure that there are no fixed rates in live + final, and only fixed rates in fixed_market_rates

@@ -5,8 +5,9 @@ from packaging.version import Version
 import yaml
 from simt_common.cli_utils.cliutils import substitute_vars
 
-from skypro.commands.simulator.config.config_common import NivPeriod, PathField
+from skypro.commands.simulator.config.config_common import NivPeriod
 from skypro.commands.simulator.config.config_v4 import ConfigV4, SimulationCaseV4
+from skypro.commands.simulator.config.path_field import PathField
 
 """
 This module handles parsing of the JSON or YAML configuration file for the Simulation script.
