@@ -3,7 +3,7 @@ from datetime import timedelta, datetime
 
 import numpy as np
 import pandas as pd
-from simt_common.dataparse.dataparse import read_directory_of_csvs
+from simt_common.cli_utils.cliutils import read_directory_of_csvs
 from simt_common.timeutils.math import floor_hh
 
 from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
