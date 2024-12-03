@@ -399,6 +399,9 @@ def get_rates_from_config(
                 imbalance_pricing=None,
                 file_path_resolver_func=file_path_resolver_func,
             )
+            for rate in parsed_rates.fixed_market:
+                if not isinstance(rate, FixedRate):
+                    raise ValueError(f"Only fixed rates can be specified in the fixedMarketFiles, got: '{rate.name}'")
 
         if rates_config.final.experimental.customer_load_files:
             parsed_rates.customer = parse_rate_files(
@@ -407,8 +410,6 @@ def get_rates_from_config(
                 imbalance_pricing=None,
                 file_path_resolver_func=file_path_resolver_func,
             )
-
-    # TODO: we need to be sure that there are no fixed rates in live + final, and only fixed rates in fixed_market_rates
 
     return parsed_rates, df
 
