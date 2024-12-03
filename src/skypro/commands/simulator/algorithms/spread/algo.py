@@ -54,20 +54,20 @@ def run_spread_based_algo(
         min_periods=1
     ).mean().ffill()
 
-    df["rate_bess_charge_from_grid_non_imbalance"] = df_in["rate_bess_charge_from_grid_non_imbalance"]
-    df["rate_bess_discharge_to_grid_non_imbalance"] = df_in["rate_bess_discharge_to_grid_non_imbalance"]
+    df["rate_grid_to_batt_non_imbalance"] = df_in["rate_grid_to_batt_non_imbalance"]
+    df["rate_batt_to_grid_non_imbalance"] = df_in["rate_batt_to_grid_non_imbalance"]
 
     notional_spread_short = (
-            df_in["rate_predicted_bess_charge_from_grid"] -
+            df_in["rate_predicted_grid_to_batt"] -
             (
-                    (df["recent_imbalance_price_long"] + df_in["rate_bess_charge_from_grid_non_imbalance"])
+                    (df["recent_imbalance_price_long"] + df_in["rate_grid_to_batt_non_imbalance"])
                     / battery_charge_efficiency
             )
     )[df_in["imbalance_volume_predicted"] > 0]
 
     notional_spread_long = -(
-            (-df["recent_imbalance_price_short"] + df_in["rate_bess_discharge_to_grid_non_imbalance"]) -
-            (df_in["rate_predicted_bess_discharge_to_grid"])
+            (-df["recent_imbalance_price_short"] + df_in["rate_batt_to_grid_non_imbalance"]) -
+            (df_in["rate_predicted_batt_to_grid"])
     )[df_in["imbalance_volume_predicted"] < 0]
 
     df["notional_spread"] = pd.concat([notional_spread_long, notional_spread_short])

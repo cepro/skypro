@@ -238,7 +238,7 @@ def run_one_simulation(
     )
     # Inform any OSAM rate objects about the NCSP
     osam_rates = []
-    for rate in rates.final_mkt_vol.bess_charge_from_grid:
+    for rate in rates.final_mkt_vol.grid_to_batt:
         if isinstance(rate, OSAMFlatVolRate):
             rate.add_ncsp(df["osam_ncsp"])
             osam_rates.append(rate)
@@ -366,25 +366,25 @@ def get_rates_from_config(
     file_path_resolver_func = partial(resolve_file_path, env_vars=env_vars)
 
     parsed_rates.final_mkt_vol = parse_vol_rates_files_for_all_energy_flows(
-        bess_charge_from_solar=rates_config.final.files.bess_charge_from_solar,
-        bess_charge_from_grid=rates_config.final.files.bess_charge_from_grid,
-        bess_discharge_to_load=rates_config.final.files.bess_discharge_to_load,
-        bess_discharge_to_grid=rates_config.final.files.bess_discharge_to_grid,
+        solar_to_batt=rates_config.final.files.solar_to_batt,
+        grid_to_batt=rates_config.final.files.grid_to_batt,
+        batt_to_load=rates_config.final.files.batt_to_load,
+        batt_to_grid=rates_config.final.files.batt_to_grid,
         solar_to_grid=rates_config.final.files.solar_to_grid,
         solar_to_load=rates_config.final.files.solar_to_load,
-        load_from_grid=rates_config.final.files.load_from_grid,
+        grid_to_load=rates_config.final.files.grid_to_load,
         supply_points=final_supply_points,
         imbalance_pricing=df["imbalance_price_final"],
         file_path_resolver_func=file_path_resolver_func
     )
     parsed_rates.live_mkt_vol = parse_vol_rates_files_for_all_energy_flows(
-        bess_charge_from_solar=rates_config.live.files.bess_charge_from_solar,
-        bess_charge_from_grid=rates_config.live.files.bess_charge_from_grid,
-        bess_discharge_to_load=rates_config.live.files.bess_discharge_to_load,
-        bess_discharge_to_grid=rates_config.live.files.bess_discharge_to_grid,
+        solar_to_batt=rates_config.live.files.solar_to_batt,
+        grid_to_batt=rates_config.live.files.grid_to_batt,
+        batt_to_load=rates_config.live.files.batt_to_load,
+        batt_to_grid=rates_config.live.files.batt_to_grid,
         solar_to_grid=rates_config.live.files.solar_to_grid,
         solar_to_load=rates_config.live.files.solar_to_load,
-        load_from_grid=rates_config.live.files.load_from_grid,
+        grid_to_load=rates_config.live.files.grid_to_load,
         supply_points=live_supply_points,
         imbalance_pricing=df["imbalance_price_live"],
         file_path_resolver_func=file_path_resolver_func

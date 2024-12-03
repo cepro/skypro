@@ -77,7 +77,7 @@ def add_total_vol_rates_to_df(
     df = df.copy()
 
     # Inform any OSAM rate objects about the NCSP for today
-    for rate in mkt_vol_rates.bess_charge_from_grid:
+    for rate in mkt_vol_rates.grid_to_batt:
         if isinstance(rate, OSAMFlatVolRate):
             rate.add_ncsp(df.loc[index_to_add_for, "osam_ncsp"])
 
