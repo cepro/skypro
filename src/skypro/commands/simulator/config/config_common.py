@@ -1,42 +1,18 @@
-import os
 from dataclasses import field
 from datetime import timedelta
-from typing import List, Optional, Annotated
+from typing import List, Optional
 
 import numpy as np
-from marshmallow import fields
 from marshmallow_dataclass import dataclass
-from simt_common.cli_utils.cliutils import substitute_vars
 
 from simt_common.jsonconfig.utility import name_in_json, enforce_one_option
 from simt_common.jsonconfig.dayed_period import DayedPeriodType
 from skypro.commands.simulator.config.curve import (CurveType)
-
+from skypro.commands.simulator.config.path_field import PathType
 
 """
 This file contains configuration schema that is used for both V3 and V4 config
 """
-
-
-class PathField(fields.Field):
-    """
-    This Marshmallow field type is used to deserialize file paths. It expands the local user tilde symbol and also
-    substitutes variables (in the $VAR_NAME format).
-    The variables must be first set on the `vars_for_substitution` class variable before deserializing.
-    """
-
-    vars_for_substitution = {}  # class variable defines any variables for substitution into the paths
-
-    def _serialize(self, value, attr, obj, **kwargs):
-        raise ValueError("Serialization not yet defined")
-
-    def _deserialize(self, value, attr, data, **kwargs):
-        # Expand any `~/` syntax and $ENV_VARS that are used
-        return os.path.expanduser(substitute_vars(value, PathField.vars_for_substitution))
-
-
-# The marshmallow_dataclass library doesn't use the PathField directly, but instead needs a Type defining:
-PathType = Annotated[str, PathField]
 
 
 @dataclass
@@ -160,6 +136,12 @@ class RatesFiles:
 
 
 @dataclass
+class ExperimentalRates:
+    fixed_market_files: List[PathType] = name_in_json("fixedMarketCostFiles")
+    customer_load_files: List[PathType] = name_in_json("customerLoadFiles")
+
+
+@dataclass
 class Rates:
     """
     Note that this class just holds the paths to the rates/supply point configuration files. The actual parsing of the
@@ -168,6 +150,7 @@ class Rates:
     supply_points_config_file: PathType = name_in_json("supplyPointsConfigFile")
     imbalance_data_source: ImbalanceDataSource = name_in_json("imbalanceDataSource")
     files: RatesFiles
+    experimental: Optional[ExperimentalRates]
 
 
 @dataclass

@@ -16,7 +16,7 @@ def read_imbalance_data(
         volume_dir: str
 ) -> (pd.DataFrame, pd.DataFrame):
     """
-    Reads the imbalance price and volume data from the given directories, using the iu
+    Reads the imbalance price and volume data from the given directories
     """
     logging.info("Reading imbalance files...")
 
@@ -192,7 +192,6 @@ def normalise_modo_data_for_live(
     :param time_index: the timestamps to index the return dataframe to
     :param col: the col of interest in `df`, e.g. 'price' or 'volume'
     :param col_prediction: the col name to use for the prediction values
-    :param col_final: the col name to use for the final values
     :return: dataframe organised by time_index.
     """
 
