@@ -4,9 +4,8 @@ from typing import Dict, Optional
 
 from marshmallow_dataclass import dataclass
 
-from simt_common.jsonconfig.utility import name_in_json
-
 from skypro.commands.simulator.config.config_common import Site, Strategy, Rates, PathType
+from skypro.commands.simulator.config.utility import name_in_json
 
 """
 This file contains configuration schema specific to V4

@@ -11,10 +11,10 @@ import pandas as pd
 import plotly.graph_objects as go
 import pytz
 
-from simt_common.jsonconfig.rates import parse_supply_points, parse_rates_files_for_all_energy_flows, parse_rate_files
 from simt_common.microgrid.output import generate_output_df
 from simt_common.rates.microgrid import get_vol_rates_dfs, VolRatesForEnergyFlows
 from simt_common.rates.osam import calculate_osam_ncsp
+from simt_common.rates.parse_config import parse_supply_points, parse_rates_files_for_all_energy_flows, parse_rate_files
 from simt_common.rates.rates import FixedRate, Rate, OSAMFlatVolRate
 from simt_common.timeutils.math import floor_hh
 
