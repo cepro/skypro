@@ -14,8 +14,8 @@ from simt_common.microgrid_analysis.output import generate_output_df
 
 from simt_common.rates.microgrid import get_vol_rates_dfs, VolRatesForEnergyFlows
 from simt_common.rates.osam import calculate_osam_ncsp
-from simt_common.rates.parse_config.parse import parse_supply_points, parse_rates_files_for_all_energy_flows, \
-    parse_rate_files
+from simt_common.rates.parse_config.parse import parse_supply_points, parse_rate_files, \
+    parse_vol_rates_files_for_all_energy_flows
 from simt_common.rates.rates import FixedRate, Rate, OSAMFlatVolRate
 from simt_common.timeutils.math import floor_hh
 
@@ -43,11 +43,10 @@ class ParsedRates:
     """
     This is just a container to hold the various rates
     """
-    # TODO: Rename live_vol -> live_sup_vol? and fixed_market -> sup_fix?
-    live_vol: VolRatesForEnergyFlows = field(default_factory=VolRatesForEnergyFlows)   # Volume-based (p/kWh) rates for each energy flow, as predicted in real-time
-    final_vol: VolRatesForEnergyFlows = field(default_factory=VolRatesForEnergyFlows)  # Volume-based (p/kWh) rates for each energy flow
-    fixed_market: List[FixedRate] = field(default_factory=list)      # Fixed p/day rates associated with suppliers
-    customer: List[Rate] = field(default_factory=list)               # Volume and fixed rates charged to customers
+    live_mkt_vol: VolRatesForEnergyFlows = field(default_factory=VolRatesForEnergyFlows)   # Volume-based (p/kWh) market/supplier rates for each energy flow, as predicted in real-time
+    final_mkt_vol: VolRatesForEnergyFlows = field(default_factory=VolRatesForEnergyFlows)  # Volume-based (p/kWh) market/supplier rates for each energy flow
+    mkt_fix: List[FixedRate] = field(default_factory=list)   # Fixed p/day rates associated with market/suppliers
+    customer: List[Rate] = field(default_factory=list)  # Volume and fixed rates charged to customers
 
 
 def simulate(
@@ -131,7 +130,7 @@ def run_one_simulation(
     rates, imbalance_df = get_rates_from_config(time_index, sim_config.rates, env_vars)
 
     # Log the parsed rates for user information
-    for name, rate_set in rates.live_vol.get_all_sets_named():
+    for name, rate_set in rates.live_mkt_vol.get_all_sets_named():
         for rate in rate_set:
             logging.info(f"Flow: {name}, Rate: {rate}")
 
@@ -194,7 +193,7 @@ def run_one_simulation(
         algo = PriceCurveAlgo(
             algo_config=sim_config.strategy.price_curve_algo,
             bess_config=sim_config.site.bess,
-            live_vol_rates=rates.live_vol,
+            live_vol_rates=rates.live_mkt_vol,
             df=df[cols_to_share_with_algo]
         )
         df_algo = algo.run()
@@ -207,7 +206,7 @@ def run_one_simulation(
         opt = Optimiser(
             algo_config=sim_config.strategy.optimiser,
             bess_config=sim_config.site.bess,
-            final_vol_rates=rates.final_vol,
+            final_vol_rates=rates.final_mkt_vol,
             df=df[cols_to_share_with_algo],
         )
         df_algo = opt.run()
@@ -239,17 +238,17 @@ def run_one_simulation(
     )
     # Inform any OSAM rate objects about the NCSP
     osam_rates = []
-    for rate in rates.final_vol.bess_charge_from_grid:
+    for rate in rates.final_mkt_vol.bess_charge_from_grid:
         if isinstance(rate, OSAMFlatVolRate):
             rate.add_ncsp(df["osam_ncsp"])
             osam_rates.append(rate)
 
     # Next we can calculate the individual p/kWh rates that apply for today
-    final_ext_vol_rates_dfs, final_int_vol_rates_dfs = get_vol_rates_dfs(df.index, rates.final_vol)
+    final_mkt_vol_rates_dfs, final_int_vol_rates_dfs = get_vol_rates_dfs(df.index, rates.final_mkt_vol)
 
     # Then we sum up the individual rates to create a total for each flow
-    for set_name, vol_rates_df in final_ext_vol_rates_dfs.items():
-        df[f"vol_rate_final_{set_name}"] = vol_rates_df.sum(axis=1, skipna=False)
+    for set_name, vol_rates_df in final_mkt_vol_rates_dfs.items():
+        df[f"mkt_vol_rate_final_{set_name}"] = vol_rates_df.sum(axis=1, skipna=False)
     for set_name, vol_rates_df in final_int_vol_rates_dfs.items():
         df[f"int_vol_rate_final_{set_name}"] = vol_rates_df.sum(axis=1, skipna=False)
 
@@ -260,10 +259,10 @@ def run_one_simulation(
         generate_output_df(
             df=df,
             int_final_vol_rates_dfs=final_int_vol_rates_dfs,
-            ext_final_vol_rates_dfs=final_ext_vol_rates_dfs,
+            mkt_final_vol_rates_dfs=final_mkt_vol_rates_dfs,
             int_live_vol_rates_dfs=None,  # These 'live' rates aren't available in the output CSV at the moment as they are
-            ext_live_vol_rates_dfs=None,  # calculated by the price curve algo internally and not returned
-            fixed_market_rates=rates.fixed_market,
+            mkt_live_vol_rates_dfs=None,  # calculated by the price curve algo internally and not returned
+            fixed_mkt_rates=rates.mkt_fix,
             customer_rates=rates.customer,
             load_energy_breakdown_df=load_energy_breakdown_df,
             aggregate_timebase=simulation_output_config.aggregate,
@@ -299,10 +298,10 @@ def run_one_simulation(
     sim_summary_df = generate_output_df(
         df=df,
         int_final_vol_rates_dfs=final_int_vol_rates_dfs,
-        ext_final_vol_rates_dfs=final_ext_vol_rates_dfs,
+        mkt_final_vol_rates_dfs=final_mkt_vol_rates_dfs,
         int_live_vol_rates_dfs=None,  # These 'live' rates aren't available in the output CSV at the moment as they are
-        ext_live_vol_rates_dfs=None,  # calculated by the price curve algo internally and not returned
-        fixed_market_rates=rates.fixed_market,
+        mkt_live_vol_rates_dfs=None,  # calculated by the price curve algo internally and not returned
+        fixed_mkt_rates=rates.mkt_fix,
         customer_rates=rates.customer,
         load_energy_breakdown_df=load_energy_breakdown_df,
         aggregate_timebase="all",
@@ -315,7 +314,7 @@ def run_one_simulation(
 
     explore_results(
         df=df,
-        final_ext_vol_rates_dfs=final_ext_vol_rates_dfs,
+        final_mkt_vol_rates_dfs=final_mkt_vol_rates_dfs,
         final_int_vol_rates_dfs=final_int_vol_rates_dfs,
         do_plots=do_plots,
         battery_energy_capacity=sim_config.site.bess.energy_capacity,
@@ -358,15 +357,15 @@ def get_rates_from_config(
         volume_dir=rates_config.live.imbalance_data_source.volume_dir,
     )
 
-    final_df = normalise_final_imbalance_data(time_index, final_price_df, final_volume_df)
-    live_df = normalise_live_imbalance_data(time_index, live_price_df, live_volume_df)
-    df = pd.concat([final_df, live_df], axis=1)
+    final_imbalance_df = normalise_final_imbalance_data(time_index, final_price_df, final_volume_df)
+    live_imbalance_df = normalise_live_imbalance_data(time_index, live_price_df, live_volume_df)
+    df = pd.concat([final_imbalance_df, live_imbalance_df], axis=1)
 
     parsed_rates = ParsedRates()
 
     file_path_resolver_func = partial(resolve_file_path, env_vars=env_vars)
 
-    parsed_rates.final_vol = parse_rates_files_for_all_energy_flows(
+    parsed_rates.final_mkt_vol = parse_vol_rates_files_for_all_energy_flows(
         bess_charge_from_solar=rates_config.final.files.bess_charge_from_solar,
         bess_charge_from_grid=rates_config.final.files.bess_charge_from_grid,
         bess_discharge_to_load=rates_config.final.files.bess_discharge_to_load,
@@ -378,7 +377,7 @@ def get_rates_from_config(
         imbalance_pricing=df["imbalance_price_final"],
         file_path_resolver_func=file_path_resolver_func
     )
-    parsed_rates.live_vol = parse_rates_files_for_all_energy_flows(
+    parsed_rates.live_mkt_vol = parse_vol_rates_files_for_all_energy_flows(
         bess_charge_from_solar=rates_config.live.files.bess_charge_from_solar,
         bess_charge_from_grid=rates_config.live.files.bess_charge_from_grid,
         bess_discharge_to_load=rates_config.live.files.bess_discharge_to_load,
@@ -392,15 +391,15 @@ def get_rates_from_config(
     )
 
     if rates_config.final.experimental:
-        if rates_config.final.experimental.fixed_market_files:
+        if rates_config.final.experimental.mkt_fixed_files:
             # Read in fixed rates just to output them in the CSV
-            parsed_rates.fixed_market = parse_rate_files(
-                files=rates_config.final.experimental.fixed_market_files,
+            parsed_rates.mkt_fix = parse_rate_files(
+                files=rates_config.final.experimental.mkt_fixed_files,
                 supply_points=final_supply_points,
                 imbalance_pricing=None,
                 file_path_resolver_func=file_path_resolver_func,
             )
-            for rate in parsed_rates.fixed_market:
+            for rate in parsed_rates.mkt_fix:
                 if not isinstance(rate, FixedRate):
                     raise ValueError(f"Only fixed rates can be specified in the fixedMarketFiles, got: '{rate.name}'")
 

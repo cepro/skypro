@@ -67,26 +67,26 @@ def run_osam_calcs_for_day(
 def add_total_vol_rates_to_df(
     df: pd.DataFrame,
     index_to_add_for: pd.DatetimeIndex,
-    vol_rates: VolRatesForEnergyFlows,
+    mkt_vol_rates: VolRatesForEnergyFlows,
     live_or_final: str,  # TODO: this isn't helpful for the LP optimiser? as it's neither live nor final
 ) -> pd.DataFrame:
     """
-    Adds the total p/kWh rates for each flow to the dataframe for the period specified by `index_to_add_for` and returns
-    the dataframe.
+    Adds the total market and internal p/kWh rates for each flow to the dataframe for the period specified by
+    `index_to_add_for` and returns the dataframe.
     """
     df = df.copy()
 
     # Inform any OSAM rate objects about the NCSP for today
-    for rate in vol_rates.bess_charge_from_grid:
+    for rate in mkt_vol_rates.bess_charge_from_grid:
         if isinstance(rate, OSAMFlatVolRate):
             rate.add_ncsp(df.loc[index_to_add_for, "osam_ncsp"])
 
     # Next we can calculate the individual p/kWh rates that apply for today
-    ext_vol_rates_dfs, int_vol_rates_dfs = get_vol_rates_dfs(index_to_add_for, vol_rates, log=False)
+    mkt_vol_rates_dfs, int_vol_rates_dfs = get_vol_rates_dfs(index_to_add_for, mkt_vol_rates, log=False)
 
     # Then we sum up the individual rates to create a total for each flow
-    for set_name, vol_rates_df in ext_vol_rates_dfs.items():
-        df.loc[index_to_add_for, f"vol_rate_{live_or_final}_{set_name}"] = vol_rates_df.sum(axis=1, skipna=False)
+    for set_name, vol_rates_df in mkt_vol_rates_dfs.items():
+        df.loc[index_to_add_for, f"mkt_vol_rate_{live_or_final}_{set_name}"] = vol_rates_df.sum(axis=1, skipna=False)
     for set_name, vol_rates_df in int_vol_rates_dfs.items():
         df.loc[index_to_add_for, f"int_vol_rate_{live_or_final}_{set_name}"] = vol_rates_df.sum(axis=1, skipna=False)
 

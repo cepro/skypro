@@ -99,11 +99,11 @@ class Optimiser:
             # from the optimisation block. E.g. blocks.duration_days = 3, blocks.used_duration_hh = 1
             block_df_in["osam_ncsp"] = block_df_in["osam_ncsp"].ffill()
 
-            # Calculate the total rates in p/kWh for the whole block
+            # Calculate the total market and internal volume rates in p/kWh for the whole block
             block_df_in = add_total_vol_rates_to_df(
                 df=block_df_in,
                 index_to_add_for=block_df_in.index,
-                vol_rates=self._final_vol_rates,
+                mkt_vol_rates=self._final_vol_rates,
                 live_or_final="final"
             )
 
@@ -234,21 +234,21 @@ class Optimiser:
 
             # Get the rates from the input dataframe, and check they are not nan - if they are then don't allow any
             # activity in this period.
-            rate_final_bess_charge_from_grid = df_in.iloc[t]["vol_rate_final_bess_charge_from_grid"]
+            mkt_rate_final_bess_charge_from_grid = df_in.iloc[t]["mkt_vol_rate_final_bess_charge_from_grid"]
             int_rate_final_bess_charge_from_solar = df_in.iloc[t]["int_vol_rate_final_bess_charge_from_solar"]
-            rate_final_bess_discharge_to_grid = df_in.iloc[t]["vol_rate_final_bess_discharge_to_grid"]
+            mkt_rate_final_bess_discharge_to_grid = df_in.iloc[t]["mkt_vol_rate_final_bess_discharge_to_grid"]
             int_rate_final_bess_discharge_to_load = df_in.iloc[t]["int_vol_rate_final_bess_discharge_to_load"]
             if np.any(np.isnan([
-                rate_final_bess_charge_from_grid,
+                mkt_rate_final_bess_charge_from_grid,
                 int_rate_final_bess_charge_from_solar,
-                rate_final_bess_discharge_to_grid,
+                mkt_rate_final_bess_discharge_to_grid,
                 int_rate_final_bess_discharge_to_load
             ])):
                 # the costs function throws an exception when these are NaN, so set to zero but disallow any activity
                 # by adding constraints
-                rate_final_bess_charge_from_grid = 0
+                mkt_rate_final_bess_charge_from_grid = 0
                 int_rate_final_bess_charge_from_solar = 0
-                rate_final_bess_discharge_to_grid = 0
+                mkt_rate_final_bess_discharge_to_grid = 0
                 int_rate_final_bess_discharge_to_load = 0
                 problem += lp_var_bess_charges_from_solar[t] == 0
                 problem += lp_var_bess_charges_from_grid[t] == 0
@@ -258,9 +258,9 @@ class Optimiser:
                 n_timeslots_with_nan_pricing += 1
 
             lp_costs.append(
-                lp_var_bess_charges_from_grid[t] * rate_final_bess_charge_from_grid +
+                lp_var_bess_charges_from_grid[t] * mkt_rate_final_bess_charge_from_grid +
                 lp_var_bess_charges_from_solar[t] * int_rate_final_bess_charge_from_solar +
-                lp_var_bess_discharges_to_grid[t] * rate_final_bess_discharge_to_grid +
+                lp_var_bess_discharges_to_grid[t] * mkt_rate_final_bess_discharge_to_grid +
                 lp_var_bess_discharges_to_load[t] * int_rate_final_bess_discharge_to_load
             )
 
