@@ -4,9 +4,9 @@ from typing import List, Optional
 
 import numpy as np
 from marshmallow_dataclass import dataclass
+from simt_common.rates.parse_config.dayed_period import DayedPeriodType
 
 from skypro.commands.simulator.config.curve import (CurveType)
-from skypro.commands.simulator.config.dayed_period import DayedPeriodType
 from skypro.commands.simulator.config.path_field import PathType
 from skypro.commands.simulator.config.utility import name_in_json, enforce_one_option
 
