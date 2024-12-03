@@ -6,12 +6,11 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from simt_common.microgrid.breakdown import breakdown_microgrid_flows
+from simt_common.microgrid_analysis.breakdown import breakdown_microgrid_flows
+from simt_common.microgrid_analysis.daily_gains import plot_daily_gains
 from simt_common.rates.bill_match import bill_match
 from simt_common.rates.rates import OSAMFlatVolRate
 from tabulate import tabulate
-
-from simt_common.analysis.daily_gains import plot_daily_gains
 
 
 def explore_results(

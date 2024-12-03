@@ -91,7 +91,7 @@ def get_peak_power(
         reserve_energy = microgrid_residual_power * (reserve_duration.total_seconds() / 3600)
 
         if reserve_energy > soe:
-            # The assumptions around how much we needed to reserve were wrong and so we are going to run out of energy.
+            # The assumptions around how much we needed to reserve were wrong, and so we are going to run out of energy.
             # Just do our best to service the residual load at this point:
             return -microgrid_residual_power
 
