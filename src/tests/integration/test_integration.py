@@ -2,6 +2,7 @@ import logging
 import unittest
 import subprocess
 from dataclasses import dataclass
+from datetime import timedelta
 
 import pandas as pd
 
@@ -22,6 +23,10 @@ class TestIntegration(unittest.TestCase):
             sim_name: str
             expected_summary_df: pd.DataFrame
 
+        # The simulation end time is 23:40:00, which leads to a strange number of minutes:
+        simulation_duration = timedelta(minutes=43180)
+        num_days_simulated = simulation_duration / timedelta(days=1)
+
         subtests = [
             SubTest(
                 msg="integrationTestPriceCurve",
@@ -35,21 +40,28 @@ class TestIntegration(unittest.TestCase):
                     "c:solarToBatt": [309.14],
                     "c:gridToBatt": [29774.99],
 
-                    "irate:gridToBatt.final": [8.1332],
-                    "irate:battToGrid.final": [-17.5380],
-                    "irate:solarToGrid.final": [-8.2932],
-                    "irate:gridToLoad.final": [10.8306],
-                    "irate:solarToBatt.final": [6.1364],
-                    "irate:battToLoad.final": [-21.8243],
-                    "irate:solarToLoad.final": [-10.6678],
+                    "ivRate:gridToBatt.final": [8.1332],
+                    "ivRate:battToGrid.final": [-17.5380],
+                    "ivRate:solarToGrid.final": [0.0],
+                    "ivRate:gridToLoad.final": [0.0],
+                    "ivRate:solarToBatt.final": [6.1364],
+                    "ivRate:battToLoad.final": [-21.8243],
+                    "ivRate:solarToLoad.final": [0.0],
 
-                    "rate:gridToBatt.final": [8.1332],
-                    "rate:battToGrid.final": [-17.5380],
-                    "rate:solarToGrid.final": [-8.2932],
-                    "rate:gridToLoad.final": [10.8306],
-                    "rate:solarToBatt.final": [0.0],
-                    "rate:battToLoad.final": [0.0],
-                    "rate:solarToLoad.final": [0.0],
+                    "mvRate:gridToBatt.final": [8.1332],
+                    "mvRate:battToGrid.final": [-17.5380],
+                    "mvRate:solarToGrid.final": [-8.2932],
+                    "mvRate:gridToLoad.final": [10.8306],
+                    "mvRate:solarToBatt.final": [0.0],
+                    "mvRate:battToLoad.final": [0.0],
+                    "mvRate:solarToLoad.final": [0.0],
+
+                    "cvRate:domestic": [-21.0],
+
+                    # the fixed charges are applied to a number of days
+                    "cfCost:standingCharge": [-2000 * num_days_simulated],
+                    "mfCost:meterManagementFee": [1250 * num_days_simulated],
+                    "mfCost:supplierFee": [300 * num_days_simulated],
                 })
             ),
             SubTest(
@@ -64,21 +76,21 @@ class TestIntegration(unittest.TestCase):
                     "c:solarToBatt": [904.03],
                     "c:gridToBatt": [51352.98],
 
-                    "irate:gridToBatt.final": [7.4687],
-                    "irate:battToGrid.final": [-16.4390],
-                    "irate:solarToGrid.final": [-10.8284],
-                    "irate:gridToLoad.final": [9.1808],
-                    "irate:solarToBatt.final": [6.7763],
-                    "irate:battToLoad.final": [-15.7736],
-                    "irate:solarToLoad.final": [-10.6678],
+                    "ivRate:gridToBatt.final": [7.4687],
+                    "ivRate:battToGrid.final": [-16.4390],
+                    "ivRate:solarToGrid.final": [0.0],
+                    "ivRate:gridToLoad.final": [0.0],
+                    "ivRate:solarToBatt.final": [6.7763],
+                    "ivRate:battToLoad.final": [-15.7736],
+                    "ivRate:solarToLoad.final": [0.0],
 
-                    "rate:gridToBatt.final": [7.4687],
-                    "rate:battToGrid.final": [-16.4390],
-                    "rate:solarToGrid.final": [-10.8284],
-                    "rate:gridToLoad.final": [9.1808],
-                    "rate:solarToBatt.final": [0.0],
-                    "rate:battToLoad.final": [0.0],
-                    "rate:solarToLoad.final": [0.0],
+                    "mvRate:gridToBatt.final": [7.4687],
+                    "mvRate:battToGrid.final": [-16.4390],
+                    "mvRate:solarToGrid.final": [-10.8284],
+                    "mvRate:gridToLoad.final": [9.1808],
+                    "mvRate:solarToBatt.final": [0.0],
+                    "mvRate:battToLoad.final": [0.0],
+                    "mvRate:solarToLoad.final": [0.0],
                 })
             ),
         ]

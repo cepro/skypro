@@ -99,11 +99,11 @@ class Optimiser:
             # from the optimisation block. E.g. blocks.duration_days = 3, blocks.used_duration_hh = 1
             block_df_in["osam_ncsp"] = block_df_in["osam_ncsp"].ffill()
 
-            # Calculate the total rates in p/kWh for the whole block
+            # Calculate the total market and internal volume rates in p/kWh for the whole block
             block_df_in = add_total_vol_rates_to_df(
                 df=block_df_in,
                 index_to_add_for=block_df_in.index,
-                vol_rates=self._final_vol_rates,
+                mkt_vol_rates=self._final_vol_rates,
                 live_or_final="final"
             )
 
@@ -178,7 +178,7 @@ class Optimiser:
             )
             lp_var_bess_charges_from_solar.append(
                 pulp.LpVariable(
-                    name=f"bess_charge_from_solar_{t}",
+                    name=f"solar_to_batt_{t}",
                     # Sometimes a minimum charge constraint applies, for example if we model a site that has more solar
                     # than the grid connection can handle and want the battery to charge from any excess solar.
                     # TODO: a better way of handling this could be to value the energy that would be curtailed at 0p/kWh
@@ -190,21 +190,21 @@ class Optimiser:
             )
             lp_var_bess_charges_from_grid.append(
                 pulp.LpVariable(
-                    name=f"bess_charge_from_grid_{t}",
+                    name=f"grid_to_batt_{t}",
                     lowBound=0.0,
                     upBound=df_in.iloc[t]["max_charge_from_grid"]
                 )
             )
             lp_var_bess_discharges_to_load.append(
                 pulp.LpVariable(
-                    name=f"bess_discharge_to_load_{t}",
+                    name=f"batt_to_load_{t}",
                     lowBound=df_in.iloc[t]["min_discharge"],
                     upBound=df_in.iloc[t]["load_not_supplied_by_solar"]
                 )
             )
             lp_var_bess_discharges_to_grid.append(
                 pulp.LpVariable(
-                    name=f"bess_discharge_to_grid_{t}",
+                    name=f"batt_to_grid_{t}",
                     lowBound=0.0,
                     upBound=df_in.iloc[t]["max_discharge_to_grid"],
                 )
@@ -234,22 +234,22 @@ class Optimiser:
 
             # Get the rates from the input dataframe, and check they are not nan - if they are then don't allow any
             # activity in this period.
-            rate_final_bess_charge_from_grid = df_in.iloc[t]["vol_rate_final_bess_charge_from_grid"]
-            int_rate_final_bess_charge_from_solar = df_in.iloc[t]["int_vol_rate_final_bess_charge_from_solar"]
-            rate_final_bess_discharge_to_grid = df_in.iloc[t]["vol_rate_final_bess_discharge_to_grid"]
-            int_rate_final_bess_discharge_to_load = df_in.iloc[t]["int_vol_rate_final_bess_discharge_to_load"]
+            mkt_rate_final_grid_to_batt = df_in.iloc[t]["mkt_vol_rate_final_grid_to_batt"]
+            int_rate_final_solar_to_batt = df_in.iloc[t]["int_vol_rate_final_solar_to_batt"]
+            mkt_rate_final_batt_to_grid = df_in.iloc[t]["mkt_vol_rate_final_batt_to_grid"]
+            int_rate_final_batt_to_load = df_in.iloc[t]["int_vol_rate_final_batt_to_load"]
             if np.any(np.isnan([
-                rate_final_bess_charge_from_grid,
-                int_rate_final_bess_charge_from_solar,
-                rate_final_bess_discharge_to_grid,
-                int_rate_final_bess_discharge_to_load
+                mkt_rate_final_grid_to_batt,
+                int_rate_final_solar_to_batt,
+                mkt_rate_final_batt_to_grid,
+                int_rate_final_batt_to_load
             ])):
                 # the costs function throws an exception when these are NaN, so set to zero but disallow any activity
                 # by adding constraints
-                rate_final_bess_charge_from_grid = 0
-                int_rate_final_bess_charge_from_solar = 0
-                rate_final_bess_discharge_to_grid = 0
-                int_rate_final_bess_discharge_to_load = 0
+                mkt_rate_final_grid_to_batt = 0
+                int_rate_final_solar_to_batt = 0
+                mkt_rate_final_batt_to_grid = 0
+                int_rate_final_batt_to_load = 0
                 problem += lp_var_bess_charges_from_solar[t] == 0
                 problem += lp_var_bess_charges_from_grid[t] == 0
                 problem += lp_var_bess_discharges_to_load[t] == 0
@@ -258,10 +258,10 @@ class Optimiser:
                 n_timeslots_with_nan_pricing += 1
 
             lp_costs.append(
-                lp_var_bess_charges_from_grid[t] * rate_final_bess_charge_from_grid +
-                lp_var_bess_charges_from_solar[t] * int_rate_final_bess_charge_from_solar +
-                lp_var_bess_discharges_to_grid[t] * rate_final_bess_discharge_to_grid +
-                lp_var_bess_discharges_to_load[t] * int_rate_final_bess_discharge_to_load
+                lp_var_bess_charges_from_grid[t] * mkt_rate_final_grid_to_batt +
+                lp_var_bess_charges_from_solar[t] * int_rate_final_solar_to_batt +
+                lp_var_bess_discharges_to_grid[t] * mkt_rate_final_batt_to_grid +
+                lp_var_bess_discharges_to_load[t] * int_rate_final_batt_to_load
             )
 
         for t in timeslots:
@@ -325,11 +325,11 @@ class Optimiser:
         df_ret = pd.DataFrame(index=df_sol.index)
         df_ret["soe"] = df_sol["bess_soe"]
         df_ret["energy_delta"] = (
-            df_sol["bess_charge_from_solar"] + df_sol["bess_charge_from_grid"]
-            - df_sol["bess_discharge_to_grid"] - df_sol["bess_discharge_to_load"]
+            df_sol["solar_to_batt"] + df_sol["grid_to_batt"]
+            - df_sol["batt_to_grid"] - df_sol["batt_to_load"]
         )
         df_ret["bess_losses"] = (
-            (df_sol["bess_charge_from_solar"] + df_sol["bess_charge_from_grid"]) * (1 - self._bess_config.charge_efficiency)
+            (df_sol["solar_to_batt"] + df_sol["grid_to_batt"]) * (1 - self._bess_config.charge_efficiency)
         )
 
         # TODO: tidy up code generally - a good point to clean up interface to multiple algos?
@@ -350,17 +350,17 @@ class Optimiser:
         tolerance = 0.01
 
         # Check that we always charge from solar 'first', before charging from grid
-        when_charging_from_grid = df_sol[df_sol["bess_charge_from_grid"] > 0]
+        when_charging_from_grid = df_sol[df_sol["grid_to_batt"] > 0]
         check = (
-            (when_charging_from_grid["bess_charge_from_solar"] - self._df_in["solar_not_supplying_load"])
+            (when_charging_from_grid["solar_to_batt"] - self._df_in["solar_not_supplying_load"])
             > tolerance
         ).sum()
         assert check == 0, "Optimisation internal error - add constraint for energy merit order on charge"
 
         # Check that we always discharge to onsite load 'first', before discharging to grid
-        when_discharging_to_grid = df_sol[df_sol["bess_discharge_to_grid"] > 0]
+        when_discharging_to_grid = df_sol[df_sol["batt_to_grid"] > 0]
         check = (
-                (when_discharging_to_grid["bess_discharge_to_load"] - self._df_in["load_not_supplied_by_solar"])
+                (when_discharging_to_grid["batt_to_load"] - self._df_in["load_not_supplied_by_solar"])
                 > tolerance
         ).sum()
         assert check == 0, "Optimisation internal error - add constraint for energy merit order on discharge"

@@ -15,7 +15,7 @@ from tabulate import tabulate
 
 def explore_results(
         df: pd.DataFrame,
-        final_ext_vol_rates_dfs: Dict[str, pd.DataFrame],
+        final_mkt_vol_rates_dfs: Dict[str, pd.DataFrame],
         final_int_vol_rates_dfs: Dict[str, pd.DataFrame],
         do_plots: bool,
         battery_energy_capacity: float,
@@ -38,18 +38,18 @@ def explore_results(
     breakdown = breakdown_microgrid_flows(
         df=df,
         int_vol_rates_dfs=final_int_vol_rates_dfs,
-        ext_vol_rates_dfs=final_ext_vol_rates_dfs
+        mkt_vol_rates_dfs=final_mkt_vol_rates_dfs
     )
 
     # Friendly names to present to the user
     flow_name_map = {
         "solar_to_grid": "solarToGrid",
-        "load_from_grid": "gridToLoad",
+        "grid_to_load": "gridToLoad",
         "solar_to_load": "solarToLoad",
-        "bess_discharge_to_load": "battToLoad",
-        "bess_discharge_to_grid": "battToGrid",
-        "bess_charge_from_solar": "solarToBatt",
-        "bess_charge_from_grid": "gridToBatt",
+        "batt_to_load": "battToLoad",
+        "batt_to_grid": "battToGrid",
+        "solar_to_batt": "solarToBatt",
+        "grid_to_batt": "gridToBatt",
         "bess_charge": "All batt charge",
         "bess_discharge": "All batt discharge",
         "solar": "All solar",
@@ -61,8 +61,8 @@ def explore_results(
         "volume": "Volume (kWh)",
         "int_cost": "Int. Cost (£)",
         "int_avg_rate": "Int. Avg Rate (p/kWh)",
-        "ext_cost": "Ext. Cost (£)",
-        "ext_avg_rate": "Ext. Avg Rate (p/kWh)",
+        "mkt_cost": "Ext. Cost (£)",
+        "mkt_avg_rate": "Ext. Avg Rate (p/kWh)",
     }
 
     # Rename the flows to the externally-facing names
@@ -107,21 +107,21 @@ def explore_results(
     print(f"Total BESS gain over period: £{breakdown.total_int_bess_gain/100:,.2f}")
     print(f"Average daily BESS gain over period: £{(breakdown.total_int_bess_gain / 100)/sim_days:.2f}")
 
-    total_ext_vol_cost = 0.0
-    for flow_name in final_ext_vol_rates_dfs.keys():
-        total_ext_vol_cost += breakdown.total_ext_vol_costs[flow_name]
+    total_mkt_vol_cost = 0.0
+    for flow_name in final_mkt_vol_rates_dfs.keys():
+        total_mkt_vol_cost += breakdown.total_mkt_vol_costs[flow_name]
 
     print("")
-    print(f"Total external vol costs: £{total_ext_vol_cost / 100:,.2f}")
+    print(f"Total market vol costs: £{total_mkt_vol_cost / 100:,.2f}")
 
     bill_match(
         grid_energy_flow=df["grid_import"],
-        # use the grid rates for bess_charge_from_grid as these include info about any OSAM rates
-        grid_rates=final_ext_vol_rates_dfs["bess_charge_from_grid"],
+        # use the grid rates for grid_to_batt as these include info about any OSAM rates
+        grid_rates=final_mkt_vol_rates_dfs["grid_to_batt"],
         osam_rates=osam_rates,
         osam_df=osam_df,
-        cepro_bill_total_expected=breakdown.total_ext_vol_costs["bess_charge_from_grid"] + breakdown.total_ext_vol_costs[
-            "load_from_grid"],
+        cepro_bill_total_expected=breakdown.total_mkt_vol_costs["grid_to_batt"] + breakdown.total_mkt_vol_costs[
+            "grid_to_load"],
         context="import",
         line_items=None,
     )
@@ -144,11 +144,11 @@ def plot_hh_strategy(df: pd.DataFrame):
     # fig.add_trace(go.Scatter(x=df.index, y=df["rate_import_10m"], name="Import Price 10m (SSP plus DUoS)", line=dict(color="rgba(89, 237, 131, 1)")))
     # fig.add_trace(go.Scatter(x=df.index, y=df["rate_import_20m"], name="Import Price 20m (SSP plus DUoS)", line=dict(color="rgba(40, 189, 82, 1)")))
     fig.add_trace(
-        go.Scatter(x=df.index, y=df["vol_rate_final_bess_charge_from_grid"], name="Import Price", line=dict(color="rgba(0, 141, 40, 1)")))
+        go.Scatter(x=df.index, y=df["mkt_vol_rate_final_grid_to_batt"], name="Import Price", line=dict(color="rgba(0, 141, 40, 1)")))
     # fig.add_trace(go.Scatter(x=df.index, y=df["rate_export_10m"], name="Export Price 10m (SSP plus DUoS)", line=dict(color="rgba(185, 102, 247, 1)")))
     # fig.add_trace(go.Scatter(x=df.index, y=df["rate_export_20m"], name="Export Price 20m (SSP plus DUoS)", line=dict(color="rgba(153, 59, 224, 1)")))
     fig.add_trace(
-        go.Scatter(x=df.index, y=df["vol_rate_final_bess_discharge_to_grid"]*-1, name="Export Price", line=dict(color="rgba(102, 0, 178, 1)")))
+        go.Scatter(x=df.index, y=df["mkt_vol_rate_final_batt_to_grid"]*-1, name="Export Price", line=dict(color="rgba(102, 0, 178, 1)")))
 
     # if "notional_spread" in df.columns:
     #     fig.add_trace(
@@ -199,7 +199,7 @@ def plot_constraints(df, site_import_limit, site_export_limit, battery_nameplate
     df_tmp["bess_max_power_discharge"] = -df_tmp["bess_max_power_discharge"]
     df_tmp["bess_power"] = df["energy_delta"] / time_step_hours
     df_tmp["solar_to_grid_power"] = -df["solar_to_grid"] / time_step_hours
-    df_tmp["load_from_grid_power"] = df["load_from_grid"] / time_step_hours
+    df_tmp["grid_to_load_power"] = df["grid_to_load"] / time_step_hours
     df_tmp["grid_net"] = df_tmp["load_power"] + df_tmp["solar_power"] + df_tmp["bess_power"]
 
     fig = px.line(df_tmp, line_shape='hv')

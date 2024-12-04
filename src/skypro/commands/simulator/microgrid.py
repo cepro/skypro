@@ -17,14 +17,14 @@ def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
     df["load_not_supplied_by_solar"] = df["load"] - df["solar_to_load"]
     df["solar_not_supplying_load"] = df["solar"] - df["solar_to_load"]
 
-    df["bess_discharge_to_load"] = df[["bess_discharge", "load_not_supplied_by_solar"]].min(axis=1)
-    df["bess_discharge_to_grid"] = df["bess_discharge"] - df["bess_discharge_to_load"]
+    df["batt_to_load"] = df[["bess_discharge", "load_not_supplied_by_solar"]].min(axis=1)
+    df["batt_to_grid"] = df["bess_discharge"] - df["batt_to_load"]
 
-    df["bess_charge_from_solar"] = df[["bess_charge", "solar_not_supplying_load"]].min(axis=1)
-    df["bess_charge_from_grid"] = df["bess_charge"] - df["bess_charge_from_solar"]
+    df["solar_to_batt"] = df[["bess_charge", "solar_not_supplying_load"]].min(axis=1)
+    df["grid_to_batt"] = df["bess_charge"] - df["solar_to_batt"]
 
-    df["load_from_grid"] = df["load_not_supplied_by_solar"] - df["bess_discharge_to_load"]
-    df["solar_to_grid"] = df["solar_not_supplying_load"] - df["bess_charge_from_solar"]
+    df["grid_to_load"] = df["load_not_supplied_by_solar"] - df["batt_to_load"]
+    df["solar_to_grid"] = df["solar_not_supplying_load"] - df["solar_to_batt"]
 
     # For now, assume that all the match happens at the property level, and none happens at the microgrid level
     df["solar_to_load_property_level"] = df["solar_to_load"]
@@ -32,7 +32,7 @@ def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
 
     # The microgrid boundary flows are calculated here from the individual flows. These are needed for reporting in CSV
     # output files, although they aren't used directly in Skypro at the moment.
-    df["grid_import"] = df["bess_charge_from_grid"] + df["load_from_grid"]
-    df["grid_export"] = df["bess_discharge_to_grid"] + df["solar_to_grid"]
+    df["grid_import"] = df["grid_to_batt"] + df["grid_to_load"]
+    df["grid_export"] = df["batt_to_grid"] + df["solar_to_grid"]
 
     return df
