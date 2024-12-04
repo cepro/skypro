@@ -1,0 +1,7 @@
+regularFixed:
+  standingCharge:
+    daily: -2000
+powerFixed:
+  domestic:
+    rate: -21.0
+    supplyPoint: msp

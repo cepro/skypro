@@ -1,0 +1,5 @@
+regularFixed:
+  meterManagementFee:
+    daily: 1250
+  supplierFee:
+    daily: 300

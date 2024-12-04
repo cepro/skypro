@@ -44,6 +44,11 @@ sandbox:
     imbalanceDataSource:
       priceDir: "./src/tests/integration/fixtures/elexon_imbalance_price/"
       volumeDir: "./src/tests/integration/fixtures/elexon_imbalance_volume/"
+    experimental:
+      marketFixedCostFiles:
+        - "./src/tests/integration/fixtures/rates/fixed_market_rates.yaml"
+      customerLoadFiles:
+        - "./src/tests/integration/fixtures/rates/customer_rates.yaml"
 
   output: &output
     simulation:

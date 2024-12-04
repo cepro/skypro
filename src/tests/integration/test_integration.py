@@ -2,6 +2,7 @@ import logging
 import unittest
 import subprocess
 from dataclasses import dataclass
+from datetime import timedelta
 
 import pandas as pd
 
@@ -21,6 +22,10 @@ class TestIntegration(unittest.TestCase):
             msg: str
             sim_name: str
             expected_summary_df: pd.DataFrame
+
+        # The simulation end time is 23:40:00, which leads to a strange number of minutes:
+        simulation_duration = timedelta(minutes=43180)
+        num_days_simulated = simulation_duration / timedelta(days=1)
 
         subtests = [
             SubTest(
@@ -50,6 +55,13 @@ class TestIntegration(unittest.TestCase):
                     "mvRate:solarToBatt.final": [0.0],
                     "mvRate:battToLoad.final": [0.0],
                     "mvRate:solarToLoad.final": [0.0],
+
+                    "cvRate:domestic": [-21.0],
+
+                    # the fixed charges are applied to a number of days
+                    "cfCost:standingCharge": [-2000 * num_days_simulated],
+                    "mfCost:meterManagementFee": [1250 * num_days_simulated],
+                    "mfCost:supplierFee": [300 * num_days_simulated],
                 })
             ),
             SubTest(
