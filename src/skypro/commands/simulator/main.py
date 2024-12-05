@@ -92,11 +92,11 @@ def simulate(
 
         sim_summary_df = run_one_simulation(
             sim_config=sim_config,
+            sim_name=sim_name,
             do_plots=do_plots,
             env_vars=env_vars
         )
         # Maintain a dataframe containing the summaries of each simulation
-        sim_summary_df.insert(0, "sim_name", sim_name)
         summary_df = pd.concat([summary_df, sim_summary_df], axis=0)
 
     if chosen_sim_name == "all" and config.all_sims and config.all_sims.output and config.all_sims.output.summary:
@@ -106,6 +106,7 @@ def simulate(
 
 def run_one_simulation(
         sim_config: SimulationCaseV4,
+        sim_name: str,
         do_plots: bool,
         env_vars: Dict,
 ) -> pd.DataFrame:
@@ -308,6 +309,7 @@ def run_one_simulation(
         rate_detail=sim_config.output.summary.rate_detail if (sim_config.output and sim_config.output.summary) else None,
         config_entries=[],
     )
+    sim_summary_df.insert(0, "sim_name", sim_name)
 
     if save_summary:
         sim_summary_df.to_csv(sim_config.output.summary.csv, index=False)
