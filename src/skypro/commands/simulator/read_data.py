@@ -1,5 +1,6 @@
 import logging
 from datetime import timedelta, datetime
+from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -9,44 +10,50 @@ from simt_common.timeutils.math import floor_hh
 from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
 
 
-def read_imbalance_data(
-        start: datetime,
-        end: datetime,
-        price_dir: str,
-        volume_dir: str
-) -> (pd.DataFrame, pd.DataFrame):
+def read_data_source(source_str: str, start: datetime, end: datetime, file_path_resolver_func: Callable) \
+        -> pd.DataFrame:
     """
-    Reads the imbalance price and volume data from the given directories
+    Reads data from the source given in the `source_str` for the given time range and returns as a dataframe.
     """
-    logging.info("Reading imbalance files...")
 
-    price_df = read_directory_of_csvs(price_dir)
-    volume_df = read_directory_of_csvs(volume_dir)
+    logging.info(f"Reading data source '{source_str}'...")
 
-    logging.info("Processing imbalance files...")
+    components = source_str.split(":")
+    source_type = components[0]
+    source_locator = components[1]
+
+    if source_type == "csv-dir":
+        return read_csv_dir(file_path_resolver_func(source_locator), start, end)
+    else:
+        raise ValueError(f"Unknown data source type: '{source_type}'")
+    #
+    # if source_type == "flowsdb-market-data":
+    #     return read_flowsdb_market_data(source_locator)
+
+
+def read_csv_dir(csv_dir: str, start: datetime, end: datetime) -> pd.DataFrame:
+    df = read_directory_of_csvs(csv_dir)
 
     # Parse the date columns
-    price_df["spUTCTime"] = pd.to_datetime(price_df["spUTCTime"], format="ISO8601")
-    volume_df["spUTCTime"] = pd.to_datetime(volume_df["spUTCTime"], format="ISO8601")
+    df["spUTCTime"] = pd.to_datetime(df["spUTCTime"], format="ISO8601")
 
-    if "predictionUTCTime" in price_df.columns:
-        price_df["predictionUTCTime"] = pd.to_datetime(price_df["predictionUTCTime"], format="ISO8601")
-    if "predictionUTCTime" in volume_df.columns:
-        volume_df["predictionUTCTime"] = pd.to_datetime(volume_df["predictionUTCTime"], format="ISO8601")
+    if "predictionUTCTime" in df.columns:
+        df["predictionUTCTime"] = pd.to_datetime(df["predictionUTCTime"], format="ISO8601")
 
     end_floor_hh = floor_hh(end)
 
-    if start < min(price_df["spUTCTime"]) or start < min(volume_df["spUTCTime"]):
-        raise ValueError("Simulation start time is outside of imbalance data range. Do you need to download more imbalance data?")
-    if end_floor_hh > max(price_df["spUTCTime"]) or end_floor_hh > max(volume_df["spUTCTime"]):
-        raise ValueError("Simulation end time is outside of imbalance volume data range. Do you need to download more imbalance data?")
+    if start < min(df["spUTCTime"]):
+        raise ValueError("Simulation start time is outside of data range. Do you need to download more data?")
+    if end_floor_hh > max(df["spUTCTime"]):
+        raise ValueError("Simulation end time is outside of data range. Do you need to download more data?")
 
     # Remove data out of the time range of interest
     # TODO: only read in CSVs for the months that are required in the first place
-    price_df = price_df[(price_df["spUTCTime"] >= start) & (price_df["spUTCTime"] <= end)]
-    volume_df = volume_df[(volume_df["spUTCTime"] >= start) & (volume_df["spUTCTime"] <= end)]
+    df = df[(df["spUTCTime"] >= start) & (df["spUTCTime"] <= end)]
 
-    return price_df.sort_index(), volume_df.sort_index()
+    df = df.sort_index()
+
+    return df
 
 
 def normalise_final_imbalance_data(

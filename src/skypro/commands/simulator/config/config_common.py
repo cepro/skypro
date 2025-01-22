@@ -120,8 +120,8 @@ class NivPeriod:
 
 @dataclass
 class ImbalanceDataSource:
-    price_dir: PathType = name_in_json("priceDir")
-    volume_dir: PathType = name_in_json("volumeDir")
+    price_source: str = name_in_json("price")
+    volume_source: str = name_in_json("volume")
 
 
 @dataclass

@@ -26,8 +26,8 @@ from skypro.commands.simulator.config import parse_config, Solar, Load, ConfigV4
 from skypro.commands.simulator.config.config_v4 import SimulationCaseV4, AllRates
 from skypro.commands.simulator.config.path_field import resolve_file_path
 from skypro.commands.simulator.microgrid import calculate_microgrid_flows
-from skypro.commands.simulator.parse_imbalance_data import read_imbalance_data, normalise_final_imbalance_data, \
-    normalise_live_imbalance_data
+from skypro.commands.simulator.read_data import normalise_final_imbalance_data, \
+    normalise_live_imbalance_data, read_data_source
 from skypro.commands.simulator.profiler import Profiler
 from skypro.commands.simulator.results import explore_results
 
@@ -346,18 +346,21 @@ def get_rates_from_config(
         supply_points_config_file=rates_config.live.supply_points_config_file
     )
 
-    final_price_df, final_volume_df = read_imbalance_data(
-        start=time_index[0],
-        end=time_index[-1],
-        price_dir=rates_config.final.imbalance_data_source.price_dir,
-        volume_dir=rates_config.final.imbalance_data_source.volume_dir,
-    )
-    live_price_df, live_volume_df = read_imbalance_data(
-        start=time_index[0],
-        end=time_index[-1],
-        price_dir=rates_config.live.imbalance_data_source.price_dir,
-        volume_dir=rates_config.live.imbalance_data_source.volume_dir,
-    )
+    def read_imbalance_data(source):
+        """
+        Convenience function for reading imbalance data
+        """
+        return read_data_source(
+            source_str=source,
+            start=time_index[0],
+            end=time_index[-1],
+            file_path_resolver_func=partial(resolve_file_path, env_vars=env_vars)
+        )
+
+    final_price_df = read_imbalance_data(rates_config.final.imbalance_data_source.price_source)
+    final_volume_df = read_imbalance_data(rates_config.final.imbalance_data_source.volume_source)
+    live_price_df = read_imbalance_data(rates_config.live.imbalance_data_source.price_source)
+    live_volume_df = read_imbalance_data(rates_config.live.imbalance_data_source.volume_source)
 
     final_imbalance_df = normalise_final_imbalance_data(time_index, final_price_df, final_volume_df)
     live_imbalance_df = normalise_live_imbalance_data(time_index, live_price_df, live_volume_df)
