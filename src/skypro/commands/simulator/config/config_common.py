@@ -119,9 +119,15 @@ class NivPeriod:
 
 
 @dataclass
+class DataSource:
+    source_str: str = name_in_json("source")
+    is_predictive: Optional[bool] = field(metadata={"data_key": "isPredictive"}, default=False)
+
+
+@dataclass
 class ImbalanceDataSource:
-    price_source: str = name_in_json("price")
-    volume_source: str = name_in_json("volume")
+    price: DataSource = name_in_json("price")
+    volume: DataSource = name_in_json("volume")
 
 
 @dataclass

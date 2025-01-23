@@ -62,7 +62,8 @@ def simulate(
     set_auto_accept_cli_warnings(skip_cli_warnings)
 
     logging.info(f"Using env var file: {os.path.expanduser(env_file_path)}")
-    env_vars = read_json_file(env_file_path)["vars"]
+    env_config = read_json_file(env_file_path)
+    env_vars = env_config["vars"]
 
     # Parse the main config file
     logging.info(f"Using config file: {config_file_path}")
@@ -94,7 +95,7 @@ def simulate(
             sim_config=sim_config,
             sim_name=sim_name,
             do_plots=do_plots,
-            env_vars=env_vars
+            env_config=env_config
         )
         # Maintain a dataframe containing the summaries of each simulation
         summary_df = pd.concat([summary_df, sim_summary_df], axis=0)
@@ -108,7 +109,7 @@ def run_one_simulation(
         sim_config: SimulationCaseV4,
         sim_name: str,
         do_plots: bool,
-        env_vars: Dict,
+        env_config: Dict,
 ) -> pd.DataFrame:
     """
     Runs a single simulation as defined by the configuration and returns a dataframe containing a summary of the results
@@ -128,7 +129,7 @@ def run_one_simulation(
     time_index = time_index.tz_convert(pytz.timezone("Europe/London"))
 
     # Extract the rates objects from the config files
-    rates, imbalance_df = get_rates_from_config(time_index, sim_config.rates, env_vars)
+    rates, imbalance_df = get_rates_from_config(time_index, sim_config.rates, env_config)
 
     # Log the parsed rates for user information
     for name, rate_set in rates.live_mkt_vol.get_all_sets_named():
@@ -333,7 +334,7 @@ def run_one_simulation(
 def get_rates_from_config(
         time_index: pd.DatetimeIndex,
         rates_config: AllRates,
-        env_vars: Dict
+        env_config: Dict
 ) -> Tuple[ParsedRates, pd.DataFrame]:
     """
     This reads the rates files defined in the given rates configuration block and returns the ParsedRates,
@@ -351,16 +352,17 @@ def get_rates_from_config(
         Convenience function for reading imbalance data
         """
         return read_data_source(
-            source_str=source,
+            source=source,
             start=time_index[0],
             end=time_index[-1],
-            file_path_resolver_func=partial(resolve_file_path, env_vars=env_vars)
+            env_vars=env_config["vars"],
+            flows_db_url=env_config["flows"]["dbUrl"]
         )
 
-    final_price_df = read_imbalance_data(rates_config.final.imbalance_data_source.price_source)
-    final_volume_df = read_imbalance_data(rates_config.final.imbalance_data_source.volume_source)
-    live_price_df = read_imbalance_data(rates_config.live.imbalance_data_source.price_source)
-    live_volume_df = read_imbalance_data(rates_config.live.imbalance_data_source.volume_source)
+    final_price_df = read_imbalance_data(rates_config.final.imbalance_data_source.price)
+    final_volume_df = read_imbalance_data(rates_config.final.imbalance_data_source.volume)
+    live_price_df = read_imbalance_data(rates_config.live.imbalance_data_source.price)
+    live_volume_df = read_imbalance_data(rates_config.live.imbalance_data_source.volume)
 
     final_imbalance_df = normalise_final_imbalance_data(time_index, final_price_df, final_volume_df)
     live_imbalance_df = normalise_live_imbalance_data(time_index, live_price_df, live_volume_df)
@@ -368,7 +370,7 @@ def get_rates_from_config(
 
     parsed_rates = ParsedRates()
 
-    file_path_resolver_func = partial(resolve_file_path, env_vars=env_vars)
+    file_path_resolver_func = partial(resolve_file_path, env_vars=env_config["vars"])
 
     parsed_rates.final_mkt_vol = parse_vol_rates_files_for_all_energy_flows(
         solar_to_batt=rates_config.final.files.solar_to_batt,

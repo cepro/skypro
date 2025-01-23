@@ -42,8 +42,10 @@ sandbox:
         - "./src/tests/integration/fixtures/rates/dno_fees_wpd_import.json"
       solarToLoad: [ ]
     imbalanceDataSource:
-      price: "csv-dir:./src/tests/integration/fixtures/elexon_imbalance_price/"
-      volume: "csv-dir:./src/tests/integration/fixtures/elexon_imbalance_volume/"
+      price:
+        source: "csv-dir:./src/tests/integration/fixtures/elexon_imbalance_price/"
+      volume:
+        source: "csv-dir:./src/tests/integration/fixtures/elexon_imbalance_volume/"
     experimental:
       marketFixedCostFiles:
         - "./src/tests/integration/fixtures/rates/fixed_market_rates.yaml"
