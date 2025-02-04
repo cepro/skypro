@@ -93,6 +93,9 @@ def read_flows_db_market_data(
     engine = sqlalchemy.create_engine(flows_db_url)
     df = pd.read_sql(query, con=engine)
 
+    if len(df) == 0:
+        raise ValueError(f"No rows were returned from flows DB for market data '{market_data_type_name}'")
+
     if is_predictive:
         df = df.rename(columns={"created_at": "predicted_at"})
 
