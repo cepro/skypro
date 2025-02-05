@@ -5,7 +5,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import pytz
-from simt_common.cli_utils.cliutils import read_directory_of_csvs
+from simt_common.data.read_data import read_directory_of_csvs
 from simt_common.timeutils.math import floor_hh
 
 

@@ -10,6 +10,8 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import pytz
+import sqlalchemy
+from simt_common.data.read_data import read_data_source
 from simt_common.microgrid_analysis.output import generate_output_df
 
 from simt_common.rates.microgrid import get_vol_rates_dfs, VolRatesForEnergyFlows
@@ -26,8 +28,7 @@ from skypro.commands.simulator.config import parse_config, Solar, Load, ConfigV4
 from skypro.commands.simulator.config.config_v4 import SimulationCaseV4, AllRates
 from skypro.commands.simulator.config.path_field import resolve_file_path
 from skypro.commands.simulator.microgrid import calculate_microgrid_flows
-from skypro.commands.simulator.read_data import normalise_final_imbalance_data, \
-    normalise_live_imbalance_data, read_data_source
+from skypro.commands.simulator.read_data import normalise_final_imbalance_data, normalise_live_imbalance_data
 from skypro.commands.simulator.profiler import Profiler
 from skypro.commands.simulator.results import explore_results
 
@@ -347,16 +348,19 @@ def get_rates_from_config(
         supply_points_config_file=rates_config.live.supply_points_config_file
     )
 
+    file_path_resolver_func = partial(resolve_file_path, env_vars=env_config["vars"])
+
     def read_imbalance_data(source):
         """
         Convenience function for reading imbalance data
         """
         return read_data_source(
-            source=source,
+            source_str=source.source_str,
+            is_predictive=source.is_predictive,
             start=time_index[0],
             end=time_index[-1],
-            env_vars=env_config["vars"],
-            flows_db_url=env_config["flows"]["dbUrl"]
+            file_path_resolver_func=file_path_resolver_func,
+            db_engine=sqlalchemy.create_engine(env_config["flows"]["dbUrl"]),
         )
 
     final_price_df = read_imbalance_data(rates_config.final.imbalance_data_source.price)
@@ -369,8 +373,6 @@ def get_rates_from_config(
     df = pd.concat([final_imbalance_df, live_imbalance_df], axis=1)
 
     parsed_rates = ParsedRates()
-
-    file_path_resolver_func = partial(resolve_file_path, env_vars=env_config["vars"])
 
     parsed_rates.final_mkt_vol = parse_vol_rates_files_for_all_energy_flows(
         solar_to_batt=rates_config.final.files.solar_to_batt,
