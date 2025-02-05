@@ -23,6 +23,7 @@ from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warni
 from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
 from skypro.commands.simulator.algorithms.price_curve.algo import PriceCurveAlgo
 from skypro.commands.simulator.config import parse_config, Solar, Load, ConfigV4
+from skypro.commands.simulator.config.config_common import DataSource
 from skypro.commands.simulator.config.config_v4 import SimulationCaseV4, AllRates
 from skypro.commands.simulator.config.path_field import resolve_file_path
 from skypro.commands.simulator.microgrid import calculate_microgrid_flows
@@ -97,6 +98,7 @@ def simulate(
             do_plots=do_plots,
             env_config=env_config
         )
+
         # Maintain a dataframe containing the summaries of each simulation
         summary_df = pd.concat([summary_df, sim_summary_df], axis=0)
 
@@ -315,6 +317,7 @@ def run_one_simulation(
     if save_summary:
         sim_summary_df.to_csv(sim_config.output.summary.csv, index=False)
 
+
     explore_results(
         df=df,
         final_mkt_vol_rates_dfs=final_mkt_vol_rates_dfs,
@@ -327,6 +330,33 @@ def run_one_simulation(
         osam_rates=osam_rates,
         osam_df=osam_df,
     )
+
+    print("Reading wholesale HH prices...")
+    da = read_data_source(
+        source=DataSource(
+            source_str="flowsdb-market-data:epex-day-ahead-half-hourly-price",
+            is_predictive=False,
+        ),
+        start=df.index[0],
+        end=df.index[-1],
+        env_vars=env_config["vars"],
+        flows_db_url=env_config["flows"]["dbUrl"]
+    )
+    da.index = da["time"]
+
+    df["da_price"] = da["value"]
+    df["da_price"] = df["da_price"].ffill(limit=2)
+    df["peak_slot"] = (df.index.weekday < 5) & ((df.index.hour == 17) | (df.index.hour == 18))
+    df["p415_energy"] = (df["bess_discharge"] * 0.9)[
+        df["peak_slot"] == True]  # Assume we get 90% of the peak discharge onto P415
+    df["p415_energy"] = df["p415_energy"].fillna(0.0)
+    df["p415_revenue"] = df["p415_energy"] * df["da_price"]
+
+    total_p415_revenue = df["p415_revenue"].sum()/100
+
+    print(f"Additional p415 revenue: £{total_p415_revenue:.2f}, at 75%: £{total_p415_revenue * 0.75:.2f}")
+
+    breakpoint()
 
     return sim_summary_df
 
