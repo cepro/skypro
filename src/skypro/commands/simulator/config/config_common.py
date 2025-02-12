@@ -64,9 +64,13 @@ class Profile:
 class Solar:
     constant: Optional[float] = field(default=np.nan)
     profile: Optional[Profile] = field(default=None)
+    profiles: Optional[List[Profile]] = field(default=None)
 
     def __post_init__(self):
-        enforce_one_option([self.constant, self.profile], "'constant' or 'profile' solar")
+        enforce_one_option(
+            [self.constant, self.profile, self.profiles],
+            "'constant', 'profile' or 'profiles' load"
+        )
 
 
 @dataclass

@@ -28,7 +28,7 @@ from skypro.commands.simulator.config import parse_config, Solar, Load, ConfigV4
 from skypro.commands.simulator.config.config_v4 import SimulationCaseV4, AllRates
 from skypro.commands.simulator.config.path_field import resolve_file_path
 from skypro.commands.simulator.microgrid import calculate_microgrid_flows
-from skypro.commands.simulator.read_data import normalise_final_imbalance_data, normalise_live_imbalance_data
+from skypro.commands.simulator.normalise_data import normalise_final_imbalance_data, normalise_live_imbalance_data
 from skypro.commands.simulator.profiler import Profiler
 from skypro.commands.simulator.results import explore_results
 
@@ -477,7 +477,7 @@ def process_profiles(
 
     if config.profile:
         profile_configs = [config.profile]
-    elif isinstance(config, Load) and config.profiles:
+    elif config.profiles:
         profile_configs = config.profiles
     elif not np.isnan(config.constant):
         energy = pd.Series(index=time_index, data=config.constant)
