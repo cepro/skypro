@@ -102,6 +102,12 @@ class Site:
 
 
 @dataclass
+class RemoteSite:
+    allow_flow_to_site: bool = name_in_json("allowFlowToSite")
+    solar: Solar
+
+
+@dataclass
 class Niv:
     """
     The configuration to do NIV chasing.
@@ -143,6 +149,10 @@ class RatesFiles:
     solar_to_grid: List[PathType] = name_in_json("solarToGrid")
     solar_to_load: List[PathType] = name_in_json("solarToLoad")
     grid_to_load: List[PathType] = name_in_json("gridToLoad")
+
+    remote_solar_to_load: List[PathType] = name_in_json("remoteSolarToLoad")
+    remote_solar_to_batt: List[PathType] = name_in_json("remoteSolarToBatt")
+    remote_solar_to_grid: List[PathType] = name_in_json("remoteSolarToGrid")
 
 
 @dataclass

@@ -53,7 +53,11 @@ def explore_results(
         "bess_charge": "All batt charge",
         "bess_discharge": "All batt discharge",
         "solar": "All solar",
-        "load": "All load"
+        "load": "All load",
+        "remote_solar": "All remote solar",
+        "remote_solar_to_load": "remoteSolarToLoad",
+        "remote_solar_to_batt": "remoteSolarToBatt",
+        "remote_solar_to_grid": "remoteSolarToGrid"
     }
 
     # Friendly names to present to the user

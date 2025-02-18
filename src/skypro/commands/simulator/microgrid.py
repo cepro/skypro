@@ -1,7 +1,7 @@
 import pandas as pd
 
 
-def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
+def calculate_microgrid_flows(df: pd.DataFrame, allow_remote_flow_to_site: bool) -> pd.DataFrame:
     """
     Calculates the individual flows of energy around the microgrid and adds them to the dataframe
     """
@@ -21,9 +21,20 @@ def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
     df["batt_to_grid"] = df["bess_discharge"] - df["batt_to_load"]
 
     df["solar_to_batt"] = df[["bess_charge", "solar_not_supplying_load"]].min(axis=1)
-    df["grid_to_batt"] = df["bess_charge"] - df["solar_to_batt"]
 
-    df["grid_to_load"] = df["load_not_supplied_by_solar"] - df["batt_to_load"]
+    df["load_not_supplied_by_site"] = df["load_not_supplied_by_solar"] - df["batt_to_load"]
+
+    df["remote_solar_to_load"] = df[["load_not_supplied_by_site", "remote_solar"]].min(axis=1) if allow_remote_flow_to_site else 0.0
+    df["remote_solar_not_supplying_load"] = df["remote_solar"] - df["remote_solar_to_load"] if allow_remote_flow_to_site else 0.0
+
+    df["batt_not_supplied_by_site"] = df["bess_charge"] - df["solar_to_batt"]
+    df["remote_solar_to_batt"] = df[["remote_solar_not_supplying_load", "batt_not_supplied_by_site"]].min(axis=1) if allow_remote_flow_to_site else 0.0
+
+    df["remote_solar_to_grid"] = df["remote_solar"] - df["remote_solar_to_load"] - df["remote_solar_to_batt"]
+
+    df["grid_to_batt"] = df["bess_charge"] - df["solar_to_batt"] - df["remote_solar_to_batt"]
+
+    df["grid_to_load"] = df["load"] - df["solar_to_load"] - df["batt_to_load"] - df["remote_solar_to_load"]
     df["solar_to_grid"] = df["solar_not_supplying_load"] - df["solar_to_batt"]
 
     # For now, assume that all the match happens at the property level, and none happens at the microgrid level

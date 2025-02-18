@@ -4,7 +4,7 @@ from typing import Dict, Optional
 
 from marshmallow_dataclass import dataclass
 
-from skypro.commands.simulator.config.config_common import Site, Strategy, Rates, PathType
+from skypro.commands.simulator.config.config_common import Site, Strategy, Rates, PathType, RemoteSite
 from skypro.commands.simulator.config.utility import name_in_json
 
 """
@@ -52,11 +52,13 @@ class AllRates:
     live: Rates
     final: Rates
 
+
 @dataclass
 class SimulationCaseV4:
     output: Optional[SimOutput]
     timeframe: TimeFrame = name_in_json("timeFrame")
     site: Site
+    remote_site: Optional[RemoteSite] = name_in_json("remoteSite")
     strategy: Strategy
     rates: AllRates
 
