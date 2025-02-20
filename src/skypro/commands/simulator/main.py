@@ -46,7 +46,7 @@ class ParsedRates:
     live_mkt_vol: VolRatesForEnergyFlows = field(default_factory=VolRatesForEnergyFlows)   # Volume-based (p/kWh) market/supplier rates for each energy flow, as predicted in real-time
     final_mkt_vol: VolRatesForEnergyFlows = field(default_factory=VolRatesForEnergyFlows)  # Volume-based (p/kWh) market/supplier rates for each energy flow
     mkt_fix: List[FixedRate] = field(default_factory=list)   # Fixed p/day rates associated with market/suppliers
-    customer: List[Rate] = field(default_factory=list)  # Volume and fixed rates charged to customers
+    customer: Dict[str, List[Rate]] = field(default_factory=dict)  # Volume and fixed rates charged to customers, in categories
 
 
 def simulate(
