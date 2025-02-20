@@ -56,10 +56,10 @@ class TestIntegration(unittest.TestCase):
                     "mvRate:battToLoad.final": [0.0],
                     "mvRate:solarToLoad.final": [0.0],
 
-                    "cvRate:domestic": [-21.0],
+                    "cvRate:all": [-21.0],
 
                     # the fixed charges are applied to a number of days
-                    "cfCost:standingCharge": [-2000 * num_days_simulated],
+                    "cfCost:all": [-2000 * num_days_simulated],
                     "mfCost:meterManagementFee": [1250 * num_days_simulated],
                     "mfCost:supplierFee": [300 * num_days_simulated],
                 })

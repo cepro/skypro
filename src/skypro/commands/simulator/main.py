@@ -406,12 +406,13 @@ def get_rates_from_config(
                     raise ValueError(f"Only fixed rates can be specified in the fixedMarketFiles, got: '{rate.name}'")
 
         if rates_config.final.experimental.customer_load_files:
-            parsed_rates.customer = parse_rate_files(
-                files=rates_config.final.experimental.customer_load_files,
-                supply_points=final_supply_points,
-                imbalance_pricing=None,
-                file_path_resolver_func=file_path_resolver_func,
-            )
+            for category_str, files in rates_config.final.experimental.customer_load_files.items():
+                parsed_rates.customer[category_str] = parse_rate_files(
+                    files=files,
+                    supply_points=final_supply_points,
+                    imbalance_pricing=None,
+                    file_path_resolver_func=file_path_resolver_func
+                )
 
     return parsed_rates, df
 
