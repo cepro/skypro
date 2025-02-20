@@ -5,7 +5,8 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import pytz
-from simt_common.data.read_data import read_directory_of_csvs
+from simt_common.data.config import DataSource
+from simt_common.data.read_data import read_directory_of_csvs, read_data_source
 from simt_common.timeutils.math import floor_hh
 
 
@@ -16,19 +17,10 @@ class Profiler:
     def __init__(
             self,
             scaling_factor: float,
-            profile_csv_dir: Optional[str] = None,
-            profile_csv: Optional[str] = None,
+            df: pd.DataFrame,
             energy_cols: Optional[str] = None
     ):
         self._scaling_factor = scaling_factor
-
-        if profile_csv_dir:
-            # read in all the profile files in the given directory into a dataframe
-            df = read_directory_of_csvs(profile_csv_dir)
-        elif profile_csv:
-            df = pd.read_csv(profile_csv)
-        else:
-            raise ValueError("Either a directory containing CSVs or CSV file must be specified")
 
         # Prefer to use the UTCTime column, but if it's not present then use ClockTime with the Europe/London timezone
         use_clocktime = "UTCTime" not in df.columns or np.all(pd.isnull(df["UTCTime"]))

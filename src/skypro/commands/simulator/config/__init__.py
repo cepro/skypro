@@ -4,14 +4,13 @@ from .config import (
 )
 
 from .config_common import (
-    Load as Load,
+    SolarOrLoad as SolarOrLoad,
     Peak as Peak,
     PriceCurveAlgo as PriceCurveAlgo,
     Microgrid as Microgrid,
     Niv as Niv,
     NivPeriod as NivPeriod,
     SpreadAlgo as SpreadAlgo,
-    Solar as Solar,
     Bess as Bess,
     GridConnection as GridConnection,
 )

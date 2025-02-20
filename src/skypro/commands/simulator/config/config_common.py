@@ -2,8 +2,8 @@ from dataclasses import field
 from datetime import timedelta
 from typing import List, Optional
 
-import numpy as np
 from marshmallow_dataclass import dataclass
+from simt_common.data.config import DataSource
 from simt_common.rates.parse_config.dayed_period import DayedPeriodType
 
 from skypro.commands.simulator.config.curve import (CurveType)
@@ -27,14 +27,9 @@ class Profile:
     # arrays preserve order and the order of the load profiles may become important down the line.
     tag: Optional[str] = name_in_json("tag")
 
-    profile_dir: Optional[PathType] = name_in_json("profileDir")
-    profile_csv: Optional[PathType] = name_in_json("profileCsv")
+    source: DataSource
 
     energy_cols: Optional[str] = name_in_json("energyCols")
-
-    # These are deprecated - ClockTime will be automatically used as Europe/London if UTCTime can't be found
-    parse_clock_time: Optional[bool] = name_in_json("parseClockTime")
-    clock_time_zone: Optional[str] = name_in_json("clockTimeZone")
 
     scaling_factor: Optional[float] = name_in_json("scalingFactor")
     profiled_num_plots: Optional[float] = name_in_json("profiledNumPlots")
@@ -43,8 +38,6 @@ class Profile:
     scaled_size_kwp: Optional[float] = name_in_json("scaledSizeKwp")
 
     def __post_init__(self):
-        enforce_one_option([self.profile_dir, self.profile_csv], "'profileDir' or 'profileCsv'")
-
         # There are three ways of setting the scaling factor: by 'kwp' fields; by 'num plot' fields; or by
         # explicitly setting the 'scalingFactor'. This is partly to support older configurations.
         if self.scaling_factor is None:
@@ -61,25 +54,8 @@ class Profile:
 
 
 @dataclass
-class Solar:
-    constant: Optional[float] = field(default=np.nan)
-    profile: Optional[Profile] = field(default=None)
-
-    def __post_init__(self):
-        enforce_one_option([self.constant, self.profile], "'constant' or 'profile' solar")
-
-
-@dataclass
-class Load:
-    constant: Optional[float] = field(default=np.nan)
-    profile: Optional[Profile] = field(default=None)
-    profiles: Optional[List[Profile]] = field(default=None)
-
-    def __post_init__(self):
-        enforce_one_option(
-            [self.constant, self.profile, self.profiles],
-            "'constant', 'profile' or 'profiles' load"
-        )
+class SolarOrLoad:
+    profiles: List[Profile] = field(default=None)
 
 
 @dataclass
@@ -92,8 +68,8 @@ class Bess:
 @dataclass
 class Site:
     grid_connection: GridConnection = name_in_json("gridConnection")
-    solar: Solar
-    load: Load
+    solar: SolarOrLoad
+    load: SolarOrLoad
     bess: Bess
 
 
@@ -118,45 +94,6 @@ class NivPeriod:
     niv: Niv
 
 
-@dataclass
-class DataSource:
-    source_str: str = name_in_json("source")
-    is_predictive: Optional[bool] = field(metadata={"data_key": "isPredictive"}, default=False)
-
-
-@dataclass
-class ImbalanceDataSource:
-    price: DataSource = name_in_json("price")
-    volume: DataSource = name_in_json("volume")
-
-
-@dataclass
-class RatesFiles:
-    solar_to_batt: List[PathType] = name_in_json("solarToBatt")
-    grid_to_batt: List[PathType] = name_in_json("gridToBatt")
-    batt_to_grid: List[PathType] = name_in_json("battToGrid")
-    batt_to_load: List[PathType] = name_in_json("battToLoad")
-    solar_to_grid: List[PathType] = name_in_json("solarToGrid")
-    solar_to_load: List[PathType] = name_in_json("solarToLoad")
-    grid_to_load: List[PathType] = name_in_json("gridToLoad")
-
-
-@dataclass
-class ExperimentalRates:
-    mkt_fixed_files: List[PathType] = name_in_json("marketFixedCostFiles")
-    customer_load_files: List[PathType] = name_in_json("customerLoadFiles")
-
-
-@dataclass
-class Rates:
-    """
-    Note that this class just holds the paths to the rates/supply point configuration files. The actual parsing of the
-    contents of these files is done in the common.config.rates module.
-    """
-    supply_points_config_file: PathType = name_in_json("supplyPointsConfigFile")
-    imbalance_data_source: ImbalanceDataSource = name_in_json("imbalanceDataSource")
-    files: RatesFiles
-    experimental: Optional[ExperimentalRates]
 
 
 @dataclass

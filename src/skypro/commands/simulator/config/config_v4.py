@@ -52,6 +52,7 @@ class AllRates:
     live: Rates
     final: Rates
 
+
 @dataclass
 class SimulationCaseV4:
     output: Optional[SimOutput]

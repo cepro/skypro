@@ -4,9 +4,8 @@ import os
 from dataclasses import dataclass, field
 from datetime import timedelta
 from functools import partial
-from typing import Optional, Tuple, List, Dict
+from typing import Optional, Tuple, List, Dict, Callable
 
-import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import pytz
@@ -24,11 +23,11 @@ from simt_common.timeutils.math import floor_hh
 from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings
 from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
 from skypro.commands.simulator.algorithms.price_curve.algo import PriceCurveAlgo
-from skypro.commands.simulator.config import parse_config, Solar, Load, ConfigV4
+from skypro.commands.simulator.config import parse_config, SolarOrLoad, ConfigV4
 from skypro.commands.simulator.config.config_v4 import SimulationCaseV4, AllRates
 from skypro.commands.simulator.config.path_field import resolve_file_path
 from skypro.commands.simulator.microgrid import calculate_microgrid_flows
-from skypro.commands.simulator.read_data import normalise_final_imbalance_data, normalise_live_imbalance_data
+from skypro.commands.simulator.normalise_data import normalise_final_imbalance_data, normalise_live_imbalance_data
 from skypro.commands.simulator.profiler import Profiler
 from skypro.commands.simulator.results import explore_results
 
@@ -129,8 +128,10 @@ def run_one_simulation(
     )
     time_index = time_index.tz_convert(pytz.timezone("Europe/London"))
 
+    file_path_resolver_func = partial(resolve_file_path, env_vars=env_config["vars"])
+
     # Extract the rates objects from the config files
-    rates, imbalance_df = get_rates_from_config(time_index, sim_config.rates, env_config)
+    rates, imbalance_df = get_rates_from_config(time_index, sim_config.rates, env_config, file_path_resolver_func)
 
     # Log the parsed rates for user information
     for name, rate_set in rates.live_mkt_vol.get_all_sets_named():
@@ -144,7 +145,8 @@ def run_one_simulation(
         time_index=time_index,
         config=sim_config.site.solar,
         do_plots=do_plots,
-        context_hint="Solar"
+        context_hint="Solar",
+        file_path_resolver_func=file_path_resolver_func
     )
     df["solar"] = solar_energy_breakdown_df.sum(axis=1)
     df["solar_power"] = total_solar_power
@@ -154,7 +156,8 @@ def run_one_simulation(
         time_index=time_index,
         config=sim_config.site.load,
         do_plots=do_plots,
-        context_hint="Load"
+        context_hint="Load",
+        file_path_resolver_func=file_path_resolver_func,
     )
     df["load"] = load_energy_breakdown_df.sum(axis=1)
     df["load_power"] = total_load_power
@@ -276,10 +279,8 @@ def run_one_simulation(
                 ("end", sim_config.end.isoformat()),
                 ("site.gridConnection.importLimit", sim_config.site.grid_connection.import_limit),
                 ("site.gridConnection.exportLimit", sim_config.site.grid_connection.export_limit),
-                ("site.solar.constant", sim_config.site.solar.constant),
-                ("site.solar.profile", sim_config.site.solar.profile),
-                ("site.load.constant", sim_config.site.load.constant),
-                ("site.load.profile", sim_config.site.load.profile),
+                ("site.solar.profiles", sim_config.site.solar.profiles),
+                ("site.load.profiles", sim_config.site.load.profiles),
                 ("site.bess.energyCapacity", sim_config.site.bess.energy_capacity),
                 ("site.bess.nameplatePower", sim_config.site.bess.nameplate_power),
                 ("site.bess.chargeEfficiency", sim_config.site.bess.charge_efficiency),
@@ -335,7 +336,8 @@ def run_one_simulation(
 def get_rates_from_config(
         time_index: pd.DatetimeIndex,
         rates_config: AllRates,
-        env_config: Dict
+        env_config: Dict,
+        file_path_resolver_func: Callable
 ) -> Tuple[ParsedRates, pd.DataFrame]:
     """
     This reads the rates files defined in the given rates configuration block and returns the ParsedRates,
@@ -348,15 +350,12 @@ def get_rates_from_config(
         supply_points_config_file=rates_config.live.supply_points_config_file
     )
 
-    file_path_resolver_func = partial(resolve_file_path, env_vars=env_config["vars"])
-
     def read_imbalance_data(source):
         """
         Convenience function for reading imbalance data
         """
         return read_data_source(
-            source_str=source.source_str,
-            is_predictive=source.is_predictive,
+            source=source,
             start=time_index[0],
             end=time_index[-1],
             file_path_resolver_func=file_path_resolver_func,
@@ -465,9 +464,10 @@ def check_algo_result_consistency(df_algo: pd.DataFrame, df_in: pd.DataFrame, ba
 
 def process_profiles(
         time_index: pd.DatetimeIndex,
-        config: Solar | Load,
+        config: SolarOrLoad,
         do_plots: bool,
-        context_hint: str
+        context_hint: str,
+        file_path_resolver_func: Callable
 ) -> (pd.DataFrame, pd.Series):
     """
     Reads the specified profile configuration and returns a dataframe of the individual profiled energies, as well as
@@ -475,30 +475,33 @@ def process_profiles(
     This function also optionally plots the profiles and exports a CSV of the profiles broken down by category.
     """
 
-    if config.profile:
-        profile_configs = [config.profile]
-    elif isinstance(config, Load) and config.profiles:
-        profile_configs = config.profiles
-    elif not np.isnan(config.constant):
-        energy = pd.Series(index=time_index, data=config.constant)
-        return energy.to_frame(), energy_to_power(energy)
-    else:
-        raise ValueError("Configuration must have either 'profile', 'profiles' or 'constant'")
+    # energy = pd.Series(index=time_index, data=config.constant)
+    # return energy.to_frame(), energy_to_power(energy)
 
     energy_df = pd.DataFrame(index=time_index)
     power_df = pd.DataFrame(index=time_index)
 
-    for i, profile_config in enumerate(profile_configs):
+    for i, profile_config in enumerate(config.profiles):
         if profile_config.tag:
             tag = profile_config.tag
         else:
             tag = "untagged"
 
         logging.info(f"Generating {context_hint} profile for '{tag}'...")
+
+        df = read_data_source(
+            source=profile_config.source,
+            start=None,
+            end=None,
+            file_path_resolver_func=file_path_resolver_func,
+            db_engine=None,
+        )
+
+        breakpoint()
+
         profiler = Profiler(
             scaling_factor=profile_config.scaling_factor,
-            profile_csv=profile_config.profile_csv,
-            profile_csv_dir=profile_config.profile_dir,
+            df=df,
             energy_cols=profile_config.energy_cols,
         )
         energy = profiler.get_for(time_index)
