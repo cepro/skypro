@@ -1,6 +1,6 @@
 from dataclasses import field
 from datetime import timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import numpy as np
 from marshmallow_dataclass import dataclass
@@ -138,7 +138,7 @@ class RatesFiles:
 @dataclass
 class ExperimentalRates:
     mkt_fixed_files: List[PathType] = name_in_json("marketFixedCostFiles")
-    customer_load_files: List[PathType] = name_in_json("customerLoadFiles")
+    customer_load_files: Dict[str, List[PathType]] = name_in_json("customerLoadFiles")
 
 
 @dataclass

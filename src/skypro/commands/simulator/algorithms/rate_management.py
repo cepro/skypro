@@ -6,7 +6,7 @@ import pandas as pd
 from simt_common.rates.microgrid import VolRatesForEnergyFlows, get_vol_rates_dfs
 from simt_common.rates.osam import calculate_osam_ncsp
 from simt_common.rates.rates import OSAMFlatVolRate
-from simt_common.timeutils.math import add_wallclock_days
+from simt_common.timeutils.math_wallclock import add_wallclock_days
 
 from skypro.commands.simulator.microgrid import calculate_microgrid_flows
 

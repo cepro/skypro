@@ -4,7 +4,8 @@ import numpy as np
 import pulp
 import pandas as pd
 from simt_common.rates.microgrid import VolRatesForEnergyFlows
-from simt_common.timeutils.math import floor_day, add_wallclock_days
+from simt_common.timeutils.math import floor_day
+from simt_common.timeutils.math_wallclock import add_wallclock_days
 from simt_common.timeutils.timeseries import get_step_size
 
 from skypro.commands.simulator.algorithms.rate_management import run_osam_calcs_for_day, add_total_vol_rates_to_df

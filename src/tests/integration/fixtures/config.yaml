@@ -48,7 +48,8 @@ sandbox:
       marketFixedCostFiles:
         - "./src/tests/integration/fixtures/rates/fixed_market_rates.yaml"
       customerLoadFiles:
-        - "./src/tests/integration/fixtures/rates/customer_rates.yaml"
+        all:
+          - "./src/tests/integration/fixtures/rates/customer_rates.yaml"
 
   output: &output
     simulation:
