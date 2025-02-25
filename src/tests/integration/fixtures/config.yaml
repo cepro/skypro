@@ -9,15 +9,19 @@ sandbox:
       importLimit: 220
       exportLimit: 475
     solar:
-      profile:
-        profileDir: "./src/tests/integration/fixtures/solar/"
-        profiledSizeKwp: 4.4
-        scaledSizeKwp: 210
+      profiles:
+        - source:
+            csvProfile:
+              dir: "./src/tests/integration/fixtures/solar/"
+          profiledSizeKwp: 4.4
+          scaledSizeKwp: 210
     load:
-      profile:
-        profileDir: "./src/tests/integration/fixtures/load/"
-        profiledNumPlots: 12
-        scaledNumPlots: 54
+      profiles:
+        - source:
+            csvProfile:
+              dir: "./src/tests/integration/fixtures/load/"
+          profiledNumPlots: 12
+          scaledNumPlots: 54
     bess:
       energyCapacity: 1280
       nameplatePower: 565
@@ -43,20 +47,25 @@ sandbox:
       solarToLoad: [ ]
     imbalanceDataSource:
       price:
-        source: "csv-dir:./src/tests/integration/fixtures/elexon_imbalance_price/"
+        csvTimeseries:
+          dir: "./src/tests/integration/fixtures/elexon_imbalance_price/"
       volume:
-        source: "csv-dir:./src/tests/integration/fixtures/elexon_imbalance_volume/"
+        csvTimeseries:
+          dir: "./src/tests/integration/fixtures/elexon_imbalance_volume/"
     experimental:
       marketFixedCostFiles:
-        - "./src/tests/integration/fixtures/rates/fixed_market_rates.yaml"
+        all:
+          - "./src/tests/integration/fixtures/rates/fixed_market_rates.yaml"
       customerLoadFiles:
-        - "./src/tests/integration/fixtures/rates/customer_rates.yaml"
+        all:
+          - "./src/tests/integration/fixtures/rates/customer_rates.yaml"
 
   output: &output
     simulation:
       csv: "./src/tests/integration/output_sim.csv"
     summary:
       csv: "./src/tests/integration/output_summary.csv"
+      rateDetail: "all"
 
 simulations:
   integrationTestPriceCurve:

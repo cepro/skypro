@@ -392,7 +392,7 @@ def get_rates_from_config(
     if rates_config.final.experimental:
         if rates_config.final.experimental.mkt_fixed_files:
             # Read in fixed rates just to output them in the CSV
-            for category_str, files in rates_config.final.experimental.customer_load_files.items():
+            for category_str, files in rates_config.final.experimental.mkt_fixed_files.items():
                 rates = parse_rate_files(
                     files=files,
                     supply_points=final_supply_points,
