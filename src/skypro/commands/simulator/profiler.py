@@ -4,9 +4,6 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-import pytz
-from simt_common.data.config import DataSource
-from simt_common.data.read_data import read_directory_of_csvs, read_data_source
 from simt_common.timeutils.math import floor_hh
 
 
@@ -16,36 +13,11 @@ class Profiler:
     """
     def __init__(
             self,
-            scaling_factor: float,
             df: pd.DataFrame,
+            scaling_factor: float,
             energy_cols: Optional[str] = None
     ):
         self._scaling_factor = scaling_factor
-
-        # Prefer to use the UTCTime column, but if it's not present then use ClockTime with the Europe/London timezone
-        use_clocktime = "UTCTime" not in df.columns or np.all(pd.isnull(df["UTCTime"]))
-        if use_clocktime:
-            df["ClockTime"] = pd.to_datetime(df["ClockTime"])
-            df["ClockTime"] = df["ClockTime"].dt.tz_localize(
-                pytz.timezone("Europe/London"),
-                ambiguous="NaT",
-                nonexistent="NaT"
-            )
-            num_inc_nan = len(df)
-            df = df.dropna(subset=["ClockTime"])
-            num_dropped = num_inc_nan - len(df)
-            if num_dropped > 0:
-                logging.warning(f"Dropped {num_dropped} NaT rows from profile (probably because the UTC time could "
-                                f"not be inferred from the ClockTime")
-            df["UTCTime"] = df["ClockTime"].dt.tz_convert("UTC")
-        else:
-            df["UTCTime"] = pd.to_datetime(df["UTCTime"], utc=True)
-
-        df = df.set_index("UTCTime")
-
-        # If we have UTCTime then we don't need the ClockTime column
-        if "ClockTime" in df.columns:
-            df = df.drop("ClockTime", axis=1)
 
         if energy_cols == "sum-all" or ((energy_cols is None) and ("energy" not in df.columns)):
             self._profile = df.sum(axis=1)

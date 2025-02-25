@@ -1,9 +1,9 @@
-from .config import (
+from .parse_config import (
     parse_config as parse_config,
     get_relevant_niv_config as get_relevant_niv_config,
 )
 
-from .config_common import (
+from .config import (
     SolarOrLoad as SolarOrLoad,
     Peak as Peak,
     PriceCurveAlgo as PriceCurveAlgo,
@@ -15,4 +15,4 @@ from .config_common import (
     GridConnection as GridConnection,
 )
 
-from .config_v4 import ConfigV4 as ConfigV4
+from .config import ConfigV4 as ConfigV4

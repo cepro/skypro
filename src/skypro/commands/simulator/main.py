@@ -4,28 +4,30 @@ import os
 from dataclasses import dataclass, field
 from datetime import timedelta
 from functools import partial
-from typing import Optional, Tuple, List, Dict, Callable
+from typing import Optional, Tuple, List, Dict, Callable, cast
 
 import pandas as pd
 import plotly.graph_objects as go
 import pytz
 import sqlalchemy
-from simt_common.data.read_data import read_data_source
+from simt_common.config.data_source import TimeseriesDataSource
+from simt_common.config.path_field import resolve_file_path
+from simt_common.config.rates_parse import parse_supply_points, parse_vol_rates_files_for_all_energy_flows, \
+    parse_rate_files
+from simt_common.data.get_profile import get_profile
+from simt_common.data.get_timeseries import get_timeseries
 from simt_common.microgrid_analysis.output import generate_output_df
 
 from simt_common.rates.microgrid import get_vol_rates_dfs, VolRatesForEnergyFlows
 from simt_common.rates.osam import calculate_osam_ncsp
-from simt_common.rates.parse_config.parse import parse_supply_points, parse_rate_files, \
-    parse_vol_rates_files_for_all_energy_flows
 from simt_common.rates.rates import FixedRate, Rate, OSAMFlatVolRate
 from simt_common.timeutils.math import floor_hh
 
-from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings
+from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings, get_user_ack_of_warning_or_exit
 from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
 from skypro.commands.simulator.algorithms.price_curve.algo import PriceCurveAlgo
-from skypro.commands.simulator.config import parse_config, SolarOrLoad, ConfigV4
-from skypro.commands.simulator.config.config_v4 import SimulationCaseV4, AllRates
-from skypro.commands.simulator.config.path_field import resolve_file_path
+from skypro.commands.simulator.config.parse_config import parse_config
+from skypro.commands.simulator.config.config import ConfigV4, SimulationCaseV4, AllRates, SolarOrLoad
 from skypro.commands.simulator.microgrid import calculate_microgrid_flows
 from skypro.commands.simulator.normalise_data import normalise_final_imbalance_data, normalise_live_imbalance_data
 from skypro.commands.simulator.profiler import Profiler
@@ -45,7 +47,7 @@ class ParsedRates:
     """
     live_mkt_vol: VolRatesForEnergyFlows = field(default_factory=VolRatesForEnergyFlows)   # Volume-based (p/kWh) market/supplier rates for each energy flow, as predicted in real-time
     final_mkt_vol: VolRatesForEnergyFlows = field(default_factory=VolRatesForEnergyFlows)  # Volume-based (p/kWh) market/supplier rates for each energy flow
-    mkt_fix: List[FixedRate] = field(default_factory=list)   # Fixed p/day rates associated with market/suppliers
+    mkt_fix: Dict[str, List[FixedRate]] = field(default_factory=dict)   # Fixed p/day rates associated with market/suppliers
     customer: Dict[str, List[Rate]] = field(default_factory=dict)  # Volume and fixed rates charged to customers, in categories
 
 
@@ -350,16 +352,17 @@ def get_rates_from_config(
         supply_points_config_file=rates_config.live.supply_points_config_file
     )
 
-    def read_imbalance_data(source):
+    def read_imbalance_data(source: TimeseriesDataSource):
         """
         Convenience function for reading imbalance data
         """
-        return read_data_source(
+        return get_timeseries(
             source=source,
             start=time_index[0],
             end=time_index[-1],
             file_path_resolver_func=file_path_resolver_func,
             db_engine=sqlalchemy.create_engine(env_config["flows"]["dbUrl"]),
+            warning_func=get_user_ack_of_warning_or_exit,
         )
 
     final_price_df = read_imbalance_data(rates_config.final.imbalance_data_source.price)
@@ -374,25 +377,13 @@ def get_rates_from_config(
     parsed_rates = ParsedRates()
 
     parsed_rates.final_mkt_vol = parse_vol_rates_files_for_all_energy_flows(
-        solar_to_batt=rates_config.final.files.solar_to_batt,
-        grid_to_batt=rates_config.final.files.grid_to_batt,
-        batt_to_load=rates_config.final.files.batt_to_load,
-        batt_to_grid=rates_config.final.files.batt_to_grid,
-        solar_to_grid=rates_config.final.files.solar_to_grid,
-        solar_to_load=rates_config.final.files.solar_to_load,
-        grid_to_load=rates_config.final.files.grid_to_load,
+        rates_files=rates_config.final.files,
         supply_points=final_supply_points,
         imbalance_pricing=df["imbalance_price_final"],
         file_path_resolver_func=file_path_resolver_func
     )
     parsed_rates.live_mkt_vol = parse_vol_rates_files_for_all_energy_flows(
-        solar_to_batt=rates_config.live.files.solar_to_batt,
-        grid_to_batt=rates_config.live.files.grid_to_batt,
-        batt_to_load=rates_config.live.files.batt_to_load,
-        batt_to_grid=rates_config.live.files.batt_to_grid,
-        solar_to_grid=rates_config.live.files.solar_to_grid,
-        solar_to_load=rates_config.live.files.solar_to_load,
-        grid_to_load=rates_config.live.files.grid_to_load,
+        rates_files=rates_config.live.files,
         supply_points=live_supply_points,
         imbalance_pricing=df["imbalance_price_live"],
         file_path_resolver_func=file_path_resolver_func
@@ -401,15 +392,17 @@ def get_rates_from_config(
     if rates_config.final.experimental:
         if rates_config.final.experimental.mkt_fixed_files:
             # Read in fixed rates just to output them in the CSV
-            parsed_rates.mkt_fix = parse_rate_files(
-                files=rates_config.final.experimental.mkt_fixed_files,
-                supply_points=final_supply_points,
-                imbalance_pricing=None,
-                file_path_resolver_func=file_path_resolver_func,
-            )
-            for rate in parsed_rates.mkt_fix:
-                if not isinstance(rate, FixedRate):
-                    raise ValueError(f"Only fixed rates can be specified in the fixedMarketFiles, got: '{rate.name}'")
+            for category_str, files in rates_config.final.experimental.customer_load_files.items():
+                rates = parse_rate_files(
+                    files=files,
+                    supply_points=final_supply_points,
+                    imbalance_pricing=None,
+                    file_path_resolver_func=file_path_resolver_func,
+                )
+                for rate in rates:
+                    if not isinstance(rate, FixedRate):
+                        raise ValueError(f"Only fixed rates can be specified in the fixedMarketFiles, got: '{rate.name}'")
+                parsed_rates.mkt_fix[category_str] = cast(List[FixedRate], rates)
 
         if rates_config.final.experimental.customer_load_files:
             for category_str, files in rates_config.final.experimental.customer_load_files.items():
@@ -489,15 +482,11 @@ def process_profiles(
 
         logging.info(f"Generating {context_hint} profile for '{tag}'...")
 
-        df = read_data_source(
+        df = get_profile(
             source=profile_config.source,
-            start=None,
-            end=None,
+            time_index=time_index,
             file_path_resolver_func=file_path_resolver_func,
-            db_engine=None,
         )
-
-        breakpoint()
 
         profiler = Profiler(
             scaling_factor=profile_config.scaling_factor,

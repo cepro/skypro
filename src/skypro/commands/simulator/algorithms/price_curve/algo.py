@@ -43,7 +43,7 @@ class PriceCurveAlgo:
         num_skipped_periods = 0
 
         time_step = timedelta(seconds=pd.to_timedelta(self._df.index.freq).total_seconds())
-        time_steps_per_sp = int(timedelta(minutes=30)/ time_step)
+        time_steps_per_sp = int(timedelta(minutes=30) / time_step)
         time_step_hours = time_step.total_seconds() / 3600
 
         # Run through each row (where each row represents a time step) and apply the strategy
@@ -135,7 +135,7 @@ class PriceCurveAlgo:
                         not np.isnan(self._df.loc[t, "prev_sp_mkt_vol_rate_live_batt_to_grid"]) and \
                         not np.isnan(self._df.loc[t, "prev_sp_imbalance_volume_live"]):
 
-                    # If we don't have predictions yet, then in the first 10mins of the SP we can use the previous SP's
+                    # If we don't have predictions yet, then in the first 10mins of the SP we can use the previous SPs
                     # imbalance data to inform the activity
 
                     # MWh to kWh

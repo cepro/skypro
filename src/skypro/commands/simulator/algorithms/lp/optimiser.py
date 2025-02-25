@@ -11,7 +11,7 @@ from simt_common.timeutils.timeseries import get_step_size
 from skypro.commands.simulator.algorithms.rate_management import run_osam_calcs_for_day, add_total_vol_rates_to_df
 
 from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
-from skypro.commands.simulator.config.config_common import Optimiser as OptimiserConfig, OptimiserBlocks, Bess
+from skypro.commands.simulator.config.config import Optimiser as OptimiserConfig, OptimiserBlocks, Bess
 
 
 class Optimiser:
