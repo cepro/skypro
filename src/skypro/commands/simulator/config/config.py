@@ -56,7 +56,12 @@ class Profile:
 
 @dataclass
 class SolarOrLoad:
-    profiles: List[Profile] = field(default=None)
+    profile: Optional[Profile]
+    profiles: Optional[List[Profile]] = field(default=None)
+
+    def __post_init__(self):
+        enforce_one_option([self.profiles, self.profile], "'profile', 'profiles")
+
 
 
 @dataclass

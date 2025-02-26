@@ -491,7 +491,13 @@ def process_profiles(
     energy_df = pd.DataFrame(index=time_index)
     power_df = pd.DataFrame(index=time_index)
 
-    for i, profile_config in enumerate(config.profiles):
+    # The user can either specify a single profile or an array of profiles
+    if config.profiles:
+        profiles = config.profiles
+    else:
+        profiles = [config.profile]
+
+    for i, profile_config in enumerate(profiles):
         if profile_config.tag:
             tag = profile_config.tag
         else:
