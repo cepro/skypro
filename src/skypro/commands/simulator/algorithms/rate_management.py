@@ -40,7 +40,7 @@ def run_osam_calcs_for_day(
 
         # To calculate OSAM rates we first need to work out the microgrid energy flows for yesterday given the
         # simulated actions
-        df_with_mg_flows = calculate_microgrid_flows(df.loc[mg_flow_calc_start:t])
+        df_with_mg_flows = calculate_microgrid_flows(df.loc[mg_flow_calc_start:t], allow_remote_flow_to_site=False)  # TODO: Should we be allowing remote flow to site?!
 
         # The below loc command doesn't work unless all the columns are already present.
         _match_columns(df, df_with_mg_flows)

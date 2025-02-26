@@ -143,6 +143,21 @@ def run_one_simulation(
 
     df = imbalance_df[["imbalance_volume_live", "imbalance_volume_final"]].copy()
 
+    # Optionally a remote site can be specified which has solar for VPP/P442
+    if sim_config.remote_site:
+        remote_solar_energy_breakdown_df, total_remote_solar_power = process_profiles(
+            time_index=time_index,
+            config=sim_config.remote_site.solar,
+            do_plots=do_plots,
+            context_hint="Remote Solar",
+            file_path_resolver_func=file_path_resolver_func,
+        )
+        df["remote_solar"] = remote_solar_energy_breakdown_df.sum(axis=1)
+        df["remote_solar_power"] = total_remote_solar_power
+    else:
+        df["remote_solar"] = 0
+        df["remote_solar_power"] = 0
+
     # Process solar profiles
     solar_energy_breakdown_df, total_solar_power = process_profiles(
         time_index=time_index,
@@ -189,6 +204,7 @@ def run_one_simulation(
         "time_left_of_sp",
         "solar",
         "solar_power",
+        "remote_solar",
         "load",
         "load_power",
         "microgrid_residual_power",
@@ -216,6 +232,7 @@ def run_one_simulation(
             algo_config=sim_config.strategy.optimiser,
             bess_config=sim_config.site.bess,
             final_vol_rates=rates.final_mkt_vol,
+            allow_remote_flow_to_site=sim_config.remote_site.allow_flow_to_site,
             df=df[cols_to_share_with_algo],
         )
         df_algo = opt.run()
@@ -231,8 +248,26 @@ def run_one_simulation(
     # Add the results of the algo into the main dataframe
     df = pd.concat([df, df_algo], axis=1)
 
-    df = calculate_microgrid_flows(df)
+    df = calculate_microgrid_flows(df, sim_config.remote_site.allow_flow_to_site)
+    # import plotly.express as px
+    # px.line(df[[
+    #     "solar",
+    #     "remote_solar",
+    #     "load",
+    #     "bess_charge",
+    #     "bess_discharge",
+    #     "solar_to_load",
+    #     "batt_to_load",
+    #     "batt_to_grid",
+    #     "solar_to_batt",
+    #     "remote_solar_to_load",
+    #     "remote_solar_to_batt",
+    #     "grid_to_batt",
+    #     "grid_to_load",
+    #     "solar_to_grid",
+    # ]]).show()
 
+    # TODO: How to integrate OSAM with P442?
     # The algorithm has used the 'live' rates that were available at the simulated time, now we ascertain the 'final'
     # rates for use in reporting.
     df["osam_ncsp"], osam_df = calculate_osam_ncsp(
@@ -484,9 +519,6 @@ def process_profiles(
     the summed total power in a pd.Series.
     This function also optionally plots the profiles and exports a CSV of the profiles broken down by category.
     """
-
-    # energy = pd.Series(index=time_index, data=config.constant)
-    # return energy.to_frame(), energy_to_power(energy)
 
     energy_df = pd.DataFrame(index=time_index)
     power_df = pd.DataFrame(index=time_index)

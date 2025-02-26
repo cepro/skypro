@@ -63,7 +63,6 @@ class SolarOrLoad:
         enforce_one_option([self.profiles, self.profile], "'profile', 'profiles")
 
 
-
 @dataclass
 class Bess:
     energy_capacity: float = field_with_opts(key="energyCapacity")
@@ -77,6 +76,12 @@ class Site:
     solar: SolarOrLoad
     load: SolarOrLoad
     bess: Bess
+
+
+@dataclass
+class RemoteSite:
+    allow_flow_to_site: bool = field_with_opts(key="allowFlowToSite")
+    solar: SolarOrLoad
 
 
 @dataclass
@@ -244,6 +249,7 @@ class SimulationCaseV4:
     output: Optional[SimOutput]
     timeframe: TimeFrame = field_with_opts(key="timeFrame")
     site: Site
+    remote_site: Optional[RemoteSite] = field_with_opts(key="remoteSite")
     strategy: Strategy
     rates: AllRates
 
