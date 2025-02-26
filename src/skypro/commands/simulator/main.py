@@ -20,6 +20,7 @@ from simt_common.microgrid_analysis.output import generate_output_df
 
 from simt_common.rates.microgrid import get_vol_rates_dfs, VolRatesForEnergyFlows
 from simt_common.rates.osam import calculate_osam_ncsp
+from simt_common.rates.peripheral import get_rates_dfs_by_type
 from simt_common.rates.rates import FixedRate, Rate, OSAMFlatVolRate
 from simt_common.timeutils.math import floor_hh
 
@@ -260,6 +261,19 @@ def run_one_simulation(
     for set_name, vol_rates_df in final_int_vol_rates_dfs.items():
         df[f"int_vol_rate_final_{set_name}"] = vol_rates_df.sum(axis=1, skipna=False)
 
+    # Get the 'peripheral' rate dataframes - these are for things like fixed market, or customer rates, which do
+    # not affect the algorithm, but which are used for output
+    mkt_fixed_cost_dfs, _ = get_rates_dfs_by_type(
+        time_index=time_index,
+        rates_by_category=rates.mkt_fix,
+        allow_vol_rates=False,
+    )
+    customer_fixed_cost_dfs, customer_vol_rates_dfs = get_rates_dfs_by_type(
+        time_index=time_index,
+        rates_by_category=rates.customer,
+        allow_vol_rates=True,
+    )
+
     # Generate an output file if configured to do so
     simulation_output_config = sim_config.output.simulation if sim_config.output else None
     if simulation_output_config and simulation_output_config.csv:
@@ -270,8 +284,9 @@ def run_one_simulation(
             mkt_final_vol_rates_dfs=final_mkt_vol_rates_dfs,
             int_live_vol_rates_dfs=None,  # These 'live' rates aren't available in the output CSV at the moment as they are
             mkt_live_vol_rates_dfs=None,  # calculated by the price curve algo internally and not returned
-            fixed_mkt_rates=rates.mkt_fix,
-            customer_rates=rates.customer,
+            mkt_fixed_costs_dfs=mkt_fixed_cost_dfs,
+            customer_fixed_cost_dfs=customer_fixed_cost_dfs,
+            customer_vol_rates_dfs=customer_vol_rates_dfs,
             load_energy_breakdown_df=load_energy_breakdown_df,
             aggregate_timebase=simulation_output_config.aggregate,
             rate_detail=simulation_output_config.rate_detail,
@@ -307,8 +322,9 @@ def run_one_simulation(
         mkt_final_vol_rates_dfs=final_mkt_vol_rates_dfs,
         int_live_vol_rates_dfs=None,  # These 'live' rates aren't available in the output CSV at the moment as they are
         mkt_live_vol_rates_dfs=None,  # calculated by the price curve algo internally and not returned
-        fixed_mkt_rates=rates.mkt_fix,
-        customer_rates=rates.customer,
+        mkt_fixed_costs_dfs=mkt_fixed_cost_dfs,
+        customer_fixed_cost_dfs=customer_fixed_cost_dfs,
+        customer_vol_rates_dfs=customer_vol_rates_dfs,
         load_energy_breakdown_df=load_energy_breakdown_df,
         aggregate_timebase="all",
         rate_detail=sim_config.output.summary.rate_detail if (sim_config.output and sim_config.output.summary) else None,
@@ -323,6 +339,7 @@ def run_one_simulation(
         df=df,
         final_mkt_vol_rates_dfs=final_mkt_vol_rates_dfs,
         final_int_vol_rates_dfs=final_int_vol_rates_dfs,
+        mkt_fixed_costs_dfs=mkt_fixed_cost_dfs,
         do_plots=do_plots,
         battery_energy_capacity=sim_config.site.bess.energy_capacity,
         battery_nameplate_power=sim_config.site.bess.nameplate_power,
