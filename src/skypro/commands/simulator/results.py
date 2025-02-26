@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import pandas as pd
 
@@ -17,6 +17,7 @@ def explore_results(
         df: pd.DataFrame,
         final_mkt_vol_rates_dfs: Dict[str, pd.DataFrame],
         final_int_vol_rates_dfs: Dict[str, pd.DataFrame],
+        mkt_fixed_costs_dfs: Optional[Dict[str, pd.DataFrame]],
         do_plots: bool,
         battery_energy_capacity: float,
         battery_nameplate_power: float,
@@ -117,11 +118,11 @@ def explore_results(
     bill_match(
         grid_energy_flow=df["grid_import"],
         # use the grid rates for grid_to_batt as these include info about any OSAM rates
-        grid_rates=final_mkt_vol_rates_dfs["grid_to_batt"],
+        mkt_vol_grid_rates_df=final_mkt_vol_rates_dfs["grid_to_batt"],
+        mkt_fixed_costs_dfs=mkt_fixed_costs_dfs,
         osam_rates=osam_rates,
         osam_df=osam_df,
-        cepro_bill_total_expected=breakdown.total_mkt_vol_costs["grid_to_batt"] + breakdown.total_mkt_vol_costs[
-            "grid_to_load"],
+        cepro_mkt_vol_bill_total_expected=breakdown.total_mkt_vol_costs["grid_to_batt"] + breakdown.total_mkt_vol_costs["grid_to_load"],
         context="import",
         line_items=None,
     )

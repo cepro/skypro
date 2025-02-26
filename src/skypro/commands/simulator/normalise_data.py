@@ -1,52 +1,12 @@
-import logging
-from datetime import timedelta, datetime
+
+from datetime import timedelta
 
 import numpy as np
 import pandas as pd
-from simt_common.cli_utils.cliutils import read_directory_of_csvs
+
 from simt_common.timeutils.math import floor_hh
 
 from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
-
-
-def read_imbalance_data(
-        start: datetime,
-        end: datetime,
-        price_dir: str,
-        volume_dir: str
-) -> (pd.DataFrame, pd.DataFrame):
-    """
-    Reads the imbalance price and volume data from the given directories
-    """
-    logging.info("Reading imbalance files...")
-
-    price_df = read_directory_of_csvs(price_dir)
-    volume_df = read_directory_of_csvs(volume_dir)
-
-    logging.info("Processing imbalance files...")
-
-    # Parse the date columns
-    price_df["spUTCTime"] = pd.to_datetime(price_df["spUTCTime"], format="ISO8601")
-    volume_df["spUTCTime"] = pd.to_datetime(volume_df["spUTCTime"], format="ISO8601")
-
-    if "predictionUTCTime" in price_df.columns:
-        price_df["predictionUTCTime"] = pd.to_datetime(price_df["predictionUTCTime"], format="ISO8601")
-    if "predictionUTCTime" in volume_df.columns:
-        volume_df["predictionUTCTime"] = pd.to_datetime(volume_df["predictionUTCTime"], format="ISO8601")
-
-    end_floor_hh = floor_hh(end)
-
-    if start < min(price_df["spUTCTime"]) or start < min(volume_df["spUTCTime"]):
-        raise ValueError("Simulation start time is outside of imbalance data range. Do you need to download more imbalance data?")
-    if end_floor_hh > max(price_df["spUTCTime"]) or end_floor_hh > max(volume_df["spUTCTime"]):
-        raise ValueError("Simulation end time is outside of imbalance volume data range. Do you need to download more imbalance data?")
-
-    # Remove data out of the time range of interest
-    # TODO: only read in CSVs for the months that are required in the first place
-    price_df = price_df[(price_df["spUTCTime"] >= start) & (price_df["spUTCTime"] <= end)]
-    volume_df = volume_df[(volume_df["spUTCTime"] >= start) & (volume_df["spUTCTime"] <= end)]
-
-    return price_df.sort_index(), volume_df.sort_index()
 
 
 def normalise_final_imbalance_data(
@@ -58,25 +18,25 @@ def normalise_final_imbalance_data(
     Puts the imbalance data into the 'final' format, where there is a value for each row/timeslot
     """
 
-    if "predictionUTCTime" in price_df.columns or "predictionUTCTime" in volume_df.columns:
+    if "predicted_at" in price_df.columns or "predicted_at" in volume_df.columns:
         # We used to just take the last prediction from Modo and use it as the final pricing, but that's deprecated as
         # we now have support for specifying the final pricing separately.
         raise ValueError("Cannot use modo data for final rates pricing")
 
     # Drop columns we aren't interested in
-    price_df = price_df[["spUTCTime", "price"]]
-    volume_df = volume_df[["spUTCTime", "volume"]]
+    price_df = price_df[["time", "value"]]
+    volume_df = volume_df[["time", "value"]]
 
-    price_df = price_df.set_index("spUTCTime")
+    price_df = price_df.set_index("time")
     price_df.index.name = None
-    volume_df = volume_df.set_index("spUTCTime")
+    volume_df = volume_df.set_index("time")
     volume_df.index.name = None
 
     df = pd.DataFrame(index=time_index)
 
     steps_per_sp = int(timedelta(minutes=30) / pd.to_timedelta(time_index.freq))
-    df["imbalance_price_final"] = price_df["price"]
-    df["imbalance_volume_final"] = volume_df["volume"]
+    df["imbalance_price_final"] = price_df["value"]
+    df["imbalance_volume_final"] = volume_df["value"]
     df["imbalance_price_final"] = df["imbalance_price_final"].ffill(limit=(steps_per_sp-1))
     df["imbalance_volume_final"] = df["imbalance_volume_final"].ffill(limit=(steps_per_sp-1))
 
@@ -90,10 +50,10 @@ def normalise_live_imbalance_data(
 ) -> pd.DataFrame:
     """
     Puts the imbalance data into the 'live' format, where the values are discovered as the settlement period progresses,
-    and so there are NaNs at the beginning of the settlement period.
+    and so there are NaNs at the beginning of the settlement period where predictions may not be available.
     """
-    price_has_predictions = "predictionUTCTime" in price_df.columns
-    volume_has_predictions = "predictionUTCTime" in volume_df.columns
+    price_has_predictions = "predicted_at" in price_df.columns
+    volume_has_predictions = "predicted_at" in volume_df.columns
     if price_has_predictions != volume_has_predictions:
         raise ValueError("Price and volume data must either both be predictive, or both be non-predictive.")
     has_predictions = price_has_predictions
@@ -103,13 +63,13 @@ def normalise_live_imbalance_data(
         price_df = normalise_modo_data_for_live(
             modo_df=price_df,
             time_index=time_index,
-            col="price",
+            col="value",
             col_prediction="imbalance_price_live",
         )
         volume_df = normalise_modo_data_for_live(
             modo_df=volume_df,
             time_index=time_index,
-            col="volume",
+            col="value",
             col_prediction="imbalance_volume_live",
         )
         df = pd.merge(
@@ -145,8 +105,8 @@ def normalise_elexon_data_for_live(
     final_df = normalise_final_imbalance_data(time_index, price_df, volume_df)
 
     # Drop columns we aren't interested in
-    price_df = price_df[["spUTCTime", "price"]]
-    volume_df = volume_df[["spUTCTime", "volume"]]
+    price_df = price_df[["time", "value"]]
+    volume_df = volume_df[["time", "value"]]
 
     # Elexon only has a single final SSP price, this means we are feeding in a 'perfect price forecast' so the results
     # should be taken with a pinch of salt.
@@ -154,9 +114,9 @@ def normalise_elexon_data_for_live(
                                     "and volume predictions. Modo data may not be as reliable or accurate so real-world"
                                     " profitability may be less")
 
-    price_df = price_df.set_index("spUTCTime")
+    price_df = price_df.set_index("time")
     price_df.index.name = None
-    volume_df = volume_df.set_index("spUTCTime")
+    volume_df = volume_df.set_index("time")
     volume_df.index.name = None
 
     df = pd.DataFrame(index=time_index)
@@ -198,10 +158,10 @@ def normalise_modo_data_for_live(
     df = pd.DataFrame(index=time_index)
 
     # Run through the imbalance prices/volumes and extract the 'predictive price' and the 'final price'
-    for grouping_tuple, sub_df in modo_df.groupby(["spUTCTime"]):
+    for grouping_tuple, sub_df in modo_df.groupby(["time"]):
         sp_start = grouping_tuple[0]  # 'SP' is short for settlement period
         sp_end = sp_start + timedelta(minutes=30)
-        sub_df = sub_df.sort_values(by="predictionUTCTime", ascending=True)
+        sub_df = sub_df.sort_values(by="predicted_at", ascending=True)
 
         # The calculation that Modo published ~10m into the SP
         times_of_interest = time_index[(time_index >= sp_start) & (time_index < sp_end)]
@@ -209,7 +169,7 @@ def normalise_modo_data_for_live(
             # Give another 10 secs as the data pull is run on a minute-aligned cron job
             prediction_cutoff_time = time + timedelta(seconds=10)
             try:
-                predictive_val = sub_df[sub_df["predictionUTCTime"] <= prediction_cutoff_time].iloc[-1][col]
+                predictive_val = sub_df[sub_df["predicted_at"] <= prediction_cutoff_time].iloc[-1][col]
             except IndexError:
                 predictive_val = np.nan
 

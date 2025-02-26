@@ -12,7 +12,7 @@ class SystemState(Enum):
 def get_system_state(df_in, t, volume_cutoff_for_assumption: float) -> SystemState:
     """
     Returns the predicted SystemState at time t, ideally using the predicted imbalance volume for this SP. But, if
-    that is not available yet, then the previous SP's imbalance volume may be used as an assumption if it's volume
+    that is not available yet, then the previous SPs imbalance volume may be used as an assumption if it's volume
     is greater than `volume_cutoff_for_assumption`.
     """
     # Optionally only allow this for the first 10m? df_in.loc[t, "time_into_sp"]<timedelta(minutes=10)

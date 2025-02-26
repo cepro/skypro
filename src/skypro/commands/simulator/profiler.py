@@ -4,8 +4,6 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-import pytz
-from simt_common.cli_utils.cliutils import read_directory_of_csvs
 from simt_common.timeutils.math import floor_hh
 
 
@@ -15,45 +13,11 @@ class Profiler:
     """
     def __init__(
             self,
+            df: pd.DataFrame,
             scaling_factor: float,
-            profile_csv_dir: Optional[str] = None,
-            profile_csv: Optional[str] = None,
             energy_cols: Optional[str] = None
     ):
         self._scaling_factor = scaling_factor
-
-        if profile_csv_dir:
-            # read in all the profile files in the given directory into a dataframe
-            df = read_directory_of_csvs(profile_csv_dir)
-        elif profile_csv:
-            df = pd.read_csv(profile_csv)
-        else:
-            raise ValueError("Either a directory containing CSVs or CSV file must be specified")
-
-        # Prefer to use the UTCTime column, but if it's not present then use ClockTime with the Europe/London timezone
-        use_clocktime = "UTCTime" not in df.columns or np.all(pd.isnull(df["UTCTime"]))
-        if use_clocktime:
-            df["ClockTime"] = pd.to_datetime(df["ClockTime"])
-            df["ClockTime"] = df["ClockTime"].dt.tz_localize(
-                pytz.timezone("Europe/London"),
-                ambiguous="NaT",
-                nonexistent="NaT"
-            )
-            num_inc_nan = len(df)
-            df = df.dropna(subset=["ClockTime"])
-            num_dropped = num_inc_nan - len(df)
-            if num_dropped > 0:
-                logging.warning(f"Dropped {num_dropped} NaT rows from profile (probably because the UTC time could "
-                                f"not be inferred from the ClockTime")
-            df["UTCTime"] = df["ClockTime"].dt.tz_convert("UTC")
-        else:
-            df["UTCTime"] = pd.to_datetime(df["UTCTime"], utc=True)
-
-        df = df.set_index("UTCTime")
-
-        # If we have UTCTime then we don't need the ClockTime column
-        if "ClockTime" in df.columns:
-            df = df.drop("ClockTime", axis=1)
 
         if energy_cols == "sum-all" or ((energy_cols is None) and ("energy" not in df.columns)):
             self._profile = df.sum(axis=1)
