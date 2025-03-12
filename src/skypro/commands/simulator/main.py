@@ -173,6 +173,20 @@ def run_one_simulation(
                                    clip(upper=sim_config.site.bess.nameplate_power))
     df["bess_max_power_discharge"] = ((sim_config.site.grid_connection.export_limit + df["microgrid_residual_power"]).
                                       clip(upper=sim_config.site.bess.nameplate_power))
+
+    # The grid constraints and solar/load profiles may be configured such that the battery HAS to perform a charge or discharge to keep within
+    # grid constraints. This can be okay (if intentional) but there are also situations where the constraints are impossible to fulfil.
+    forced_discharges = df["bess_max_power_charge"] < 0
+    forced_charges = df["bess_max_power_discharge"] < 0
+    impossible_charges = df[forced_charges]["bess_max_power_discharge"].abs() > df[forced_charges]["bess_max_power_charge"]
+    impossible_discharges = df[forced_discharges]["bess_max_power_charge"].abs() > df[forced_discharges]["bess_max_power_discharge"]
+    if impossible_charges.sum() > 0 or impossible_discharges.sum() > 0:
+        raise ValueError("The grid constraints are impossible to satisfy with the configured battery and load/solar profiles")
+    if forced_discharges.sum() > 0 or forced_charges.sum() > 0:
+        import_pct = (forced_discharges.sum() / len(df)) * 100
+        export_pct = (forced_charges.sum() / len(df)) * 100
+        get_user_ack_of_warning_or_exit(f"The battery will be forced to manage import constraints {import_pct:.2f}% of the time, and export constraints {export_pct:.2f}% of the time")
+
     # Also store the energy equivalent of the powers
     df["bess_max_charge"] = df["bess_max_power_charge"] * STEP_SIZE_HRS
     df["bess_max_discharge"] = df["bess_max_power_discharge"] * STEP_SIZE_HRS
