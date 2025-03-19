@@ -119,7 +119,7 @@ def explore_results(
         grid_energy_flow=df["grid_import"],
         # use the grid rates for grid_to_batt as these include info about any OSAM rates
         mkt_vol_grid_rates_df=final_mkt_vol_rates_dfs["grid_to_batt"],
-        mkt_fixed_costs_dfs=mkt_fixed_costs_dfs,
+        mkt_fixed_costs_df=mkt_fixed_costs_dfs["import"] if "import" in mkt_fixed_costs_dfs else None,
         osam_rates=osam_rates,
         osam_df=osam_df,
         cepro_mkt_vol_bill_total_expected=breakdown.total_mkt_vol_costs["grid_to_batt"] + breakdown.total_mkt_vol_costs["grid_to_load"],
