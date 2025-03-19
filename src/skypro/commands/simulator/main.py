@@ -387,14 +387,16 @@ def get_rates_from_config(
         """
         Convenience function for reading imbalance data
         """
-        return get_timeseries(
+        ts_df, notices = get_timeseries(
             source=source,
             start=time_index[0],
             end=time_index[-1],
             file_path_resolver_func=file_path_resolver_func,
             db_engine=sqlalchemy.create_engine(env_config["flows"]["dbUrl"]),
-            warning_func=get_user_ack_of_warning_or_exit,
         )
+        for notice in notices:
+            get_user_ack_of_warning_or_exit(notice.detail)
+        return ts_df
 
     final_price_df = read_imbalance_data(rates_config.final.imbalance_data_source.price)
     final_volume_df = read_imbalance_data(rates_config.final.imbalance_data_source.volume)

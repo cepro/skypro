@@ -63,7 +63,6 @@ class SolarOrLoad:
         enforce_one_option([self.profiles, self.profile], "'profile', 'profiles")
 
 
-
 @dataclass
 class Bess:
     energy_capacity: float = field_with_opts(key="energyCapacity")
