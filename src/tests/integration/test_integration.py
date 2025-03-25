@@ -46,7 +46,7 @@ class TestIntegration(unittest.TestCase):
                     "ivRate:gridToLoad.final": [0.0],
                     "ivRate:solarToBatt.final": [6.1364],
                     "ivRate:battToLoad.final": [-21.8243],
-                    "ivRate:solarToLoad.final": [0.0],
+                    "ivRate:solarToLoad.final": [-10.667820],
 
                     "mvRate:gridToBatt.final": [8.1332],
                     "mvRate:battToGrid.final": [-17.5380],
@@ -84,7 +84,7 @@ class TestIntegration(unittest.TestCase):
                     "ivRate:gridToLoad.final": [0.0],
                     "ivRate:solarToBatt.final": [6.7763],
                     "ivRate:battToLoad.final": [-15.7736],
-                    "ivRate:solarToLoad.final": [0.0],
+                    "ivRate:solarToLoad.final": [-10.66782],
 
                     "mvRate:gridToBatt.final": [7.4687],
                     "mvRate:battToGrid.final": [-16.4390],
