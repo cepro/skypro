@@ -185,8 +185,8 @@ class Optimiser:
                     # TODO: a better way of handling this could be to value the energy that would be curtailed at 0p/kWh
                     #       as this would allow the possibility of curtailment rather than failing optimisation in
                     #       circumstances where there is too much solar for both the export connection and the battery.
-                    lowBound=df_in.iloc[t]["min_charge"],
-                    upBound=df_in.iloc[t]["solar_not_supplying_load"]
+                    lowBound=0,
+                    upBound=df_in.iloc[ts]["solar_not_supplying_load"]
                 )
             )
             lp_var_bess_charges_from_grid.append(
@@ -198,9 +198,9 @@ class Optimiser:
             )
             lp_var_bess_discharges_to_load.append(
                 pulp.LpVariable(
-                    name=f"batt_to_load_{t}",
-                    lowBound=df_in.iloc[t]["min_discharge"],
-                    upBound=df_in.iloc[t]["load_not_supplied_by_solar"]
+                    name=f"batt_to_load_{ts}",
+                    lowBound=0,
+                    upBound=df_in.iloc[ts]["load_not_supplied_by_solar"]
                 )
             )
             lp_var_bess_discharges_to_grid.append(
@@ -281,6 +281,9 @@ class Optimiser:
             # Constraints for maximum charge/discharge rates AND make charge and discharge mutually exclusive
             problem += lp_var_bess_charges[t] <= (df_in.iloc[t]["bess_max_charge"] * lp_var_bess_is_charging[t])
             problem += lp_var_bess_discharges[t] <= (df_in.iloc[t]["bess_max_discharge"] * (1 - lp_var_bess_is_charging[t]))
+            # Constraints for minimum charge/discharge rates - for when doing 'active constraint management'
+            problem += lp_var_bess_charges[ts] >= df_in.iloc[ts]["min_charge"]
+            problem += lp_var_bess_discharges[ts] >= df_in.iloc[ts]["min_discharge"]
 
         # Apply cycling constraint to all timeslots
         if block_config.max_avg_cycles_per_day:
