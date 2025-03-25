@@ -143,7 +143,7 @@ def run_one_simulation(
 
     df = imbalance_df[["imbalance_volume_live", "imbalance_volume_final"]].copy()
 
-    # Process solar profiles
+    # Process behind-the-meter microgrid solar profiles
     solar_energy_breakdown_df, total_solar_power = process_profiles(
         time_index=time_index,
         config=sim_config.site.solar,
@@ -154,7 +154,7 @@ def run_one_simulation(
     df["solar"] = solar_energy_breakdown_df.sum(axis=1)
     df["solar_power"] = total_solar_power
 
-    # Process load profiles
+    # Process behind-the-meter microgrid load profiles
     load_energy_breakdown_df, total_load_power = process_profiles(
         time_index=time_index,
         config=sim_config.site.load,
@@ -165,13 +165,38 @@ def run_one_simulation(
     df["load"] = load_energy_breakdown_df.sum(axis=1)
     df["load_power"] = total_load_power
 
+    # Process grid connection profiles - normally the microgrid will sit on a grid connection with a fixed capacity in each direction, but sometimes we want to model
+    # a grid connection that has varying capacity over time. For example, if there is load and solar installed which is not part of the microgrid, but which effects the
+    # grid constraint.
+    if sim_config.site.grid_connection.variations:
+        _, total_grid_connection_vary_load_power = process_profiles(
+            time_index=time_index,
+            config=sim_config.site.grid_connection.variations.load,
+            do_plots=do_plots,
+            context_hint="Grid connection variations - load",
+            file_path_resolver_func=file_path_resolver_func
+        )
+        _, total_grid_connection_vary_gen_power = process_profiles(
+            time_index=time_index,
+            config=sim_config.site.grid_connection.variations.generation,
+            do_plots=do_plots,
+            context_hint="Grid connection variations - generation",
+            file_path_resolver_func=file_path_resolver_func
+        )
+        total_grid_connection_vary_power = total_grid_connection_vary_load_power - total_grid_connection_vary_gen_power
+        df["grid_connection_import_limit_power"] = sim_config.site.grid_connection.import_limit - total_grid_connection_vary_power
+        df["grid_connection_export_limit_power"] = sim_config.site.grid_connection.export_limit + total_grid_connection_vary_power
+    else:
+        df["grid_connection_import_limit_power"] = sim_config.site.grid_connection.import_limit
+        df["grid_connection_export_limit_power"] = sim_config.site.grid_connection.export_limit
+
     # Calculate the BESS charge and discharge limits based on how much solar generation and housing load
     # there is. We need to abide by the overall site import/export limits. And stay within the nameplate inverter
     # capabilities of the BESS
     df["microgrid_residual_power"] = df["load_power"] - df["solar_power"]
-    df["bess_max_power_charge"] = ((sim_config.site.grid_connection.import_limit - df["microgrid_residual_power"]).
+    df["bess_max_power_charge"] = ((df["grid_connection_import_limit_power"] - df["microgrid_residual_power"]).
                                    clip(upper=sim_config.site.bess.nameplate_power))
-    df["bess_max_power_discharge"] = ((sim_config.site.grid_connection.export_limit + df["microgrid_residual_power"]).
+    df["bess_max_power_discharge"] = ((df["grid_connection_export_limit_power"] + df["microgrid_residual_power"]).
                                       clip(upper=sim_config.site.bess.nameplate_power))
 
     # The grid constraints and solar/load profiles may be configured such that the battery HAS to perform a charge or discharge to keep within
@@ -357,8 +382,6 @@ def run_one_simulation(
         do_plots=do_plots,
         battery_energy_capacity=sim_config.site.bess.energy_capacity,
         battery_nameplate_power=sim_config.site.bess.nameplate_power,
-        site_import_limit=sim_config.site.grid_connection.import_limit,
-        site_export_limit=sim_config.site.grid_connection.export_limit,
         osam_rates=osam_rates,
         osam_df=osam_df,
     )
