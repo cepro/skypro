@@ -175,6 +175,7 @@ class OptimiserBlocks:
     """Defines how the whole simulation period is split into smaller duration optimisations that are stacked on top of
     each other, and any settings that are applied to each of those smaller duration optimisations."""
     max_avg_cycles_per_day: float = field_with_opts(key="maxAvgCyclesPerDay")
+    no_optional_actions_in_first_ten_mins_except_for_period: Optional[DayedPeriodType] = field_with_opts(key="noOptionalActionsInFirstTenMinsExceptForPeriod", default=None)
     max_optimal_tolerance: Optional[float] = field_with_opts(key="maxOptimalTolerance", default=0.02)
     max_computation_secs: Optional[int] = field_with_opts(key="maxComputationSecs", default=10)
     duration_days: Optional[int] = field_with_opts(key="durationDays", default=5)
