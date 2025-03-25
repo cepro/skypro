@@ -17,12 +17,6 @@ This file contains configuration schema that is used for both V3 and V4 config
 
 
 @dataclass
-class GridConnection:
-    import_limit: float = field_with_opts(key="importLimit")
-    export_limit: float = field_with_opts(key="exportLimit")
-
-
-@dataclass
 class Profile:
     # Tag is an optional name to assign to the profile. The advantage of this over the name being a dict key is that
     # arrays preserve order and the order of the load profiles may become important down the line.
@@ -61,6 +55,19 @@ class SolarOrLoad:
 
     def __post_init__(self):
         enforce_one_option([self.profiles, self.profile], "'profile', 'profiles")
+
+
+@dataclass
+class GridConnectionVariations:
+    load: SolarOrLoad
+    generation: SolarOrLoad
+
+
+@dataclass
+class GridConnection:
+    import_limit: float = field_with_opts(key="importLimit")
+    export_limit: float = field_with_opts(key="exportLimit")
+    variations: Optional[GridConnectionVariations] = field_with_opts(key="variations")
 
 
 @dataclass
