@@ -406,7 +406,7 @@ def get_rates_from_config(
         supply_points_config_file=rates_config.live.supply_points_config_file
     )
 
-    def read_imbalance_data(source: TimeseriesDataSource):
+    def read_imbalance_data(source: TimeseriesDataSource, context: str):
         """
         Convenience function for reading imbalance data
         """
@@ -416,15 +416,16 @@ def get_rates_from_config(
             end=time_index[-1],
             file_path_resolver_func=file_path_resolver_func,
             db_engine=sqlalchemy.create_engine(env_config["flows"]["dbUrl"]),
+            context=context
         )
         for notice in notices:
             get_user_ack_of_warning_or_exit(notice.detail)
         return ts_df
 
-    final_price_df = read_imbalance_data(rates_config.final.imbalance_data_source.price)
-    final_volume_df = read_imbalance_data(rates_config.final.imbalance_data_source.volume)
-    live_price_df = read_imbalance_data(rates_config.live.imbalance_data_source.price)
-    live_volume_df = read_imbalance_data(rates_config.live.imbalance_data_source.volume)
+    final_price_df = read_imbalance_data(rates_config.final.imbalance_data_source.price, context="final imbalance price")
+    final_volume_df = read_imbalance_data(rates_config.final.imbalance_data_source.volume, context="final imbalance volume")
+    live_price_df = read_imbalance_data(rates_config.live.imbalance_data_source.price, context="live imbalance price")
+    live_volume_df = read_imbalance_data(rates_config.live.imbalance_data_source.volume, context="live imbalance volume")
 
     final_imbalance_df = normalise_final_imbalance_data(time_index, final_price_df, final_volume_df)
     live_imbalance_df = normalise_live_imbalance_data(time_index, live_price_df, live_volume_df)

@@ -19,7 +19,7 @@ pulp = "^2.9.0"
 pendulum = "^3.0.0"
 sqlalchemy = "^2.0.37"
 psycopg2-binary = "^2.9.10"
-simt-common = {version = "^13.1.0", source = "testpypi"}
+simt-common = {version = "^13.3.0", source = "testpypi"}
 requests = "^2.32.3"
 
 [[tool.poetry.source]]
