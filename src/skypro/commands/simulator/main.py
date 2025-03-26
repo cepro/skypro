@@ -23,6 +23,7 @@ from simt_common.rates.osam import calculate_osam_ncsp
 from simt_common.rates.peripheral import get_rates_dfs_by_type
 from simt_common.rates.rates import FixedRate, Rate, OSAMFlatVolRate
 from simt_common.timeutils.math import floor_hh
+from simt_common.timeutils.timeseries import get_step_size
 
 from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings, get_user_ack_of_warning_or_exit
 from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
@@ -510,6 +511,20 @@ def check_algo_result_consistency(df_algo: pd.DataFrame, df_in: pd.DataFrame, ba
         raise AssertionError("Algorithm solution charges at too high a rate")
     if (discharges.abs() > (df_in["bess_max_discharge"].loc[discharges.index] + tolerance)).sum() > 0:
         raise AssertionError("Algorithm solution discharges at too high a rate")
+
+    # The grid constraints and solar/load profiles may be configured such that the battery HAS to perform a charge or discharge to keep within
+    # grid constraints. Check that this has been done properly by the algorithm.
+    forced_discharges = df_in["bess_max_power_charge"] < 0
+    forced_charges = df_in["bess_max_power_discharge"] < 0
+    step_size_hrs = get_step_size(df_in.index).total_seconds() / 3600
+    actual_discharges = abs(df_algo[forced_discharges]["energy_delta"])
+    required_discharges = abs(df_in[forced_discharges]["bess_max_power_charge"] * step_size_hrs)
+    missing_discharges = actual_discharges + tolerance < required_discharges
+    actual_charges = abs(df_algo[forced_charges]["energy_delta"])
+    required_charges = abs(df_in[forced_charges]["bess_max_power_discharge"] * step_size_hrs)
+    missing_charges = actual_charges + tolerance < required_charges
+    if missing_discharges.sum() > 0 or missing_charges.sum() > 0:
+        raise ValueError("The grid constraints required active management, which the BESS control algorithm didn't do properly!")
 
 
 def process_profiles(
