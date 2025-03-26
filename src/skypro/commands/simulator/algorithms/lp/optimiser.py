@@ -266,6 +266,19 @@ class Optimiser:
                 lp_var_bess_discharges_to_load[ts] * int_rate_final_batt_to_load
             )
 
+        # Calculate any limits on the 'optional' actions (i.e. those which are not required for active grid constraint management)
+        optional_action_limit_df = pd.DataFrame(index=df_in.index, columns=["charge", "discharge"])
+        if block_config.no_optional_charging_in_lowest_priced_quantile is not None:
+            for _, df_day in df_in.groupby(df_in.index.date):
+                df_lowest = self.get_lowest_valued_rows(block_config.no_optional_charging_in_lowest_priced_quantile, df_day, "mkt_vol_rate_final_grid_to_batt")
+                optional_action_limit_df.loc[df_lowest.index, "charge"] = 0.0
+        # Constraints to prevent activity in the first ten minutes (if that's what is configured)
+        if block_config.no_optional_actions_in_first_ten_mins_except_for_period is not None:
+            is_in_first_ten_mins = df_in["time_into_sp"] < timedelta(minutes=10)
+            is_exempt = df_in.apply(lambda row: block_config.no_optional_actions_in_first_ten_mins_except_for_period.contains(row.name), axis=1)
+            no_actions = is_in_first_ten_mins & ~is_exempt
+            optional_action_limit_df[no_actions == True] = 0.0
+
         for ts in timeslots:
 
             # Constraints to define that all the flows are positive - prevent the optimiser from using a negative
@@ -287,25 +300,19 @@ class Optimiser:
             problem += lp_var_bess_charges[ts] >= df_in.iloc[ts]["min_charge"]
             problem += lp_var_bess_discharges[ts] >= df_in.iloc[ts]["min_discharge"]
 
-            # Constraints to prevent activity in the first ten minutes (if that's what is configured)
-            t = df_in.index[ts]
-            if block_config.no_optional_actions_in_first_ten_mins_except_for_period is not None:
-
-                is_in_first_ten_mins = (t - floor_hh(t)) < timedelta(minutes=10)
-                is_exempt = block_config.no_optional_actions_in_first_ten_mins_except_for_period.contains(t)
-                if not is_exempt and is_in_first_ten_mins:
-
-                    # Force the charge and discharge level to zero for this time slot, unless the battery is required to be doing
-                    # active constraint management - in which case allow the battery to do the constraint management but nothing else.
-                    discharge_level = 0
-                    charge_level = 0
-                    if df_in.iloc[ts]["bess_max_charge"] < 0:
-                        discharge_level = abs(df_in.iloc[ts]["bess_max_charge"])
-                    if df_in.iloc[ts]["bess_max_discharge"] < 0:
-                        charge_level = abs(df_in.iloc[ts]["bess_max_discharge"])
-
-                    problem += lp_var_bess_charges[ts] == charge_level
-                    problem += lp_var_bess_discharges[ts] == discharge_level
+            # Apply any constraints on optional actions (if configured)
+            charge_limit = optional_action_limit_df.iloc[ts]["charge"]
+            if not np.isnan(charge_limit):
+                # Force the charge and discharge level to the limit for this time slot, unless the battery is required to be doing
+                # active constraint management - in which case allow the battery to do the constraint management but nothing else (this is not optional).
+                if df_in.iloc[ts]["min_charge"] > 0:
+                    charge_limit = df_in.iloc[ts]["min_charge"]
+                problem += lp_var_bess_charges[ts] <= charge_limit
+            discharge_limit = optional_action_limit_df.iloc[ts]["discharge"]
+            if not np.isnan(discharge_limit):
+                if df_in.iloc[ts]["min_discharge"] > 0:
+                    discharge_limit = df_in.iloc[ts]["min_discharge"]
+                problem += lp_var_bess_discharges[ts] <= discharge_limit
 
         # Apply cycling constraint to all timeslots
         if block_config.max_avg_cycles_per_day:
@@ -361,6 +368,18 @@ class Optimiser:
         # TODO: tidy up code generally - a good point to clean up interface to multiple algos?
 
         return df_ret, n_timeslots_with_nan_pricing
+
+    @staticmethod
+    def get_lowest_valued_rows(quantile: float, df: pd.DataFrame, col: str) -> pd.DataFrame:
+        """This returns the rows of `df` which have the lowest values for `col`"""
+        threshold = df[col].quantile(quantile)
+        lowest_df = df[df[col] <= threshold]
+        num_rows = int(np.floor(len(df) * quantile))
+        if len(lowest_df) > num_rows:
+            # The above may return too many rows if there are multiple rows with the same price at the quantile boundary
+            lowest_df = lowest_df.sort_values(col)
+            lowest_df = lowest_df.head(num_rows)
+        return lowest_df
 
     def _ensure_merit_order_of_charge_and_discharge(self, df_sol: pd.DataFrame) -> None:
         """
