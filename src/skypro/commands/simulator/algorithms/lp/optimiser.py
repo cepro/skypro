@@ -5,7 +5,7 @@ import numpy as np
 import pulp
 import pandas as pd
 from simt_common.rates.microgrid import VolRatesForEnergyFlows
-from simt_common.timeutils.math import floor_day, floor_hh
+from simt_common.timeutils.math import floor_day
 from simt_common.timeutils.math_wallclock import add_wallclock_days
 from simt_common.timeutils.timeseries import get_step_size
 
@@ -277,7 +277,7 @@ class Optimiser:
             is_in_first_ten_mins = df_in["time_into_sp"] < timedelta(minutes=10)
             is_exempt = df_in.apply(lambda row: block_config.no_optional_actions_in_first_ten_mins_except_for_period.contains(row.name), axis=1)
             no_actions = is_in_first_ten_mins & ~is_exempt
-            optional_action_limit_df[no_actions == True] = 0.0
+            optional_action_limit_df.loc[no_actions] = 0.0
 
         for ts in timeslots:
 
