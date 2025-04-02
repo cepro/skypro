@@ -23,6 +23,7 @@ from simt_common.rates.osam import calculate_osam_ncsp
 from simt_common.rates.peripheral import get_rates_dfs_by_type
 from simt_common.rates.rates import FixedRate, Rate, OSAMFlatVolRate
 from simt_common.timeutils.math import floor_hh
+from simt_common.timeutils.timeseries import get_step_size
 
 from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings, get_user_ack_of_warning_or_exit
 from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
@@ -143,7 +144,7 @@ def run_one_simulation(
 
     df = imbalance_df[["imbalance_volume_live", "imbalance_volume_final"]].copy()
 
-    # Process solar profiles
+    # Process behind-the-meter microgrid solar profiles
     solar_energy_breakdown_df, total_solar_power = process_profiles(
         time_index=time_index,
         config=sim_config.site.solar,
@@ -154,7 +155,7 @@ def run_one_simulation(
     df["solar"] = solar_energy_breakdown_df.sum(axis=1)
     df["solar_power"] = total_solar_power
 
-    # Process load profiles
+    # Process behind-the-meter microgrid load profiles
     load_energy_breakdown_df, total_load_power = process_profiles(
         time_index=time_index,
         config=sim_config.site.load,
@@ -165,13 +166,38 @@ def run_one_simulation(
     df["load"] = load_energy_breakdown_df.sum(axis=1)
     df["load_power"] = total_load_power
 
+    # Process grid connection profiles - normally the microgrid will sit on a grid connection with a fixed capacity in each direction, but sometimes we want to model
+    # a grid connection that has varying capacity over time. For example, if there is load and solar installed which is not part of the microgrid, but which effects the
+    # grid constraint.
+    if sim_config.site.grid_connection.variations:
+        _, total_grid_connection_vary_load_power = process_profiles(
+            time_index=time_index,
+            config=sim_config.site.grid_connection.variations.load,
+            do_plots=do_plots,
+            context_hint="Grid connection variations - load",
+            file_path_resolver_func=file_path_resolver_func
+        )
+        _, total_grid_connection_vary_gen_power = process_profiles(
+            time_index=time_index,
+            config=sim_config.site.grid_connection.variations.generation,
+            do_plots=do_plots,
+            context_hint="Grid connection variations - generation",
+            file_path_resolver_func=file_path_resolver_func
+        )
+        total_grid_connection_vary_power = total_grid_connection_vary_load_power - total_grid_connection_vary_gen_power
+        df["grid_connection_import_limit_power"] = sim_config.site.grid_connection.import_limit - total_grid_connection_vary_power
+        df["grid_connection_export_limit_power"] = sim_config.site.grid_connection.export_limit + total_grid_connection_vary_power
+    else:
+        df["grid_connection_import_limit_power"] = sim_config.site.grid_connection.import_limit
+        df["grid_connection_export_limit_power"] = sim_config.site.grid_connection.export_limit
+
     # Calculate the BESS charge and discharge limits based on how much solar generation and housing load
     # there is. We need to abide by the overall site import/export limits. And stay within the nameplate inverter
     # capabilities of the BESS
     df["microgrid_residual_power"] = df["load_power"] - df["solar_power"]
-    df["bess_max_power_charge"] = ((sim_config.site.grid_connection.import_limit - df["microgrid_residual_power"]).
+    df["bess_max_power_charge"] = ((df["grid_connection_import_limit_power"] - df["microgrid_residual_power"]).
                                    clip(upper=sim_config.site.bess.nameplate_power))
-    df["bess_max_power_discharge"] = ((sim_config.site.grid_connection.export_limit + df["microgrid_residual_power"]).
+    df["bess_max_power_discharge"] = ((df["grid_connection_export_limit_power"] + df["microgrid_residual_power"]).
                                       clip(upper=sim_config.site.bess.nameplate_power))
 
     # The grid constraints and solar/load profiles may be configured such that the battery HAS to perform a charge or discharge to keep within
@@ -357,8 +383,6 @@ def run_one_simulation(
         do_plots=do_plots,
         battery_energy_capacity=sim_config.site.bess.energy_capacity,
         battery_nameplate_power=sim_config.site.bess.nameplate_power,
-        site_import_limit=sim_config.site.grid_connection.import_limit,
-        site_export_limit=sim_config.site.grid_connection.export_limit,
         osam_rates=osam_rates,
         osam_df=osam_df,
     )
@@ -383,7 +407,7 @@ def get_rates_from_config(
         supply_points_config_file=rates_config.live.supply_points_config_file
     )
 
-    def read_imbalance_data(source: TimeseriesDataSource):
+    def read_imbalance_data(source: TimeseriesDataSource, context: str):
         """
         Convenience function for reading imbalance data
         """
@@ -393,15 +417,16 @@ def get_rates_from_config(
             end=time_index[-1],
             file_path_resolver_func=file_path_resolver_func,
             db_engine=sqlalchemy.create_engine(env_config["flows"]["dbUrl"]),
+            context=context
         )
         for notice in notices:
             get_user_ack_of_warning_or_exit(notice.detail)
         return ts_df
 
-    final_price_df = read_imbalance_data(rates_config.final.imbalance_data_source.price)
-    final_volume_df = read_imbalance_data(rates_config.final.imbalance_data_source.volume)
-    live_price_df = read_imbalance_data(rates_config.live.imbalance_data_source.price)
-    live_volume_df = read_imbalance_data(rates_config.live.imbalance_data_source.volume)
+    final_price_df = read_imbalance_data(rates_config.final.imbalance_data_source.price, context="final imbalance price")
+    final_volume_df = read_imbalance_data(rates_config.final.imbalance_data_source.volume, context="final imbalance volume")
+    live_price_df = read_imbalance_data(rates_config.live.imbalance_data_source.price, context="live imbalance price")
+    live_volume_df = read_imbalance_data(rates_config.live.imbalance_data_source.volume, context="live imbalance volume")
 
     final_imbalance_df = normalise_final_imbalance_data(time_index, final_price_df, final_volume_df)
     live_imbalance_df = normalise_live_imbalance_data(time_index, live_price_df, live_volume_df)
@@ -486,6 +511,20 @@ def check_algo_result_consistency(df_algo: pd.DataFrame, df_in: pd.DataFrame, ba
         raise AssertionError("Algorithm solution charges at too high a rate")
     if (discharges.abs() > (df_in["bess_max_discharge"].loc[discharges.index] + tolerance)).sum() > 0:
         raise AssertionError("Algorithm solution discharges at too high a rate")
+
+    # The grid constraints and solar/load profiles may be configured such that the battery HAS to perform a charge or discharge to keep within
+    # grid constraints. Check that this has been done properly by the algorithm.
+    forced_discharges = df_in["bess_max_power_charge"] < 0
+    forced_charges = df_in["bess_max_power_discharge"] < 0
+    step_size_hrs = get_step_size(df_in.index).total_seconds() / 3600
+    actual_discharges = abs(df_algo[forced_discharges]["energy_delta"])
+    required_discharges = abs(df_in[forced_discharges]["bess_max_power_charge"] * step_size_hrs)
+    missing_discharges = actual_discharges + tolerance < required_discharges
+    actual_charges = abs(df_algo[forced_charges]["energy_delta"])
+    required_charges = abs(df_in[forced_charges]["bess_max_power_discharge"] * step_size_hrs)
+    missing_charges = actual_charges + tolerance < required_charges
+    if missing_discharges.sum() > 0 or missing_charges.sum() > 0:
+        raise ValueError("The grid constraints required active management, which the BESS control algorithm didn't do properly!")
 
 
 def process_profiles(

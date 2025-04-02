@@ -17,12 +17,6 @@ This file contains configuration schema that is used for both V3 and V4 config
 
 
 @dataclass
-class GridConnection:
-    import_limit: float = field_with_opts(key="importLimit")
-    export_limit: float = field_with_opts(key="exportLimit")
-
-
-@dataclass
 class Profile:
     # Tag is an optional name to assign to the profile. The advantage of this over the name being a dict key is that
     # arrays preserve order and the order of the load profiles may become important down the line.
@@ -61,6 +55,19 @@ class SolarOrLoad:
 
     def __post_init__(self):
         enforce_one_option([self.profiles, self.profile], "'profile', 'profiles")
+
+
+@dataclass
+class GridConnectionVariations:
+    load: SolarOrLoad
+    generation: SolarOrLoad
+
+
+@dataclass
+class GridConnection:
+    import_limit: float = field_with_opts(key="importLimit")
+    export_limit: float = field_with_opts(key="exportLimit")
+    variations: Optional[GridConnectionVariations] = field_with_opts(key="variations")
 
 
 @dataclass
@@ -168,6 +175,8 @@ class OptimiserBlocks:
     """Defines how the whole simulation period is split into smaller duration optimisations that are stacked on top of
     each other, and any settings that are applied to each of those smaller duration optimisations."""
     max_avg_cycles_per_day: float = field_with_opts(key="maxAvgCyclesPerDay")
+    no_optional_charging_in_lowest_priced_quantile: Optional[float] = field_with_opts(key="noOptionalChargingInLowestPricedQuantile", default=None)
+    no_optional_actions_in_first_ten_mins_except_for_period: Optional[DayedPeriodType] = field_with_opts(key="noOptionalActionsInFirstTenMinsExceptForPeriod", default=None)
     max_optimal_tolerance: Optional[float] = field_with_opts(key="maxOptimalTolerance", default=0.02)
     max_computation_secs: Optional[int] = field_with_opts(key="maxComputationSecs", default=10)
     duration_days: Optional[int] = field_with_opts(key="durationDays", default=5)

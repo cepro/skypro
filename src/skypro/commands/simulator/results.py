@@ -21,8 +21,6 @@ def explore_results(
         do_plots: bool,
         battery_energy_capacity: float,
         battery_nameplate_power: float,
-        site_import_limit: float,
-        site_export_limit: float,
         osam_rates: List[OSAMFlatVolRate],
         osam_df: pd.DataFrame,
 ):
@@ -131,7 +129,7 @@ def explore_results(
     if do_plots:
         plot_hh_strategy(df)
         plot_constraints(
-            df, site_import_limit, site_export_limit, battery_nameplate_power
+            df, battery_nameplate_power
         )
         # plot_costs_by_grouping(costs_dfs["bess_charge"], costs_dfs["bess_discharge"])
         plot_daily_gains(breakdown.int_vol_costs_dfs)
@@ -190,7 +188,7 @@ def plot_hh_strategy(df: pd.DataFrame):
     fig.show()
 
 
-def plot_constraints(df, site_import_limit, site_export_limit, battery_nameplate_power):
+def plot_constraints(df, battery_nameplate_power):
     """
     This plots the various power flows in teh microgrid with site import/export limits.
     """
@@ -204,10 +202,27 @@ def plot_constraints(df, site_import_limit, site_export_limit, battery_nameplate
     df_tmp["grid_net"] = df_tmp["load_power"] + df_tmp["solar_power"] + df_tmp["bess_power"]
 
     fig = px.line(df_tmp, line_shape='hv')
-    fig.add_hline(y=site_import_limit, line_dash="dot", annotation_text="Site import limit")
-    fig.add_hline(y=-site_export_limit, line_dash="dot", annotation_text="Site export limit")
-    fig.add_hline(y=battery_nameplate_power, line_dash="dot", annotation_text="Battery nameplate power")
-    fig.add_hline(y=-battery_nameplate_power, line_dash="dot", annotation_text="Battery nameplate power")
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df["grid_connection_import_limit_power"],
+            mode='lines',
+            line=dict(dash='dot'),
+            name='Microgrid import limit'
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=-df["grid_connection_export_limit_power"],
+            mode='lines',
+            line=dict(dash='dot'),
+            name='Microgrid export limit'
+        )
+    )
+
+    fig.add_hline(y=battery_nameplate_power, line_dash="dot", annotation_text="Battery nameplate charge power")
+    fig.add_hline(y=-battery_nameplate_power, line_dash="dot", annotation_text="Battery nameplate discharge power")
     fig.update_layout(title="Constraints and powers")
     fig.show()
 
