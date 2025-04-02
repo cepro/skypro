@@ -14,7 +14,7 @@ from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
 from skypro.commands.simulator.config.config import Optimiser as OptimiserConfig, OptimiserBlocks, Bess
 
 
-class Plumpy:
+class Monte:
     def __init__(
         self,
         bess_config: Bess,

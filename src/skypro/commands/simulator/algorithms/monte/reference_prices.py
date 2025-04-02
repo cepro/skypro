@@ -10,6 +10,7 @@ def pull_modo_api(url: str, modo_api_key: str, params: Optional[dict] = None) ->
     df = pd.DataFrame()
     headers = {"X-Token": modo_api_key}
     while url is not None:
+        print("Pulling...")
         response = requests.get(url, headers=headers, params=params)
         if response.status_code != 200:
             raise ConnectionError(f"{response.status_code}: {response.reason}")
@@ -28,9 +29,25 @@ url = "https://api.modoenergy.com/pub/v1/gb/modo/markets/detailed-system-price-l
 modo_api_key = "1166e47af8c51fbbda68def9188b4150d2b170a5059ec8dce6f938606a79"
 params = {
     "date_from": datetime.date(2025, 3, 1),
-    "date_to": datetime.date(2025, 3, 21),
+    "date_to": datetime.date(2025, 3, 10),
 }
-det_sys_price = pull_modo_api(url, modo_api_key, params)
+# det_sys_price = pull_modo_api(url, modo_api_key, params)
+det_sys_price = pd.read_csv("det_sys_price.csv")
+
+
+def read_mtk_data_csv(file: str) -> pd.DataFrame:
+    mkt_df = pd.read_csv(file)
+    mkt_df.index = pd.to_datetime(mkt_df["time"], utc=True)
+    mkt_df = mkt_df.drop("time", axis=1)
+    return mkt_df
+
+outturn_price_df = read_mtk_data_csv("elexon_imbalance_price.csv")
+outturn_vol_df = read_mtk_data_csv("elexon_imbalance_volume.csv")
+
+# SO flagged actions do not form part of the imbalance price calc
+# We are missing a fiar bit of nuance here, but this gets us a lot closer
+det_sys_price = det_sys_price[det_sys_price["so_flag"] == False]
+
 
 # Calculate volume weighted average prices for bids and offers by fuel type
 reference_price_df = (
@@ -50,7 +67,15 @@ offer_df = reference_price_df[reference_price_df["boa_type"] == "OFFER"][["refer
 
 df = pd.concat([bids_df, offer_df], axis=1)
 
+df["bid"] = df["bid"] / 10
+df["offer"] = df["offer"] / 10
+df["volume"] = outturn_vol_df["value"] / 1000
+df.loc[df["volume"] >= 0, "prediction"] = df["offer"]
+df.loc[df["volume"] < 0, "prediction"] = df["bid"]
+df["outturn"] = outturn_price_df["value"]
+
 import plotly.express as px
 px.line(df).show()
 
+df[["bid", "offer"]].to_csv("/Users/marcuswood/Desktop/all/repos/skypro-cli/reference_price.csv")
 breakpoint()
