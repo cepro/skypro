@@ -62,7 +62,7 @@ class PriceCurveAlgo:
                     df=self._df,
                     index_to_add_for=todays_index,
                     mkt_vol_rates=self._live_vol_rates,
-                    live_or_final="live"
+                    live_or_final_tag="_live"
                 )
 
                 # This algo also uses the last live rate from the previous SP to inform actions, so make that available

@@ -197,13 +197,19 @@ class Optimiser:
 
 
 @dataclass
+class MonteCarloAlgo:
+    optimiser: Optimiser = field_with_opts(key="optimiser")
+
+
+@dataclass
 class Strategy:
     price_curve_algo: Optional[PriceCurveAlgo] = field_with_opts(key="priceCurveAlgo")
     spread_algo: Optional[SpreadAlgo] = field_with_opts(key="spreadAlgo")
+    monte_carlo_algo: Optional[MonteCarloAlgo] = field_with_opts(key="monteCarloAlgo")
     optimiser: Optional[Optimiser] = field_with_opts(key="perfectHindsightOptimiser")
 
     def __post_init__(self):
-        enforce_one_option([self.price_curve_algo, self.spread_algo, self.optimiser], "'priceCurveAlgo', 'spreadAlgo', 'perfectHindsightOptimiser'")
+        enforce_one_option([self.price_curve_algo, self.spread_algo, self.optimiser, self.monte_carlo_algo], "'priceCurveAlgo', 'spreadAlgo', 'perfectHindsightOptimiser', 'monteCarloAlgo'")
 
 
 @dataclass

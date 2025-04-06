@@ -27,6 +27,7 @@ from simt_common.timeutils.timeseries import get_step_size
 
 from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings, get_user_ack_of_warning_or_exit
 from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
+from skypro.commands.simulator.algorithms.monte.monte import MonteCarloAlgo
 from skypro.commands.simulator.algorithms.price_curve.algo import PriceCurveAlgo
 from skypro.commands.simulator.config.parse_config import parse_config
 from skypro.commands.simulator.config.config import ConfigV4, SimulationCaseV4, AllRates, SolarOrLoad
@@ -259,6 +260,21 @@ def run_one_simulation(
             df=df[cols_to_share_with_algo],
         )
         df_algo = opt.run()
+    elif sim_config.strategy.monte_carlo_algo:
+
+        cols_to_share_with_algo.extend([
+            "bess_max_charge",
+            "bess_max_discharge",
+        ])
+
+        algo = MonteCarloAlgo(
+            algo_config=sim_config.strategy.monte_carlo_algo,
+            bess_config=sim_config.site.bess,
+            live_vol_rates=rates.live_mkt_vol,
+            df=df[cols_to_share_with_algo]
+        )
+        df_algo = algo.run()
+
     else:
         raise ValueError("Unknown algorithm chosen")
 
