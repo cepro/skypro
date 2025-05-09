@@ -14,6 +14,7 @@ from simt_common.config.data_source import TimeseriesDataSource
 from simt_common.config.path_field import resolve_file_path
 from simt_common.config.rates_parse import parse_supply_points, parse_vol_rates_files_for_all_energy_flows, \
     parse_rate_files, get_rates_from_db
+from simt_common.config.time_offset import time_offset_str_to_timedelta
 from simt_common.data.get_profile import get_profile
 from simt_common.data.get_timeseries import get_timeseries
 from simt_common.microgrid_analysis.output import generate_output_df
@@ -406,7 +407,6 @@ def get_rates_from_config(
     and a dataframe containing live and final imbalance data.
     """
 
-
     def read_imbalance_data(source: TimeseriesDataSource, context: str):
         """
         Convenience function for reading imbalance data
@@ -448,6 +448,7 @@ def get_rates_from_config(
             imbalance_pricing=df["imbalance_price_live"],
             import_grid_capacity=0,
             export_grid_capacity=0,
+            time_offset=time_offset_str_to_timedelta(rates_config.live.rates_db.time_offset_str),
         )
         parsed_rates.final_mkt_vol, _, _ = get_rates_from_db(
             supply_points_name=rates_config.final.rates_db.supply_points_name,
@@ -457,6 +458,7 @@ def get_rates_from_config(
             imbalance_pricing=df["imbalance_price_final"],
             import_grid_capacity=0,
             export_grid_capacity=0,
+            time_offset=time_offset_str_to_timedelta(rates_config.live.rates_db.time_offset_str),
         )
         # TODO: support fixed and customer costs when reading from the rates DB
 
