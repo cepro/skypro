@@ -12,8 +12,8 @@ import pytz
 import sqlalchemy
 from simt_common.config.data_source import TimeseriesDataSource
 from simt_common.config.path_field import resolve_file_path
-from simt_common.config.rates_parse import parse_supply_points, parse_vol_rates_files_for_all_energy_flows, \
-    parse_rate_files, get_rates_from_db
+from simt_common.config.rates_parse_yaml import parse_supply_points, parse_vol_rates_files_for_all_energy_flows, parse_rate_files
+from simt_common.config.rates_parse_db import get_rates_from_db
 from simt_common.config.time_offset import time_offset_str_to_timedelta
 from simt_common.data.get_profile import get_profile
 from simt_common.data.get_timeseries import get_timeseries
@@ -23,8 +23,10 @@ from simt_common.rates.microgrid import get_vol_rates_dfs, VolRatesForEnergyFlow
 from simt_common.rates.osam import calculate_osam_ncsp
 from simt_common.rates.peripheral import get_rates_dfs_by_type
 from simt_common.rates.rates import FixedRate, Rate, OSAMFlatVolRate
+from simt_common.rates.rates_friendly_summary import get_friendly_rates_summary
 from simt_common.timeutils.math import floor_hh
 from simt_common.timeutils.timeseries import get_step_size
+from tabulate import tabulate
 
 from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings, get_user_ack_of_warning_or_exit
 from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
@@ -143,10 +145,22 @@ def run_one_simulation(
         file_path_resolver_func=file_path_resolver_func
     )
 
-    # Log the parsed rates for user information
-    for name, rate_set in rates.live_mkt_vol.get_all_sets_named():
-        for rate in rate_set:
-            logging.info(f"Flow: {name}, Rate: {rate}")
+    print(f"\nIMPORT RATES (at {time_index[0]}, final grid to battery)")
+    print(tabulate(
+        tabular_data=get_friendly_rates_summary(rates.final_mkt_vol.grid_to_batt, time_index[0]),
+        headers="keys",
+        tablefmt="presto",
+        showindex=False
+    ))
+
+    print(f"\nEXPORT RATES (at {time_index[0]}, final battery to grid)")
+    print(tabulate(
+        tabular_data=get_friendly_rates_summary(rates.final_mkt_vol.batt_to_grid, time_index[0]),
+        headers="keys",
+        tablefmt="presto",
+        showindex=False
+    ))
+    print("")
 
     df = imbalance_df[["imbalance_volume_live", "imbalance_volume_final"]].copy()
 
@@ -442,23 +456,27 @@ def get_rates_from_config(
     if rates_config.live.rates_db is not None:
         parsed_rates.live_mkt_vol, _, _ = get_rates_from_db(
             supply_points_name=rates_config.live.rates_db.supply_points_name,
-            import_bundle_name=rates_config.live.rates_db.import_bundle_name,
-            export_bundle_name=rates_config.live.rates_db.export_bundle_name,
+            site_region=rates_config.live.rates_db.site_specific.region,
+            site_bands=rates_config.live.rates_db.site_specific.bands,
+            import_bundle_names=rates_config.live.rates_db.import_bundles,
+            export_bundle_names=rates_config.live.rates_db.export_bundles,
             db_engine=env_config["rates"]["dbUrl"],
             imbalance_pricing=df["imbalance_price_live"],
             import_grid_capacity=0,
             export_grid_capacity=0,
-            time_offset=time_offset_str_to_timedelta(rates_config.live.rates_db.time_offset_str),
+            future_offset=time_offset_str_to_timedelta(rates_config.live.rates_db.future_offset_str),
         )
         parsed_rates.final_mkt_vol, _, _ = get_rates_from_db(
             supply_points_name=rates_config.final.rates_db.supply_points_name,
-            import_bundle_name=rates_config.final.rates_db.import_bundle_name,
-            export_bundle_name=rates_config.final.rates_db.export_bundle_name,
+            site_region=rates_config.final.rates_db.site_specific.region,
+            site_bands=rates_config.final.rates_db.site_specific.bands,
+            import_bundle_names=rates_config.final.rates_db.import_bundles,
+            export_bundle_names=rates_config.final.rates_db.export_bundles,
             db_engine=env_config["rates"]["dbUrl"],
             imbalance_pricing=df["imbalance_price_final"],
             import_grid_capacity=0,
             export_grid_capacity=0,
-            time_offset=time_offset_str_to_timedelta(rates_config.live.rates_db.time_offset_str),
+            future_offset=time_offset_str_to_timedelta(rates_config.final.rates_db.future_offset_str),
         )
         # TODO: support fixed and customer costs when reading from the rates DB
 
