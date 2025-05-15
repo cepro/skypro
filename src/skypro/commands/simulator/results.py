@@ -88,12 +88,8 @@ def explore_results(
     print("")
     print(f"Solar self-use (inc batt losses): {breakdown.solar_self_use:,.2f} kWh, {(breakdown.solar_self_use/breakdown.total_flows['solar'])*100:.1f}% of the solar generation.")
 
-    total_osam_rates = 0.0
-    for rate in osam_rates:
-        total_osam_rates += rate.rate
-
     print("")
-    print(f"Total OSAM rates: {total_osam_rates:.2f} p/kWh, Weighted average OSAM NCSP: {breakdown.avg_osam_ncsp:,.3f}, Weighted average rate: {(1-breakdown.avg_osam_ncsp)*total_osam_rates:.2f} p/kWh")
+    print(f"Weighted average OSAM NCSP: {breakdown.avg_osam_ncsp:,.3f}")
 
     # Cycling
     total_cycles = breakdown.total_flows["bess_discharge"] / battery_energy_capacity

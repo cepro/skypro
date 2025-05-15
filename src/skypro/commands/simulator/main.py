@@ -12,8 +12,9 @@ import pytz
 import sqlalchemy
 from simt_common.config.data_source import TimeseriesDataSource
 from simt_common.config.path_field import resolve_file_path
-from simt_common.config.rates_parse import parse_supply_points, parse_vol_rates_files_for_all_energy_flows, \
-    parse_rate_files
+from simt_common.config.rates_parse_yaml import parse_supply_points, parse_vol_rates_files_for_all_energy_flows, parse_rate_files
+from simt_common.config.rates_parse_db import get_rates_from_db
+from simt_common.config.time_offset import time_offset_str_to_timedelta
 from simt_common.data.get_profile import get_profile
 from simt_common.data.get_timeseries import get_timeseries
 from simt_common.microgrid_analysis.output import generate_output_df
@@ -22,8 +23,10 @@ from simt_common.rates.microgrid import get_vol_rates_dfs, VolRatesForEnergyFlow
 from simt_common.rates.osam import calculate_osam_ncsp
 from simt_common.rates.peripheral import get_rates_dfs_by_type
 from simt_common.rates.rates import FixedRate, Rate, OSAMFlatVolRate
+from simt_common.rates.rates_friendly_summary import get_friendly_rates_summary
 from simt_common.timeutils.math import floor_hh
 from simt_common.timeutils.timeseries import get_step_size
+from tabulate import tabulate
 
 from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings, get_user_ack_of_warning_or_exit
 from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
@@ -135,12 +138,29 @@ def run_one_simulation(
     file_path_resolver_func = partial(resolve_file_path, env_vars=env_config["vars"])
 
     # Extract the rates objects from the config files
-    rates, imbalance_df = get_rates_from_config(time_index, sim_config.rates, env_config, file_path_resolver_func)
+    rates, imbalance_df = get_rates_from_config(
+        time_index=time_index,
+        rates_config=sim_config.rates,
+        env_config=env_config,
+        file_path_resolver_func=file_path_resolver_func
+    )
 
-    # Log the parsed rates for user information
-    for name, rate_set in rates.live_mkt_vol.get_all_sets_named():
-        for rate in rate_set:
-            logging.info(f"Flow: {name}, Rate: {rate}")
+    print(f"\nIMPORT RATES (at {time_index[0]}, final grid to battery)")
+    print(tabulate(
+        tabular_data=get_friendly_rates_summary(rates.final_mkt_vol.grid_to_batt, time_index[0]),
+        headers="keys",
+        tablefmt="presto",
+        showindex=False
+    ))
+
+    print(f"\nEXPORT RATES (at {time_index[0]}, final battery to grid)")
+    print(tabulate(
+        tabular_data=get_friendly_rates_summary(rates.final_mkt_vol.batt_to_grid, time_index[0]),
+        headers="keys",
+        tablefmt="presto",
+        showindex=False
+    ))
+    print("")
 
     df = imbalance_df[["imbalance_volume_live", "imbalance_volume_final"]].copy()
 
@@ -400,12 +420,6 @@ def get_rates_from_config(
     This reads the rates files defined in the given rates configuration block and returns the ParsedRates,
     and a dataframe containing live and final imbalance data.
     """
-    final_supply_points = parse_supply_points(
-        supply_points_config_file=rates_config.final.supply_points_config_file
-    )
-    live_supply_points = parse_supply_points(
-        supply_points_config_file=rates_config.live.supply_points_config_file
-    )
 
     def read_imbalance_data(source: TimeseriesDataSource, context: str):
         """
@@ -432,44 +446,83 @@ def get_rates_from_config(
     live_imbalance_df = normalise_live_imbalance_data(time_index, live_price_df, live_volume_df)
     df = pd.concat([final_imbalance_df, live_imbalance_df], axis=1)
 
+    if (rates_config.live.rates_db is None) != (rates_config.final.rates_db is None):
+        # There is nothing inherent about this limitation: the below code could be refactored to support it.
+        raise ValueError("Both live and final rates must use the same source: either the rates DB or YAML configuration")
+
     parsed_rates = ParsedRates()
 
-    parsed_rates.final_mkt_vol = parse_vol_rates_files_for_all_energy_flows(
-        rates_files=rates_config.final.files,
-        supply_points=final_supply_points,
-        imbalance_pricing=df["imbalance_price_final"],
-        file_path_resolver_func=file_path_resolver_func
-    )
-    parsed_rates.live_mkt_vol = parse_vol_rates_files_for_all_energy_flows(
-        rates_files=rates_config.live.files,
-        supply_points=live_supply_points,
-        imbalance_pricing=df["imbalance_price_live"],
-        file_path_resolver_func=file_path_resolver_func
-    )
+    # Rates can either be read from the "rates database" or from local YAML files
+    if rates_config.live.rates_db is not None:
+        parsed_rates.live_mkt_vol, _, _ = get_rates_from_db(
+            supply_points_name=rates_config.live.rates_db.supply_points_name,
+            site_region=rates_config.live.rates_db.site_specific.region,
+            site_bands=rates_config.live.rates_db.site_specific.bands,
+            import_bundle_names=rates_config.live.rates_db.import_bundles,
+            export_bundle_names=rates_config.live.rates_db.export_bundles,
+            db_engine=env_config["rates"]["dbUrl"],
+            imbalance_pricing=df["imbalance_price_live"],
+            import_grid_capacity=0,
+            export_grid_capacity=0,
+            future_offset=time_offset_str_to_timedelta(rates_config.live.rates_db.future_offset_str),
+        )
+        parsed_rates.final_mkt_vol, _, _ = get_rates_from_db(
+            supply_points_name=rates_config.final.rates_db.supply_points_name,
+            site_region=rates_config.final.rates_db.site_specific.region,
+            site_bands=rates_config.final.rates_db.site_specific.bands,
+            import_bundle_names=rates_config.final.rates_db.import_bundles,
+            export_bundle_names=rates_config.final.rates_db.export_bundles,
+            db_engine=env_config["rates"]["dbUrl"],
+            imbalance_pricing=df["imbalance_price_final"],
+            import_grid_capacity=0,
+            export_grid_capacity=0,
+            future_offset=time_offset_str_to_timedelta(rates_config.final.rates_db.future_offset_str),
+        )
+        # TODO: support fixed and customer costs when reading from the rates DB
 
-    if rates_config.final.experimental:
-        if rates_config.final.experimental.mkt_fixed_files:
-            # Read in fixed rates just to output them in the CSV
-            for category_str, files in rates_config.final.experimental.mkt_fixed_files.items():
-                rates = parse_rate_files(
-                    files=files,
-                    supply_points=final_supply_points,
-                    imbalance_pricing=None,
-                    file_path_resolver_func=file_path_resolver_func,
-                )
-                for rate in rates:
-                    if not isinstance(rate, FixedRate):
-                        raise ValueError(f"Only fixed rates can be specified in the fixedMarketFiles, got: '{rate.name}'")
-                parsed_rates.mkt_fix[category_str] = cast(List[FixedRate], rates)
+    else:   # Read rates from local YAML files...
+        final_supply_points = parse_supply_points(
+            supply_points_config_file=rates_config.final.supply_points_config_file
+        )
+        live_supply_points = parse_supply_points(
+            supply_points_config_file=rates_config.live.supply_points_config_file
+        )
+        parsed_rates.final_mkt_vol = parse_vol_rates_files_for_all_energy_flows(
+                rates_files=rates_config.final.files,
+                supply_points=final_supply_points,
+                imbalance_pricing=df["imbalance_price_final"],
+                file_path_resolver_func=file_path_resolver_func
+            )
+        parsed_rates.live_mkt_vol = parse_vol_rates_files_for_all_energy_flows(
+            rates_files=rates_config.live.files,
+            supply_points=live_supply_points,
+            imbalance_pricing=df["imbalance_price_live"],
+            file_path_resolver_func=file_path_resolver_func
+        )
 
-        if rates_config.final.experimental.customer_load_files:
-            for category_str, files in rates_config.final.experimental.customer_load_files.items():
-                parsed_rates.customer[category_str] = parse_rate_files(
-                    files=files,
-                    supply_points=final_supply_points,
-                    imbalance_pricing=None,
-                    file_path_resolver_func=file_path_resolver_func
-                )
+        if rates_config.final.experimental:
+            if rates_config.final.experimental.mkt_fixed_files:
+                # Read in fixed rates just to output them in the CSV
+                for category_str, files in rates_config.final.experimental.mkt_fixed_files.items():
+                    rates = parse_rate_files(
+                        files=files,
+                        supply_points=final_supply_points,
+                        imbalance_pricing=None,
+                        file_path_resolver_func=file_path_resolver_func,
+                    )
+                    for rate in rates:
+                        if not isinstance(rate, FixedRate):
+                            raise ValueError(f"Only fixed rates can be specified in the fixedMarketFiles, got: '{rate.name}'")
+                    parsed_rates.mkt_fix[category_str] = cast(List[FixedRate], rates)
+
+            if rates_config.final.experimental.customer_load_files:
+                for category_str, files in rates_config.final.experimental.customer_load_files.items():
+                    parsed_rates.customer[category_str] = parse_rate_files(
+                        files=files,
+                        supply_points=final_supply_points,
+                        imbalance_pricing=None,
+                        file_path_resolver_func=file_path_resolver_func
+                    )
 
     return parsed_rates, df
 
