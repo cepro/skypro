@@ -9,7 +9,7 @@ from simt_common.timeutils.math import floor_hh
 
 class Profiler:
     """
-    Profiler handles the scaling of a load or solar energy profile.
+    Profiler handles the scaling and retrieval of a load or solar energy profile.
     """
     def __init__(
             self,
@@ -33,7 +33,9 @@ class Profiler:
 
     def get_for(self, times: pd.DatetimeIndex) -> pd.Series:
         """
-        Returns the scaled energy profile for the range of times given
+        Returns the scaled energy profile for the given time range.
+        If the original profile doesn't contain data for the given time, (e.g. you have a solar profile from 2023, but want to
+        simulate 2024), then the profile will be searched to see if there is corresponding data from previous years.
         """
 
         # We have profile data at half-hour / 30minute granularity, but the requested times may be at a finer resolution
