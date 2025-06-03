@@ -61,7 +61,7 @@ def simulate(
         env_file_path: str,
         do_plots: bool,
         skip_cli_warnings: bool,
-        chosen_sim_name: Optional[str] = None,
+        chosen_sim_name: str,
 ):
 
     logging.info("Simulator - - - - - - - - - - - - -")
