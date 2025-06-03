@@ -12,5 +12,3 @@ from .config import (
     Bess as Bess,
     GridConnection as GridConnection,
 )
-
-from .config import Config as ConfigV4

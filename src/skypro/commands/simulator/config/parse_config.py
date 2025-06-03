@@ -1,12 +1,10 @@
-from datetime import datetime
-from typing import List
 from packaging.version import Version
 
 import yaml
 from simt_common.cli_utils.cliutils import substitute_vars
 from simt_common.config.path_field import PathField
 
-from skypro.commands.simulator.config.config import NivPeriod, Config, SimulationCase
+from skypro.commands.simulator.config.config import Config, SimulationCase
 
 """
 This module handles parsing of the YAML configuration file for the Simulation script.
