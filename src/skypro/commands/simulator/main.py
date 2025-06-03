@@ -32,7 +32,7 @@ from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warni
 from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
 from skypro.commands.simulator.algorithms.price_curve.algo import PriceCurveAlgo
 from skypro.commands.simulator.config.parse_config import parse_config
-from skypro.commands.simulator.config.config import ConfigV4, SimulationCaseV4, AllRates, SolarOrLoad
+from skypro.commands.simulator.config.config import Config, SimulationCase, AllRates, SolarOrLoad
 from skypro.commands.simulator.microgrid import calculate_microgrid_flows
 from skypro.commands.simulator.normalise_data import normalise_final_imbalance_data, normalise_live_imbalance_data
 from skypro.commands.simulator.profiler import Profiler
@@ -74,7 +74,7 @@ def simulate(
 
     # Parse the main config file
     logging.info(f"Using config file: {config_file_path}")
-    config: ConfigV4 = parse_config(config_file_path, env_vars)
+    config: Config = parse_config(config_file_path, env_vars)
 
     if not chosen_sim_name:
         raise ValueError("You must specify the --sim to run.")
@@ -113,7 +113,7 @@ def simulate(
 
 
 def run_one_simulation(
-        sim_config: SimulationCaseV4,
+        sim_config: SimulationCase,
         sim_name: str,
         do_plots: bool,
         env_config: Dict,

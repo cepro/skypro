@@ -1,6 +1,6 @@
 import logging
 from datetime import timedelta, datetime
-from typing import Tuple
+from typing import Tuple, List
 
 import numpy as np
 import pandas as pd
@@ -13,7 +13,7 @@ from skypro.commands.simulator.algorithms.price_curve.microgrid import get_micro
 from skypro.commands.simulator.algorithms.rate_management import run_osam_calcs_for_day, add_total_vol_rates_to_df
 from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy, get_hours
 from skypro.commands.simulator.cartesian import Curve, Point
-from skypro.commands.simulator.config import get_relevant_niv_config, PriceCurveAlgo as PriceCurveAlgoConfig, Bess as BessConfig
+from skypro.commands.simulator.config import PriceCurveAlgo as PriceCurveAlgoConfig, Bess as BessConfig, NivPeriod
 
 
 class PriceCurveAlgo:
@@ -307,3 +307,14 @@ def is_first_timeslot_of_day(t: pd.Timestamp) -> bool:
 def is_first_timeslot_of_month(t: pd.Timestamp) -> bool:
     t = t.astimezone(pytz.timezone("Europe/London"))
     return t.day == 1 and t.time().hour == 0 and t.time().minute == 0
+
+
+def get_relevant_niv_config(niv_periods: List[NivPeriod], t: datetime) -> NivPeriod:
+    """
+    Returns the first NivPeriod instance that corresponds with the given time.
+    Different configurations may have been specified for different times of day.
+    """
+    for niv_period in niv_periods:
+        if niv_period.period.contains(t):
+            return niv_period
+    raise ValueError(f"No niv chase configuration matches the time '{t}'")

@@ -122,6 +122,8 @@ def get_peak_approach_energies(
     The 'force' peak approach will get the battery to a target SoE by charging, even if the system is short,
     AND the current SoE is below a threshold which is defined by the timings in the configuration.
 
+    FOr a more detailed description of this mechanism, see the docstring on the `Approach` configuration class in simulator/config/config.py
+
     :param t: the time now
     :param time_step: the size of the simulation time step
     :param soe: the current battery soe

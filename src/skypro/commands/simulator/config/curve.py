@@ -5,7 +5,7 @@ from skypro.commands.simulator.cartesian import Point, Curve
 
 
 """
-This handles parsing of JSON into a Curve and Point types 
+This handles the creation of Curve and Point types from YAML configuration (deserialization) 
 """
 
 
@@ -27,7 +27,7 @@ PointType = NewType('Point', Point, PointField)
 class CurveField(fields.Field):
     def _deserialize(self, raw: dict, attr, data, **kwargs):
         """
-        This isn't current using a Marshmallow schema to validate, perhaps there is a way of doing that elegantly.
+        This isn't currently using a Marshmallow schema to validate, perhaps there is a way of doing that elegantly.
         """
         points = []
         for point_config in raw:
