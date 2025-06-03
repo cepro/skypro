@@ -58,6 +58,7 @@ def parse_config(file_path: str, env_vars: dict) -> ConfigV4:
 def get_relevant_niv_config(niv_periods: List[NivPeriod], t: datetime) -> NivPeriod:
     """
     Returns the first NivPeriod instance that corresponds with the given time.
+    Different configurations may have been specified for different times of day.
     """
     for niv_period in niv_periods:
         if niv_period.period.contains(t):
