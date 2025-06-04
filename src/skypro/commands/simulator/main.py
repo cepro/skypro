@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import timedelta
 from functools import partial
-from typing import Optional, Tuple, List, Dict, Callable, cast
+from typing import Tuple, List, Dict, Callable, cast
 
 import pandas as pd
 import plotly.graph_objects as go
