@@ -3,12 +3,15 @@ import pandas as pd
 
 def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Calculates the individual flows of energy around the microgrid and adds them to the dataframe
+    Calculates the individual flows of energy around the microgrid, for a simulation, and adds them to a copy of the dataframe which is returned.
     """
     df = df.copy()
 
+    # BESS discharges are whenever the energy flow is negative
     df["bess_discharge"] = -df["energy_delta"][df["energy_delta"] < 0]
     df["bess_discharge"] = df["bess_discharge"].fillna(0)
+
+    # BESS charges are whenever the energy flow is negative
     df["bess_charge"] = df["energy_delta"][df["energy_delta"] > 0]
     df["bess_charge"] = df["bess_charge"].fillna(0)
 
@@ -26,7 +29,7 @@ def calculate_microgrid_flows(df: pd.DataFrame) -> pd.DataFrame:
     df["grid_to_load"] = df["load_not_supplied_by_solar"] - df["batt_to_load"]
     df["solar_to_grid"] = df["solar_not_supplying_load"] - df["solar_to_batt"]
 
-    # For now, assume that all the match happens at the property level, and none happens at the microgrid level
+    # For now, assume that all the 'solar matching' happens at the property level, and none happens at the microgrid level
     df["solar_to_load_property_level"] = df["solar_to_load"]
     df["solar_to_load_microgrid_level"] = 0.0
 

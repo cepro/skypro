@@ -40,7 +40,7 @@ def main():
     parser_simulate.add_argument(
         '--sim',
         dest='chosen_sim_name',
-        default=None,
+        required=True,
         help='When using a V4 configuration file, this is the name of the simulation case to run. Or "all" to run every'
              ' simulation.'
     )

@@ -145,11 +145,6 @@ def plot_hh_strategy(df: pd.DataFrame):
     fig.add_trace(
         go.Scatter(x=df.index, y=df["mkt_vol_rate_final_batt_to_grid"]*-1, name="Export Price", line=dict(color="rgba(102, 0, 178, 1)")))
 
-    # if "notional_spread" in df.columns:
-    #     fig.add_trace(
-    #         go.Scatter(x=df.index, y=df["notional_spread"], name="Notional Spread", mode="markers", line=dict(color="green"))
-    #     )
-    #
     if "red_approach_distance" in df.columns:
         fig.add_trace(
             go.Scatter(x=df.index, y=df["red_approach_distance"], name="red_approach_distance", mode="markers", line=dict(color="red")),
@@ -159,18 +154,6 @@ def plot_hh_strategy(df: pd.DataFrame):
     if "amber_approach_distance" in df.columns:
         fig.add_trace(
             go.Scatter(x=df.index, y=df["amber_approach_distance"], name="amber_approach_distance", mode="markers", line=dict(color="orange")),
-            secondary_y=True
-        )
-
-    if "spread_algo_energy" in df.columns:
-        fig.add_trace(
-            go.Scatter(x=df.index, y=df["spread_algo_energy"], name="spread_algo_energy", mode="markers", line=dict(color="yellow")),
-            secondary_y=True
-        )
-
-    if "microgrid_algo_energy" in df.columns:
-        fig.add_trace(
-            go.Scatter(x=df.index, y=df["microgrid_algo_energy"], name="microgrid_algo_energy", mode="markers", line=dict(color="green")),
             secondary_y=True
         )
 

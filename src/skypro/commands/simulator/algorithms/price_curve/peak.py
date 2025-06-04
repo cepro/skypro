@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytz
 
-from skypro.commands.simulator.algorithms.system_state import SystemState
+from skypro.commands.simulator.algorithms.price_curve.system_state import SystemState
 from skypro.commands.simulator.cartesian import Curve, Point
 from skypro.commands.simulator.config import Peak
 
@@ -114,7 +114,16 @@ def get_peak_approach_energies(
         is_long: bool,
 ) -> Tuple[float, float]:
     """
-    Returns the charge energy required due to the "force" and "encourage" peak approach configuration
+    Returns the charge energy required due to the "force" and "encourage" peak approach configuration.
+
+    The 'encourage' peak approach will try to get the battery to a target SoE by charging whenever the system is long
+    AND the current SoE is below a threshold which is defined by the timings in the configuration.
+
+    The 'force' peak approach will get the battery to a target SoE by charging, even if the system is short,
+    AND the current SoE is below a threshold which is defined by the timings in the configuration.
+
+    FOr a more detailed description of this mechanism, see the docstring on the `Approach` configuration class in simulator/config/config.py
+
     :param t: the time now
     :param time_step: the size of the simulation time step
     :param soe: the current battery soe

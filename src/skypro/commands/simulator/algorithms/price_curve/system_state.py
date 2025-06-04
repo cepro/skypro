@@ -4,6 +4,9 @@ import numpy as np
 
 
 class SystemState(Enum):
+    """
+    Defines whether the electricity network is short (too little power, so prices are high) or long (too much power, so prices are low)
+    """
     UNKNOWN = 1
     SHORT = 2
     LONG = 3

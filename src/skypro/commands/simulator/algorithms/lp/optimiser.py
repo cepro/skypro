@@ -16,6 +16,9 @@ from skypro.commands.simulator.config.config import Optimiser as OptimiserConfig
 
 
 class Optimiser:
+    """
+    This is a linear programming optimiser that will find the best battery actions for the given rates / conditions.
+    """
     def __init__(
         self,
         algo_config: OptimiserConfig,
@@ -23,54 +26,26 @@ class Optimiser:
         final_vol_rates: VolRatesForEnergyFlows,
         df: pd.DataFrame,
     ):
+        """
+        See _preprocess_input_data for required columns in `df`
+        """
+
         self._algo_config = algo_config
         self._bess_config = bess_config
         self._final_vol_rates = final_vol_rates
-        self._df_in = df.copy()
-
-        # Calculate some of the microgrid flows - at the moment this is the only algo that uses these values, but in
-        # the future it may make sense to pass these values in rather than have each algo calculate them independently.
-        self._df_in["solar_to_load"] = self._df_in[["solar", "load"]].min(axis=1)
-        self._df_in["load_not_supplied_by_solar"] = self._df_in["load"] - self._df_in["solar_to_load"]
-        self._df_in["solar_not_supplying_load"] = self._df_in["solar"] - self._df_in["solar_to_load"]
-        # When charging we must use excess solar first:
-        self._df_in["max_charge_from_grid"] = np.maximum(self._df_in["bess_max_charge"] - self._df_in["solar_not_supplying_load"], 0)
-        # When discharging we must send power to microgrid load first:
-        self._df_in["max_discharge_to_grid"] = np.maximum(self._df_in["bess_max_discharge"] - self._df_in["load_not_supplied_by_solar"], 0)
-
-        if algo_config.blocks.do_active_export_constraint_management:
-            self._df_in["min_charge"] = self._df_in[self._df_in["bess_max_discharge"] < 0]["bess_max_discharge"] * -1
-            self._df_in["min_charge"] = self._df_in["min_charge"].fillna(0)
-            # The min_charge constraint is currently applied to the 'charge from solar' flow, as it was used to
-            # manage excess solar power. If the min charge is a floating point error away from solar_not_supplying_load
-            # then make them equal to avoid constraint issues.
-            close_idx = self._df_in.index[np.isclose(self._df_in["min_charge"], self._df_in["solar_not_supplying_load"])]
-            self._df_in.loc[close_idx, "min_charge"] = self._df_in.loc[close_idx, "solar_not_supplying_load"]
-        else:
-            self._df_in["min_charge"] = 0.0
-
-        if algo_config.blocks.do_active_import_constraint_management:
-            self._df_in["min_discharge"] = self._df_in[self._df_in["bess_max_charge"] < 0]["bess_max_charge"] * -1
-            self._df_in["min_discharge"] = self._df_in["min_discharge"].fillna(0)
-            # The min_discharge constraint is currently applied to the 'discharge to load' flow, as it was used to
-            # manage excess load. If the min discharge is a floating point error away from load_not_supplied_by_solar
-            # then make them equal to avoid constraint issues.
-            close_idx = self._df_in.index[np.isclose(self._df_in["min_discharge"], self._df_in["load_not_supplied_by_solar"])]
-            self._df_in.loc[close_idx, "min_discharge"] = self._df_in.loc[close_idx, "load_not_supplied_by_solar"]
-        else:
-            self._df_in["min_discharge"] = 0.0
+        self._df_in = self._preprocess_input_data(df.copy())
 
     def run(self) -> pd.DataFrame:
         """
         Optimises the entire time range given in self._df_in.
         It does this by making multiple calls to self._run_one_optimisation and stacking the results together, with the
         duration of each optimisation block defined by configuration.
-        The end of each optimisation should be dropped as it won't be accurate because the optimiser doesn't know how to
+        The end of each optimisation block should be dropped as it won't be accurate because the optimiser doesn't know how to
         value the energy in the battery at the end of the optimisation (at the moment it just drains the battery on the
         last day).
         """
 
-        init_soe = self._bess_config.energy_capacity / 2
+        init_soe = self._bess_config.energy_capacity / 2  # assume the battery is half full at the beginning of the optimisation
         n_timeslots_with_nan_pricing = 0
 
         self._df_in = self._df_in.sort_index()
@@ -83,7 +58,7 @@ class Optimiser:
         end_t = self._df_in.index[-1]
         while current_start_t < end_t:
             current_end_t = add_wallclock_days(floor_day(current_start_t), self._algo_config.blocks.duration_days) - step_size
-            current_end_to_use_t = add_wallclock_days(floor_day(current_start_t), self._algo_config.blocks.used_duration_days) - step_size
+            current_end_to_use_t = add_wallclock_days(floor_day(current_start_t), self._algo_config.blocks.used_duration_days) - step_size  # we only use the first part of each optimisation
             if current_end_t > end_t:
                 current_end_t = end_t
             if current_end_to_use_t > end_t:
@@ -137,6 +112,57 @@ class Optimiser:
 
         return df_out
 
+    def _preprocess_input_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Preprocess input data to calculate derived microgrid flows and constraints.
+
+        This method calculates:
+        1. Basic energy flows (solar to load, excess solar, unmet load)
+        2. Battery charge/discharge limits considering grid constraints
+        3. Minimum charge/discharge requirements for constraint management
+        """
+        required_columns = [
+            'solar', 'load', 'bess_max_charge', 'bess_max_discharge', 'time_into_sp'
+        ]
+
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            raise ValueError(f"Missing required columns: {missing_columns}")
+
+        # Calculate some of the microgrid flows - at the moment this is the only algo that uses these values, but in
+        # the future it may make sense to pass these values in rather than have each algo calculate them independently.
+        df["solar_to_load"] = df[["solar", "load"]].min(axis=1)
+        df["load_not_supplied_by_solar"] = df["load"] - df["solar_to_load"]
+        df["solar_not_supplying_load"] = df["solar"] - df["solar_to_load"]
+        # When charging we must use excess solar first:
+        df["max_charge_from_grid"] = np.maximum(df["bess_max_charge"] - df["solar_not_supplying_load"], 0)
+        # When discharging we must send power to microgrid load first:
+        df["max_discharge_to_grid"] = np.maximum(df["bess_max_discharge"] - df["load_not_supplied_by_solar"], 0)
+
+        if self._algo_config.blocks.do_active_export_constraint_management:
+            df["min_charge"] = df[df["bess_max_discharge"] < 0]["bess_max_discharge"] * -1
+            df["min_charge"] = df["min_charge"].fillna(0)
+            # The min_charge constraint is currently applied to the 'charge from solar' flow, as it was used to
+            # manage excess solar power. If the min charge is a floating point error away from solar_not_supplying_load
+            # then make them equal to avoid constraint issues.
+            close_idx = df.index[np.isclose(df["min_charge"], df["solar_not_supplying_load"])]
+            df.loc[close_idx, "min_charge"] = df.loc[close_idx, "solar_not_supplying_load"]
+        else:
+            df["min_charge"] = 0.0
+
+        if self._algo_config.blocks.do_active_import_constraint_management:
+            df["min_discharge"] = df[df["bess_max_charge"] < 0]["bess_max_charge"] * -1
+            df["min_discharge"] = df["min_discharge"].fillna(0)
+            # The min_discharge constraint is currently applied to the 'discharge to load' flow, as it was used to
+            # manage excess load. If the min discharge is a floating point error away from load_not_supplied_by_solar
+            # then make them equal to avoid constraint issues.
+            close_idx = df.index[np.isclose(df["min_discharge"], df["load_not_supplied_by_solar"])]
+            df.loc[close_idx, "min_discharge"] = df.loc[close_idx, "load_not_supplied_by_solar"]
+        else:
+            df["min_discharge"] = 0.0
+
+        return df
+
     def _run_one_optimisation(
         self,
         df_in: pd.DataFrame,
@@ -169,59 +195,54 @@ class Optimiser:
 
         n_timeslots_with_nan_pricing = 0
 
-        for ts in timeslots:
+        for timeslot_idx in timeslots:
 
             lp_var_bess_soe.append(
                 pulp.LpVariable(
-                    name=f"bess_soe_{ts}",
+                    name=f"bess_soe_{timeslot_idx}",
                     lowBound=0.0,
                     upBound=self._bess_config.energy_capacity
                 )
             )
             lp_var_bess_charges_from_solar.append(
                 pulp.LpVariable(
-                    name=f"solar_to_batt_{ts}",
-                    # Sometimes a minimum charge constraint applies, for example if we model a site that has more solar
-                    # than the grid connection can handle and want the battery to charge from any excess solar.
-                    # TODO: a better way of handling this could be to value the energy that would be curtailed at 0p/kWh
-                    #       as this would allow the possibility of curtailment rather than failing optimisation in
-                    #       circumstances where there is too much solar for both the export connection and the battery.
+                    name=f"solar_to_batt_{timeslot_idx}",
                     lowBound=0,
-                    upBound=df_in.iloc[ts]["solar_not_supplying_load"]
+                    upBound=df_in.iloc[timeslot_idx]["solar_not_supplying_load"]
                 )
             )
             lp_var_bess_charges_from_grid.append(
                 pulp.LpVariable(
-                    name=f"grid_to_batt_{ts}",
+                    name=f"grid_to_batt_{timeslot_idx}",
                     lowBound=0.0,
-                    upBound=df_in.iloc[ts]["max_charge_from_grid"]
+                    upBound=df_in.iloc[timeslot_idx]["max_charge_from_grid"]
                 )
             )
             lp_var_bess_discharges_to_load.append(
                 pulp.LpVariable(
-                    name=f"batt_to_load_{ts}",
+                    name=f"batt_to_load_{timeslot_idx}",
                     lowBound=0,
-                    upBound=df_in.iloc[ts]["load_not_supplied_by_solar"]
+                    upBound=df_in.iloc[timeslot_idx]["load_not_supplied_by_solar"]
                 )
             )
             lp_var_bess_discharges_to_grid.append(
                 pulp.LpVariable(
-                    name=f"batt_to_grid_{ts}",
+                    name=f"batt_to_grid_{timeslot_idx}",
                     lowBound=0.0,
-                    upBound=df_in.iloc[ts]["max_discharge_to_grid"],
+                    upBound=df_in.iloc[timeslot_idx]["max_discharge_to_grid"],
                 )
             )
 
             # These totals of charge and discharge are just defined for convenience
             lp_var_bess_charges.append(
                 pulp.LpVariable(
-                    name=f"bess_charge_{ts}",
+                    name=f"bess_charge_{timeslot_idx}",
                     lowBound=0.0,
                 )
             )
             lp_var_bess_discharges.append(
                 pulp.LpVariable(
-                    name=f"bess_discharge_{ts}",
+                    name=f"bess_discharge_{timeslot_idx}",
                     lowBound=0.0,
                 )
             )
@@ -229,17 +250,17 @@ class Optimiser:
             # This binary var is used to make charge and discharging mutually exclusive for each time period
             lp_var_bess_is_charging.append(
                 pulp.LpVariable(
-                    name=f"bess_is_charging_{ts}",
+                    name=f"bess_is_charging_{timeslot_idx}",
                     cat=pulp.LpBinary
                 )
             )
 
-            # Get the rates from the input dataframe, and check they are not nan - if they are then don't allow any
+            # Get the rates from the input dataframe, and check they are not nan - if they are nan then don't allow any
             # activity in this period.
-            mkt_rate_final_grid_to_batt = df_in.iloc[ts]["mkt_vol_rate_final_grid_to_batt"]
-            int_rate_final_solar_to_batt = df_in.iloc[ts]["int_vol_rate_final_solar_to_batt"]
-            mkt_rate_final_batt_to_grid = df_in.iloc[ts]["mkt_vol_rate_final_batt_to_grid"]
-            int_rate_final_batt_to_load = df_in.iloc[ts]["int_vol_rate_final_batt_to_load"]
+            mkt_rate_final_grid_to_batt = df_in.iloc[timeslot_idx]["mkt_vol_rate_final_grid_to_batt"]
+            int_rate_final_solar_to_batt = df_in.iloc[timeslot_idx]["int_vol_rate_final_solar_to_batt"]
+            mkt_rate_final_batt_to_grid = df_in.iloc[timeslot_idx]["mkt_vol_rate_final_batt_to_grid"]
+            int_rate_final_batt_to_load = df_in.iloc[timeslot_idx]["int_vol_rate_final_batt_to_load"]
             if np.any(np.isnan([
                 mkt_rate_final_grid_to_batt,
                 int_rate_final_solar_to_batt,
@@ -252,25 +273,25 @@ class Optimiser:
                 int_rate_final_solar_to_batt = 0
                 mkt_rate_final_batt_to_grid = 0
                 int_rate_final_batt_to_load = 0
-                problem += lp_var_bess_charges_from_solar[ts] == 0
-                problem += lp_var_bess_charges_from_grid[ts] == 0
-                problem += lp_var_bess_discharges_to_load[ts] == 0
-                problem += lp_var_bess_discharges_to_grid[ts] == 0
+                problem += lp_var_bess_charges_from_solar[timeslot_idx] == 0
+                problem += lp_var_bess_charges_from_grid[timeslot_idx] == 0
+                problem += lp_var_bess_discharges_to_load[timeslot_idx] == 0
+                problem += lp_var_bess_discharges_to_grid[timeslot_idx] == 0
 
                 n_timeslots_with_nan_pricing += 1
 
             lp_costs.append(
-                lp_var_bess_charges_from_grid[ts] * mkt_rate_final_grid_to_batt +
-                lp_var_bess_charges_from_solar[ts] * int_rate_final_solar_to_batt +
-                lp_var_bess_discharges_to_grid[ts] * mkt_rate_final_batt_to_grid +
-                lp_var_bess_discharges_to_load[ts] * int_rate_final_batt_to_load
+                lp_var_bess_charges_from_grid[timeslot_idx] * mkt_rate_final_grid_to_batt +
+                lp_var_bess_charges_from_solar[timeslot_idx] * int_rate_final_solar_to_batt +
+                lp_var_bess_discharges_to_grid[timeslot_idx] * mkt_rate_final_batt_to_grid +
+                lp_var_bess_discharges_to_load[timeslot_idx] * int_rate_final_batt_to_load
             )
 
         # Calculate any limits on the 'optional' actions (i.e. those which are not required for active grid constraint management)
         optional_action_limit_df = pd.DataFrame(index=df_in.index, columns=["charge", "discharge"])
         if block_config.no_optional_charging_in_lowest_priced_quantile is not None:
             for _, df_day in df_in.groupby(df_in.index.date):
-                df_lowest = self.get_lowest_valued_rows(block_config.no_optional_charging_in_lowest_priced_quantile, df_day, "mkt_vol_rate_final_grid_to_batt")
+                df_lowest = self._get_lowest_valued_rows(block_config.no_optional_charging_in_lowest_priced_quantile, df_day, "mkt_vol_rate_final_grid_to_batt")
                 optional_action_limit_df.loc[df_lowest.index, "charge"] = 0.0
         # Constraints to prevent activity in the first ten minutes (if that's what is configured)
         if block_config.no_optional_actions_in_first_ten_mins_except_for_period is not None:
@@ -279,40 +300,40 @@ class Optimiser:
             no_actions = is_in_first_ten_mins & ~is_exempt
             optional_action_limit_df.loc[no_actions] = 0.0
 
-        for ts in timeslots:
+        for timeslot_idx in timeslots:
 
             # Constraints to define that all the flows are positive - prevent the optimiser from using a negative
-            problem += lp_var_bess_charges_from_solar[ts] >= 0.0
-            problem += lp_var_bess_charges_from_grid[ts] >= 0.0
-            problem += lp_var_bess_discharges_to_load[ts] >= 0.0
-            problem += lp_var_bess_discharges_to_grid[ts] >= 0.0
+            problem += lp_var_bess_charges_from_solar[timeslot_idx] >= 0.0
+            problem += lp_var_bess_charges_from_grid[timeslot_idx] >= 0.0
+            problem += lp_var_bess_discharges_to_load[timeslot_idx] >= 0.0
+            problem += lp_var_bess_discharges_to_grid[timeslot_idx] >= 0.0
 
             # Constraints to define the total of all charge flows and total of all discharge flows. This is just for
             # convenience as the totals are used a few times later on.
-            problem += lp_var_bess_charges[ts] == lp_var_bess_charges_from_solar[ts] + lp_var_bess_charges_from_grid[ts]
-            problem += lp_var_bess_discharges[ts] == lp_var_bess_discharges_to_load[ts] + lp_var_bess_discharges_to_grid[ts]
+            problem += lp_var_bess_charges[timeslot_idx] == lp_var_bess_charges_from_solar[timeslot_idx] + lp_var_bess_charges_from_grid[timeslot_idx]
+            problem += lp_var_bess_discharges[timeslot_idx] == lp_var_bess_discharges_to_load[timeslot_idx] + lp_var_bess_discharges_to_grid[timeslot_idx]
 
             # Constraints for maximum charge/discharge rates AND make charge and discharge mutually exclusive
-            problem += lp_var_bess_charges[ts] <= (df_in.iloc[ts]["bess_max_charge"] * lp_var_bess_is_charging[ts])
-            problem += lp_var_bess_discharges[ts] <= (df_in.iloc[ts]["bess_max_discharge"] * (1 - lp_var_bess_is_charging[ts]))
+            problem += lp_var_bess_charges[timeslot_idx] <= (df_in.iloc[timeslot_idx]["bess_max_charge"] * lp_var_bess_is_charging[timeslot_idx])
+            problem += lp_var_bess_discharges[timeslot_idx] <= (df_in.iloc[timeslot_idx]["bess_max_discharge"] * (1 - lp_var_bess_is_charging[timeslot_idx]))
 
             # Constraints for minimum charge/discharge rates - for when doing 'active constraint management'
-            problem += lp_var_bess_charges[ts] >= df_in.iloc[ts]["min_charge"]
-            problem += lp_var_bess_discharges[ts] >= df_in.iloc[ts]["min_discharge"]
+            problem += lp_var_bess_charges[timeslot_idx] >= df_in.iloc[timeslot_idx]["min_charge"]
+            problem += lp_var_bess_discharges[timeslot_idx] >= df_in.iloc[timeslot_idx]["min_discharge"]
 
             # Apply any constraints on optional actions (if configured)
-            charge_limit = optional_action_limit_df.iloc[ts]["charge"]
+            charge_limit = optional_action_limit_df.iloc[timeslot_idx]["charge"]
             if not np.isnan(charge_limit):
                 # Force the charge and discharge level to the limit for this time slot, unless the battery is required to be doing
                 # active constraint management - in which case allow the battery to do the constraint management but nothing else (this is not optional).
-                if df_in.iloc[ts]["min_charge"] > 0:
-                    charge_limit = df_in.iloc[ts]["min_charge"]
-                problem += lp_var_bess_charges[ts] <= charge_limit
-            discharge_limit = optional_action_limit_df.iloc[ts]["discharge"]
+                if df_in.iloc[timeslot_idx]["min_charge"] > 0:
+                    charge_limit = df_in.iloc[timeslot_idx]["min_charge"]
+                problem += lp_var_bess_charges[timeslot_idx] <= charge_limit
+            discharge_limit = optional_action_limit_df.iloc[timeslot_idx]["discharge"]
             if not np.isnan(discharge_limit):
-                if df_in.iloc[ts]["min_discharge"] > 0:
-                    discharge_limit = df_in.iloc[ts]["min_discharge"]
-                problem += lp_var_bess_discharges[ts] <= discharge_limit
+                if df_in.iloc[timeslot_idx]["min_discharge"] > 0:
+                    discharge_limit = df_in.iloc[timeslot_idx]["min_discharge"]
+                problem += lp_var_bess_discharges[timeslot_idx] <= discharge_limit
 
         # Apply cycling constraint to all timeslots
         if block_config.max_avg_cycles_per_day:
@@ -333,13 +354,13 @@ class Optimiser:
         problem += lp_var_bess_discharges_to_grid[-1] == 0
 
         # Constraint to define how the SoE changes across the timeslots. This loop starts from the second timeslot.
-        for ts in timeslots[1:]:
+        for timeslot_idx in timeslots[1:]:
             problem += (
-                lp_var_bess_soe[ts] == lp_var_bess_soe[ts - 1]
-                + lp_var_bess_charges_from_solar[ts - 1] * self._bess_config.charge_efficiency
-                + lp_var_bess_charges_from_grid[ts - 1] * self._bess_config.charge_efficiency
-                - lp_var_bess_discharges_to_load[ts - 1]
-                - lp_var_bess_discharges_to_grid[ts - 1]
+                lp_var_bess_soe[timeslot_idx] == lp_var_bess_soe[timeslot_idx - 1]
+                + lp_var_bess_charges_from_solar[timeslot_idx - 1] * self._bess_config.charge_efficiency
+                + lp_var_bess_charges_from_grid[timeslot_idx - 1] * self._bess_config.charge_efficiency
+                - lp_var_bess_discharges_to_load[timeslot_idx - 1]
+                - lp_var_bess_discharges_to_grid[timeslot_idx - 1]
             )
 
         status = problem.solve(pulp.PULP_CBC_CMD(
@@ -365,12 +386,10 @@ class Optimiser:
             (df_sol["solar_to_batt"] + df_sol["grid_to_batt"]) * (1 - self._bess_config.charge_efficiency)
         )
 
-        # TODO: tidy up code generally - a good point to clean up interface to multiple algos?
-
         return df_ret, n_timeslots_with_nan_pricing
 
     @staticmethod
-    def get_lowest_valued_rows(quantile: float, df: pd.DataFrame, col: str) -> pd.DataFrame:
+    def _get_lowest_valued_rows(quantile: float, df: pd.DataFrame, col: str) -> pd.DataFrame:
         """This returns the rows of `df` which have the lowest values for `col`"""
         threshold = df[col].quantile(quantile)
         lowest_df = df[df[col] <= threshold]

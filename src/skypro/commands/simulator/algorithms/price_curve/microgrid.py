@@ -1,4 +1,4 @@
-from skypro.commands.simulator.algorithms.system_state import SystemState
+from skypro.commands.simulator.algorithms.price_curve.system_state import SystemState
 from skypro.commands.simulator.config import Microgrid
 
 
@@ -7,6 +7,14 @@ def get_microgrid_algo_energy(
     microgrid_residual_energy: float,
     system_state: SystemState,
 ) -> float:
+    """
+    The simulation can be configured with a 'microgrid algorithm' which can do:
+    - "import avoidance" to prevent the site from importing into loads
+    - "export avoidance" tp prevent the site from exporting solar into the grid
+
+    The above can also be configured to only activate when the network is 'long' or 'short' which is when prices
+    tend to be low or high respectively.
+    """
 
     if config.local_control:
         if config.local_control.import_avoidance and microgrid_residual_energy > 0:

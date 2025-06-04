@@ -68,7 +68,7 @@ def add_total_vol_rates_to_df(
     df: pd.DataFrame,
     index_to_add_for: pd.DatetimeIndex,
     mkt_vol_rates: VolRatesForEnergyFlows,
-    live_or_final: str,  # TODO: this isn't helpful for the LP optimiser? as it's neither live nor final
+    live_or_final: str,
 ) -> pd.DataFrame:
     """
     Adds the total market and internal p/kWh rates for each flow to the dataframe for the period specified by
