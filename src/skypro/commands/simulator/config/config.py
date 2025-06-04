@@ -3,11 +3,11 @@ from datetime import timedelta, datetime
 from typing import List, Optional, Dict
 
 from marshmallow_dataclass import dataclass
-from simt_common.config.data_source import ProfileDataSource
-from simt_common.config.dayed_period import DayedPeriodType
-from simt_common.config.path_field import PathType
-from simt_common.config.rates_dataclasses import Rates
-from simt_common.config.utility import field_with_opts, enforce_one_option
+from skypro.common.config.data_source import ProfileDataSource
+from skypro.common.config.dayed_period import DayedPeriodType
+from skypro.common.config.path_field import PathType
+from skypro.common.config.rates_dataclasses import Rates
+from skypro.common.config.utility import field_with_opts, enforce_one_option
 
 from skypro.commands.simulator.config.curve import (CurveType)
 

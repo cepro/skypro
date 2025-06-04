@@ -4,9 +4,9 @@ from datetime import timedelta
 import numpy as np
 import pandas as pd
 
-from simt_common.timeutils.math import floor_hh
+from skypro.common.timeutils.math import floor_hh
 
-from skypro.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
+from skypro.commands.simulator.utils import get_user_ack_of_warning_or_exit
 
 
 def normalise_final_imbalance_data(
