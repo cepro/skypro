@@ -20,6 +20,9 @@ class ConstantDataSource:
 
 @dataclass
 class BessReadingDataSource:
+    """
+    A source of 'bess readings' data - e.g. SoE, target power, etc. Mostly used for reporting on actuals. The data can come either from CSV or DB.
+    """
     flows_bess_readings_data_source: Optional[FlowsBessReadingsDataSource] = field_with_opts(key="flowsBessReadings")
     csv_bess_readings_data_source: Optional[CSVBessReadingsDataSource] = field_with_opts(key="csvBessReadings")
 
