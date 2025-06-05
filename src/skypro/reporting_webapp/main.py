@@ -41,7 +41,7 @@ def main():
     config_path = os.environ.get("CONFIG_FILE", "./config/config.yaml")
     config = read_yaml_file(config_path)
 
-    st.title(f"Simtricity Reporting")
+    st.title("Simtricity Reporting")
 
     now = datetime.now()
     _, num_days = calendar.monthrange(now.year, now.month-1)
@@ -145,10 +145,10 @@ def main():
     with st.expander(f"Export Bill:  £{export_bill.bill_total / 100:.2f}"):
         st.dataframe(export_bill.bill_by_line_items_df, hide_index=False)
 
-    with st.expander(f"Remote Generator:  £N/A"):
+    with st.expander("Remote Generator:  £N/A"):
         st.write("Remote generators (e.g. Ripple) are not currently accounted for")
 
-    with st.expander(f"Customer Income:  £N/A"):
+    with st.expander("Customer Income:  £N/A"):
         st.write("Detailed breakdown not yet available")
 
     st.write(f"Average cycles per day: {result.total_cycles/result.num_days:.1f}")
