@@ -1,31 +1,59 @@
+import logging
 from datetime import timedelta, datetime
 from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
+
+from skypro.commands.report.readings import AllReadings
 from skypro.common.notice.notice import Notice
 from skypro.common.timeutils.timeseries import get_step_size, get_steps_per_hh
 
 from skypro.commands.report.config.config import MicrogridMeters
-from skypro.commands.report.warnings import pct_to_notice_level, duration_to_notice_level
+from skypro.commands.report.warnings import pct_to_notice_level, duration_to_notice_level, missing_data_warnings
 
 
-def calc_flows(df, ev_meter_readings, feeder1_meter_readings, feeder2_meter_readings) -> pd.DataFrame:
+def calc_flows(
+        time_index: pd.DatetimeIndex,
+        step_size: timedelta,
+        timezone_str: str,
+        readings: AllReadings,
+        meter_config: MicrogridMeters
+) -> Tuple[pd.DataFrame, List[Notice]]:
     """
-    Calculates the microgrid flows and adds them to the returned dataframe. A 'top-down' approach is used to
-    do the calculation: starting with the grid meter data and calculates down towards the feeder level.
+    Constructs a dataframe containing the microgrid flows using the given meter and BESS readings. Also returns a list of
+    Notices if there are any data quality issues.
     """
 
-    df = df.copy()
+    df = pd.DataFrame(index=time_index)
+    notices: List[Notice] = []
+
+    # The import/export nomenclature can be confusing for a battery, so prefer the "charge" and "discharge" terminology
+    df["bess_discharge"] = readings.bess_meter["energy_imported_active_delta"]
+    df["bess_charge"] = readings.bess_meter["energy_exported_active_delta"]
+    df["bess_import_cum_reading"] = readings.bess_meter["energy_imported_active_min"]
+    df["bess_export_cum_reading"] = readings.bess_meter["energy_exported_active_min"]
+    df["soe"] = readings.bess["soe_avg"]
+    df["soe"] = df["soe"].ffill(limit=get_steps_per_hh(step_size)-1)
+
+    df["grid_import_cum_reading"] = readings.grid_meter["energy_imported_active_min"]
+    df["grid_export_cum_reading"] = readings.grid_meter["energy_exported_active_min"]
+    df["grid_import"] = readings.grid_meter["energy_imported_active_delta"]
+    df["grid_export"] = readings.grid_meter["energy_exported_active_delta"]
+
+    df, new_notices = synthesise_battery_inverter_if_needed(df, readings.bess["target_power_avg"])
+    notices.extend(new_notices)
 
     df["bess_net"] = df["bess_charge"] - df["bess_discharge"]
 
     # Taking the net of the EV circuit is probably overkill as the EVs shouldn't be exporting
-    df["ev_net"] = ev_meter_readings["energy_imported_active_delta"] - ev_meter_readings["energy_exported_active_delta"]
+    df["ev_net"] = readings.ev_meter["energy_imported_active_delta"] - readings.ev_meter["energy_exported_active_delta"]
 
-    df["feeder1_net"] = feeder1_meter_readings["energy_imported_active_delta"] - feeder1_meter_readings["energy_exported_active_delta"]
-    df["feeder2_net"] = feeder2_meter_readings["energy_imported_active_delta"] - feeder2_meter_readings["energy_exported_active_delta"]
+    df["feeder1_net"] = readings.feeder1_meter["energy_imported_active_delta"] - readings.feeder1_meter["energy_exported_active_delta"]
+    df["feeder2_net"] = readings.feeder2_meter["energy_imported_active_delta"] - readings.feeder2_meter["energy_exported_active_delta"]
 
+    # A 'top-down' approach is used to do the calculations: starting with the grid meter data and calculates
+    # down towards the feeder level.
     df["grid_net"] = df["grid_import"] - df["grid_export"]
     df["non_bess_net"] = df["grid_net"] - df["bess_net"]
     df["feeders_net"] = df["non_bess_net"] - df["ev_net"]
@@ -42,7 +70,50 @@ def calc_flows(df, ev_meter_readings, feeder1_meter_readings, feeder2_meter_read
     df["solar_to_grid"] = df["solar_not_supplying_load"] - df["solar_to_batt"]
     df["grid_to_load"] = df["load_not_supplied_by_solar"] - df["batt_to_load"]
 
-    return df
+    # If we have missing meter data then we may be able to approximate it as we do have redundant metering in some cases
+    df, new_notices = calculate_missing_net_flows_in_junction(
+        df,
+        cols_with_direction=[
+            ("grid_net", 1),
+            ("bess_net", -1),
+            ("feeder1_net", -1),
+            ("feeder2_net", -1),
+            ("ev_net", -1),
+        ],
+    )
+    notices.extend(new_notices)
+    notices.extend(missing_data_warnings(df, "Flows metering data for BESS"))
+
+    # We need a half-hourly datetime index for things like emlite meter data
+    time_index_hh = pd.date_range(
+        start=time_index[0],
+        end=time_index[-1],
+        freq=timedelta(minutes=30)
+    ).tz_convert(timezone_str)
+
+    logging.info("Approximating solar and load...")
+    df, new_notices = approximate_solar_and_load(
+        df=df,
+        plot_meter_readings=readings.plot_meter,
+        meter_config=meter_config,
+        time_index_hh=time_index_hh
+    )
+    notices.extend(new_notices)
+
+    df["solar"] = df[["solar_feeder1", "solar_feeder2"]].sum(axis=1)
+    df["load"] = df[["plot_load_feeder1", "plot_load_feeder2"]].sum(axis=1)
+    df["solar_to_load"] = np.minimum(df["solar"], df["load"])  # requires emlite data
+
+    # These columns are required for the output CSV, and could be calculated, but there's not currently a need for it
+    df["solar_to_load_property_level"] = np.nan
+    df["solar_to_load_microgrid_level"] = np.nan
+    df["bess_losses"] = np.nan
+    df["bess_max_charge"] = np.nan
+    df["bess_max_discharge"] = np.nan
+    df["imbalance_volume_final"] = np.nan
+    df["imbalance_volume_predicted"] = np.nan
+
+    return df, notices
 
 
 def calculate_missing_net_flows_in_junction(

@@ -6,10 +6,8 @@ from typing import Optional, Callable, List, Dict
 
 import numpy as np
 import pandas as pd
-from skypro.common.config.data_source import MeterReadingDataSource
-from skypro.common.data.get_bess_readings import get_bess_readings
-from skypro.common.data.get_meter_readings import get_meter_readings
-from skypro.common.data.get_plot_meter_readings import get_plot_meter_readings
+
+from skypro.commands.report.readings import get_readings
 from skypro.common.microgrid_analysis.breakdown import breakdown_microgrid_flows, MicrogridBreakdown
 from skypro.common.microgrid_analysis.daily_gains import plot_daily_gains
 from skypro.common.microgrid_analysis.output import generate_output_df
@@ -19,7 +17,6 @@ from skypro.common.rates.osam import calculate_osam_ncsp
 from skypro.common.rates.peripheral import get_rates_dfs_by_type
 from skypro.common.rates.rates import OSAMFlatVolRate
 from skypro.common.rates.rates_friendly_summary import get_friendly_rates_summary
-from skypro.common.timeutils.timeseries import get_steps_per_hh
 from tabulate import tabulate
 
 from skypro.common.cli_utils.cli_utils import substitute_vars, set_auto_accept_cli_warnings
@@ -29,8 +26,7 @@ from skypro.common.cli_utils.cli_utils import read_yaml_file
 from skypro.common.data.utility import prepare_data_dir
 from skypro.commands.report.time import get_month_timerange
 from skypro.commands.report.config.config import parse_config, Config
-from skypro.commands.report.microgrid_flow_calcs import calculate_missing_net_flows_in_junction, calc_flows, \
-    synthesise_battery_inverter_if_needed, approximate_solar_and_load
+from skypro.commands.report.microgrid_flow_calcs import calc_flows
 from skypro.commands.report.plots import plot_load_and_solar
 from skypro.commands.report.rates import get_rates_from_config
 from skypro.commands.report.warnings import missing_data_warnings, energy_discrepancy_warnings
@@ -41,31 +37,31 @@ TIMEZONE_STR = "Europe/London"
 @dataclass
 class Report:
     """
-    Holds the results of a reporting run
+    This structure holds the various results of a reporting run
     """
-    df: pd.DataFrame  # a time-series with detailed info
+    df: pd.DataFrame  # a time-series with detailed info about what was going on in the microgrid
 
-    # The various rates and costs separated by flow
+    # The various rates and costs separated by flow name (e.g. 'batt_to_grid', 'solar_to_load', etc)
     mkt_vol_rates_dfs: Dict[str, pd.DataFrame]
     int_vol_rates_dfs: Dict[str, pd.DataFrame]
     mkt_fixed_cost_dfs: Dict[str, pd.DataFrame]
     customer_fixed_cost_dfs: Dict[str, pd.DataFrame]
     customer_vol_rates_dfs: Dict[str, pd.DataFrame]
 
-    breakdown: MicrogridBreakdown  # Some key results which are shared with Skypro
+    breakdown: MicrogridBreakdown  # Some key results (which are shared with Skypro simulations so are kept in this separate structure)
 
-    osam_rates: List[OSAMFlatVolRate]
-    osam_df: pd.DataFrame
+    osam_rates: List[OSAMFlatVolRate]  # A list of all the rate objects which use OSAM
+    osam_df: pd.DataFrame  # A detailed breakdown of the OSAM calculations
 
     num_days: float  # how many days have been reported over
 
-    total_bess_discharged: float
-    total_bess_charged: float
+    total_bess_discharged: float  # kWh
+    total_bess_charged: float  # kWh
 
-    roundtrip_efficiency: float
+    roundtrip_efficiency: float  # as a fraction
     total_cycles: float
 
-    notices: List[Notice]  # Any warnings that the user should be aware of
+    notices: List[Notice]  # Any warnings that were generated in the course of reporting that the user should be aware of. These are normally about data quality etc.
 
 
 def report_cli(
@@ -77,13 +73,14 @@ def report_cli(
         output_file_path: Optional[str] = None
 ):
     """
-    Analyses how the battery has performed and produces a set of statistics and plots.
+    CLI interface onto the reporting functionality.
     """
     logging.info("Reporting - - - - - - - - - - - - -")
     logging.info(f"Using config file: {config_file_path}")
 
     set_auto_accept_cli_warnings(False)
 
+    # Secrets and $VARIABLES can be specified in an environment file
     env_config = read_yaml_file(env_file_path)
     env_vars = env_config["vars"]
 
@@ -96,10 +93,14 @@ def report_cli(
     # Read in the main config file
     config = parse_config(config_file_path, env_vars=env_vars)
 
+    # Reporting is run with 5 minute granularity, and the CLI interface specifies whole months.
+    # 5 minutely data is best as the BESS strategy can change quite a lot within the half-hour, as it reacts to
+    # imbalance price forecasts and solar generation, etc.
     step_size = timedelta(minutes=5)
     start, end = get_month_timerange(month_str, TIMEZONE_STR)
     end = end - step_size
 
+    # Run the actual reporting logic
     result = report(
         config=config,
         flows_db_url=env_config["flows"]["dbUrl"],
@@ -155,18 +156,15 @@ def report(
     file_path_resolver_func: Callable,
 ) -> Report:
     """
-    Pulls the data and runs the actual reporting calculations and returns the various results.
+    Runs the actual reporting calculations and returns the various results.
+    The configuration may specify pulling the required data from local CSV files or from databases.
     """
 
     logging.info(f"Reporting for period {start} -> {end}")
 
     notices: List[Notice] = []
 
-    # 5 minutely data is best as the BESS strategy changes within the half-hour
     time_index = pd.date_range(start, end, freq=step_size).tz_convert(TIMEZONE_STR)
-
-    # we also need a half-hourly datetime index for things like emlite meter data
-    time_index_hh = pd.date_range(start, end, freq=timedelta(minutes=30)).tz_convert(TIMEZONE_STR)
 
     rates, new_notices = get_rates_from_config(
         time_index=time_index,
@@ -177,162 +175,23 @@ def report(
     )
     notices.extend(new_notices)
 
-    print(f"\nIMPORT RATES (at {time_index[0]}, grid to battery)")
-    print(tabulate(
-        tabular_data=get_friendly_rates_summary(rates.mkt_vol.grid_to_batt, time_index[0]),
-        headers="keys",
-        tablefmt="presto",
-        showindex=False
-    ))
+    _log_rates_to_screen(rates, time_index)
 
-    print(f"\nEXPORT RATES (at {time_index[0]}, battery to grid)")
-    print(tabulate(
-        tabular_data=get_friendly_rates_summary(rates.mkt_vol.batt_to_grid, time_index[0]),
-        headers="keys",
-        tablefmt="presto",
-        showindex=False
-    ))
-
-    print(f"\nFIXED RATES (at {time_index[0]})")
-    print(tabulate(
-        tabular_data=get_friendly_rates_summary(rates.mkt_fix["import"] + rates.mkt_fix["export"], time_index[0]),
-        headers="keys",
-        tablefmt="presto",
-        showindex=False
-    ))
-    print("")
-
-    def _get_meter_readings(source: MeterReadingDataSource, context: str) -> pd.DataFrame:
-        # This just wraps `get_meter_readings` for convenience
-        logging.info(f"Loading {context}...")
-        data_df, new_notices = get_meter_readings(
-            source=source,
-            start=time_index[0],
-            end=time_index[-1],
-            file_path_resolver_func=file_path_resolver_func,
-            db_engine=flows_db_url,
-            context=context
-        )
-        notices.extend(new_notices)
-
-        data_df = data_df.set_index("time")
-        return data_df
-
-    mg_meter_config = config.reporting.metering.microgrid_meters  # For convenience
-    bess_meter_readings = _get_meter_readings(mg_meter_config.bess_inverter.data_source, "bess meter readings")
-    grid_meter_readings = _get_meter_readings(mg_meter_config.main_incomer.data_source, "grid meter readings")
-    feeder1_meter_readings = _get_meter_readings(mg_meter_config.feeder_1.data_source, "feeder1 meter readings")
-    feeder2_meter_readings = _get_meter_readings(mg_meter_config.feeder_2.data_source, "feeder2 meter readings")
-    ev_meter_readings = _get_meter_readings(mg_meter_config.ev_charger.data_source, "ev charger meter readings")
-
-    logging.info("Loading plot meter readings...")
-    plot_meter_readings, new_notices = get_plot_meter_readings(
-        source=config.reporting.metering.plot_meters.data_source,
-        start=time_index[0],
-        end=time_index[-1],
-        file_path_resolver_func=file_path_resolver_func,
-        db_engine=flows_db_url,
-        context="plot meter readings"
-    )
-    notices.extend(new_notices)
-    plot_meter_readings = plot_meter_readings.set_index("time")
-
-    logging.info("Loading bess readings...")
-    bess_readings, new_notices = get_bess_readings(
-        source=config.reporting.bess.data_source,
-        start=time_index[0],
-        end=time_index[-1],
-        file_path_resolver_func=file_path_resolver_func,
-        db_engine=flows_db_url,
-        context="bess readings"
-    )
-    notices.extend(new_notices)
-    bess_readings = bess_readings.set_index("time")
-
-    # Create a dataframe to hold the 5-minutely site data
-    df = pd.DataFrame(index=time_index)
-
-    # The import/export nomenclature can be confusing for a battery, so prefer the "charge" and "discharge" terminology
-    df["bess_discharge"] = bess_meter_readings["energy_imported_active_delta"]
-    df["bess_charge"] = bess_meter_readings["energy_exported_active_delta"]
-    df["bess_import_cum_reading"] = bess_meter_readings["energy_imported_active_min"]
-    df["bess_export_cum_reading"] = bess_meter_readings["energy_exported_active_min"]
-    df["soe"] = bess_readings["soe_avg"]
-    df["soe"] = df["soe"].ffill(limit=get_steps_per_hh(step_size)-1)
-
-    df["grid_import_cum_reading"] = grid_meter_readings["energy_imported_active_min"]
-    df["grid_export_cum_reading"] = grid_meter_readings["energy_exported_active_min"]
-    df["grid_import"] = grid_meter_readings["energy_imported_active_delta"]
-    df["grid_export"] = grid_meter_readings["energy_exported_active_delta"]
-
-    df, new_notices = synthesise_battery_inverter_if_needed(df, bess_readings["target_power_avg"])
+    readings, new_notices = get_readings(config, time_index, flows_db_url, file_path_resolver_func)
     notices.extend(new_notices)
 
-    df = calc_flows(
-        df=df,
-        ev_meter_readings=ev_meter_readings,
-        feeder1_meter_readings=feeder1_meter_readings,
-        feeder2_meter_readings=feeder2_meter_readings,
-    )
-
-    df, new_notices = calculate_missing_net_flows_in_junction(
-        df,
-        cols_with_direction=[
-            ("grid_net", 1),
-            ("bess_net", -1),
-            ("feeder1_net", -1),
-            ("feeder2_net", -1),
-            ("ev_net", -1),
-        ],
-    )
-    notices.extend(new_notices)
-    notices.extend(missing_data_warnings(df, "Flows metering data for BESS"))
-
-    logging.info("Approximating solar and load...")
-
-    df, new_notices = approximate_solar_and_load(
-        df=df,
-        plot_meter_readings=plot_meter_readings,
+    df, new_notices = calc_flows(
+        time_index=time_index,
+        step_size=step_size,
+        timezone_str=TIMEZONE_STR,
+        readings=readings,
         meter_config=config.reporting.metering.microgrid_meters,
-        time_index_hh=time_index_hh
     )
     notices.extend(new_notices)
 
-    df["solar"] = df[["solar_feeder1", "solar_feeder2"]].sum(axis=1)
-    df["load"] = df[["plot_load_feeder1", "plot_load_feeder2"]].sum(axis=1)
-    df["solar_to_load"] = np.minimum(df["solar"], df["load"])  # requires emlite data
+    df, int_vol_rates_dfs, mkt_vol_rates_dfs, osam_df, osam_rates = _process_vol_rates(df, rates)
 
-    df["solar_to_load_property_level"] = np.nan  # TODO
-    df["solar_to_load_microgrid_level"] = np.nan  # TODO
-    df["bess_losses"] = np.nan  # TODO
-
-    # These columns are required for the output CSV, and could be calculated, but there's not currently a need for it
-    df["bess_max_charge"] = np.nan
-    df["bess_max_discharge"] = np.nan
-    df["imbalance_volume_final"] = np.nan
-    df["imbalance_volume_predicted"] = np.nan
-
-    df["osam_ncsp"], osam_df = calculate_osam_ncsp(
-        df=df,
-        index_to_calc_for=df.index,
-        imp_bp_col="grid_import",
-        exp_bp_col="grid_export",
-        imp_stor_col="bess_charge",
-        exp_stor_col="bess_discharge",
-        imp_gen_col=None,
-        exp_gen_col=None,
-    )
-    # Inform any OSAM rate objects about the NCSP
-    osam_rates = []
-    for rate in rates.mkt_vol.grid_to_batt:
-        if isinstance(rate, OSAMFlatVolRate):
-            osam_rates.append(rate)
-            rate.add_ncsp(df["osam_ncsp"])
-
-    # Generate dataframes with each individual p/kWh rate for each energy flow
-    mkt_vol_rates_dfs, int_vol_rates_dfs = get_vol_rates_dfs(time_index, rates.mkt_vol)
-
-    # Some of the reported results are shared with Skypro, and these are created in a library function here:
+    # Some of the reported results are shared with Skypro Simulator, and these are created in a common/library function here:
     breakdown = breakdown_microgrid_flows(
         df=df,
         int_vol_rates_dfs=int_vol_rates_dfs,
@@ -448,6 +307,65 @@ def report(
 
         notices=notices
     )
+
+
+def _process_vol_rates(df, rates):
+    """
+    Runs the OSAM calculations and returns detailed information about the volumetric (p/kWh) rates.
+    """
+
+    df = df.copy()
+
+    df["osam_ncsp"], osam_df = calculate_osam_ncsp(
+        df=df,
+        index_to_calc_for=df.index,
+        imp_bp_col="grid_import",
+        exp_bp_col="grid_export",
+        imp_stor_col="bess_charge",
+        exp_stor_col="bess_discharge",
+        imp_gen_col=None,
+        exp_gen_col=None,
+    )
+
+    # Inform any OSAM rate objects about the NCSP
+    osam_rates = []
+    for rate in rates.mkt_vol.grid_to_batt:
+        if isinstance(rate, OSAMFlatVolRate):
+            osam_rates.append(rate)
+            rate.add_ncsp(df["osam_ncsp"])
+
+    # Generate dataframes with each individual p/kWh rate for each energy flow
+    mkt_vol_rates_dfs, int_vol_rates_dfs = get_vol_rates_dfs(df.index, rates.mkt_vol)
+
+    return df, int_vol_rates_dfs, mkt_vol_rates_dfs, osam_df, osam_rates
+
+
+def _log_rates_to_screen(rates, time_index):
+    """
+    This prints some of the key rates to the CLI to help the user gauge if their configuration is correct.
+    """
+    print(f"\nIMPORT RATES (at {time_index[0]}, grid to battery)")
+    print(tabulate(
+        tabular_data=get_friendly_rates_summary(rates.mkt_vol.grid_to_batt, time_index[0]),
+        headers="keys",
+        tablefmt="presto",
+        showindex=False
+    ))
+    print(f"\nEXPORT RATES (at {time_index[0]}, battery to grid)")
+    print(tabulate(
+        tabular_data=get_friendly_rates_summary(rates.mkt_vol.batt_to_grid, time_index[0]),
+        headers="keys",
+        tablefmt="presto",
+        showindex=False
+    ))
+    print(f"\nFIXED RATES (at {time_index[0]})")
+    print(tabulate(
+        tabular_data=get_friendly_rates_summary(rates.mkt_fix["import"] + rates.mkt_fix["export"], time_index[0]),
+        headers="keys",
+        tablefmt="presto",
+        showindex=False
+    ))
+    print("")
 
 
 def log_report_summary(config: Config, result: Report):
