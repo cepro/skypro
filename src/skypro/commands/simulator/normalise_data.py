@@ -6,7 +6,7 @@ import pandas as pd
 
 from skypro.common.timeutils.math import floor_hh
 
-from skypro.commands.simulator.utils import get_user_ack_of_warning_or_exit
+from skypro.common.cli_utils.cli_utils import get_user_ack_of_warning_or_exit
 
 
 def normalise_final_imbalance_data(

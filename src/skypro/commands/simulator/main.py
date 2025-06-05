@@ -28,7 +28,7 @@ from skypro.common.timeutils.math import floor_hh
 from skypro.common.timeutils.timeseries import get_step_size
 from tabulate import tabulate
 
-from skypro.commands.simulator.utils import read_json_file, set_auto_accept_cli_warnings, get_user_ack_of_warning_or_exit
+from skypro.common.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings, get_user_ack_of_warning_or_exit
 from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
 from skypro.commands.simulator.algorithms.price_curve.algo import PriceCurveAlgo
 from skypro.commands.simulator.config.parse_config import parse_config

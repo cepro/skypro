@@ -3,6 +3,8 @@ import logging
 import os
 from typing import Dict
 
+import yaml
+
 _auto_accept_cli_warnings = False
 
 
@@ -34,3 +36,25 @@ def read_json_file(file_path: str) -> Dict:
         parsed = json.load(file)
 
     return parsed
+
+
+def read_yaml_file(file_path: str) -> Dict:
+    """
+    Reads a json file and returns the contents as a dictionary.
+    """
+    with open(os.path.expanduser(file_path), 'r') as file:
+        parsed = yaml.safe_load(file)
+
+    return parsed
+
+
+def substitute_vars(string: str, variables: Dict[str, str]) -> str:
+    """
+    Replaces the $variables that are present in `string` with their associated value in the `variables` dictionary.
+    For example, "$DIR/one/two" might have $DIR substituted with a path.
+    """
+    for key, val in variables.items():
+        string = string.replace(f"${key}", val)
+
+    return string
+

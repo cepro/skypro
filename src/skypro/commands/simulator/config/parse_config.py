@@ -1,7 +1,7 @@
 from packaging.version import Version
 
 import yaml
-from skypro.common.cli_utils.cliutils import substitute_vars
+from skypro.common.cli_utils.cli_utils import substitute_vars
 from skypro.common.config.path_field import PathField
 
 from skypro.commands.simulator.config.config import Config, SimulationCase

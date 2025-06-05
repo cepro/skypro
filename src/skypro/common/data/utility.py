@@ -44,6 +44,22 @@ def get_csv_data_source(source: CSVDataSource, file_path_resolver_func: Callable
     return df
 
 
+def prepare_data_dir(data_dir: str, data_source: str, sub_dir: str, date_tag: datetime) -> str:
+    """
+    Creates a directory for saving data into and returns the file name to use
+    - `data_dir` is the base directory
+    - `data_source` will form a directory and is intended to give the source of the data, e.g. 'elexon' or 'flows'.
+    - `sub_dir` will form a subdirectory and names the dataset, e.g. 'imbalance_price' or 'bess_readings_30m'
+    - `date_tag` gives the start of the date range of the data, which is normally saved monthly.
+    """
+    directory = os.path.expanduser(os.path.join(data_dir, data_source, sub_dir))
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    file_name = f"{data_source}_{sub_dir}_{date_tag:%Y_%m}.csv"
+    file_path = os.path.join(directory, file_name)
+    return file_path
+
+
 def drop_extra_rows(df: pd.DataFrame, start: Optional[datetime], end: Optional[datetime]) -> pd.DataFrame:
     """
     Removes any rows outside the start and end time

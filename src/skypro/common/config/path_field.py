@@ -2,7 +2,7 @@ import os
 from typing import Annotated, Dict
 
 from marshmallow import fields
-from skypro.common.cli_utils.cliutils import substitute_vars
+from skypro.common.cli_utils.cli_utils import substitute_vars
 
 
 class PathField(fields.Field):
