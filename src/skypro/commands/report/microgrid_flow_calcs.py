@@ -13,7 +13,7 @@ from skypro.commands.report.warnings import pct_to_notice_level, duration_to_not
 def calc_flows(df, ev_meter_readings, feeder1_meter_readings, feeder2_meter_readings) -> pd.DataFrame:
     """
     Calculates the microgrid flows and adds them to the returned dataframe. A 'top-down' approach is used to
-    do the calculation: starting with the grid meter data and calculates down towards the feeder level
+    do the calculation: starting with the grid meter data and calculates down towards the feeder level.
     """
 
     df = df.copy()
@@ -51,7 +51,8 @@ def calculate_missing_net_flows_in_junction(
 ) -> Tuple[pd.DataFrame, List[Notice]]:
     """
     Given an electrical junction with N flows in/out, if one of the flows is missing metering data then we can calculate
-    it from the others. This function calculates any missing flows that it can and adds them to the returned dataframe.
+    it from the others because we have 'redundant metering'. This function calculates any missing flows that it can and
+    adds them to the returned dataframe. Also returns any Notices about data quality warnings etc.
 
     This calculation only works for 'net' flows - i.e. it doesn't work with separate import/export flows.
 
@@ -67,7 +68,7 @@ def calculate_missing_net_flows_in_junction(
     nets_df = df[cols]
     nans_df = nets_df.isna()
 
-    # Loop through each column and make predictions for each in turn
+    # Loop through each column and make estimates for each in turn
     for col_to_predict, col_to_predict_direction in cols_with_direction:
 
         # We can only predict rows where there is a single missing value
@@ -99,8 +100,14 @@ def approximate_solar_and_load(
         time_index_hh: pd.DatetimeIndex
 ) -> Tuple[pd.DataFrame, List[Notice]]:
     """
-    Attempts to calculate the solar and load values and adds them to the dataframe.
-    This is done by inspecting the emlite data in plot_meter_readings.
+    Estimates the solar and load values and adds them to the returned dataframe. Also returns any Notices about
+    data quality warnings etc.
+
+    At the current microgrids, most of the plot-level load data is available as Emlite meters are in place, except for
+    three-phase meters like landlord supplies and EV chargers, which leads to an approx 5% under-estimate of load.
+    Most of the plot-level solar data is NOT available as the Emlite meters are not yet communicating/reporting generation.
+    Therefore, this function approximates the total solar generation by differencing the feeder-level import/exports with
+    the plot-level load data.
     """
     df = df.copy()
 
@@ -201,19 +208,12 @@ def split_by_register(plot_meter_readings: pd.DataFrame, natures: List[str], tim
     return df
 
 
-def dummy_agg(x):
-    """
-    This is a dummy aggregation function for scenarios where there should not be any aggregation - it just returns the
-    value it was given and raises an exception if there is more than one value.
-    """
-    if len(x) > 1:
-        raise ValueError("More than one value in dummy aggregation")
-    return x
-
-
 def fill_gaps_in_plot_level_data(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[Notice]]:
     """
-    Attempts to fill any nans in the plot-level data by approximating based on previous/future values
+    Attempts to fill any nans in the plot-level data by approximating based on previous/future values, and returns
+    a new dataframe with the approximations, and a list of any Notices regarding data quality.
+
+    See in-line comments for approximation methodologies.
     """
 
     df = df.copy()
@@ -256,7 +256,12 @@ def fill_gaps_in_plot_level_data(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[N
 def synthesise_battery_inverter_if_needed(df: pd.DataFrame, target_avg_power: pd.Series) -> Tuple[pd.DataFrame, List[Notice]]:
     """
     Attempts to fill any gaps in the `bess_charge` and `bess_discharge` fields of `df` by using the target_avg_power as
-    a proxy
+    a proxy. Notices are returned if any gaps needed to be filled.
+
+    The `bess_charge` and `bess_discharge` fields are derived from the meter at the battery inverter. If this meter has
+    gone offline, and we are missing data then we can use the `target_power_avg` data to approximate as a fallback.
+    The `target_power_avg` is reported by the Tesla battery as the power that it's aiming for, so it is normally fairly
+    accurate to what was actually delivered.
     """
     df = df.copy()
     df2 = df.copy()
@@ -323,7 +328,7 @@ def synthesise_battery_inverter_if_needed(df: pd.DataFrame, target_avg_power: pd
 
 def run_length_encoding(series: pd.Series) -> List[Tuple[datetime, datetime]]:
     """
-    Returns the time ranges for which `series` is true.
+    Returns a List of time ranges for which `series` is true.
     """
     df = pd.DataFrame(index=series.index)
     df["condition"] = series
@@ -341,3 +346,11 @@ def reading_diff(series: pd.Series, index_start, index_end):
     return series.iloc[index_end] - series.iloc[index_start]
 
 
+def dummy_agg(x):
+    """
+    This is a dummy aggregation function for scenarios where there should not be any aggregation - it just returns the
+    value it was given and raises an exception if there is more than one value.
+    """
+    if len(x) > 1:
+        raise ValueError("More than one value in dummy aggregation")
+    return x

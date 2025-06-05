@@ -29,7 +29,7 @@ from skypro.common.cli_utils.cli_utils import read_yaml_file
 from skypro.common.data.utility import prepare_data_dir
 from skypro.commands.report.time import get_month_timerange
 from skypro.commands.report.config.config import parse_config, Config
-from skypro.commands.report.flow_calcs import calculate_missing_net_flows_in_junction, calc_flows, \
+from skypro.commands.report.microgrid_flow_calcs import calculate_missing_net_flows_in_junction, calc_flows, \
     synthesise_battery_inverter_if_needed, approximate_solar_and_load
 from skypro.commands.report.plots import plot_load_and_solar
 from skypro.commands.report.rates import get_rates_from_config
