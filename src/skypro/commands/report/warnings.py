@@ -39,6 +39,9 @@ def energy_discrepancy_warnings(total_energy_1: float, total_energy_2: float, de
 
 
 def pct_to_notice_level(pct: float) -> NoticeLevel:
+    """
+    Returns a notice level (indicating the seriousness of the issue) given the percentage error.
+    """
     if pct > 5:
         return NoticeLevel.SEVERE
     elif pct > 2:
@@ -48,6 +51,9 @@ def pct_to_notice_level(pct: float) -> NoticeLevel:
 
 
 def duration_to_notice_level(duration: timedelta) -> NoticeLevel:
+    """
+    Returns a notice level (indicating the seriousness of the issue) given the duration that data is missing for.
+    """
     if duration > timedelta(hours=12):
         return NoticeLevel.SEVERE
     elif duration > timedelta(hours=2):

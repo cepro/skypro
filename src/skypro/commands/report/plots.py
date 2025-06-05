@@ -1,9 +1,6 @@
 import pandas as pd
 import plotly.express as px
 
-DAYS_IN_MS = 24 * 60 * 60 * 1000
-BESS_CHARGE_EFFICIENCY = 0.85
-
 
 def plot_load_and_solar(df: pd.DataFrame):
     px.line(df[[

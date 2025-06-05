@@ -33,13 +33,13 @@ def get_rates_from_config(
         rates_db_engine,
 ) -> Tuple[ParsedRates, List[Notice]]:
     """
-    This reads the rates files defined in the given rates configuration block and returns the ParsedRates,
-    and a dataframe containing live and final imbalance data.
+    This reads the rates configuration block and returns the ParsedRates, and a list of Notices if there are issues with data quality.
+    The rates may be configured to be read from YAML files or from a database.
     """
 
     notices: List[Notice] = []
 
-    # Read in Elexon imbalance price
+    # Read in Elexon imbalance price, which is sometimes required by Rate objects
     elexon, new_notices = get_timeseries(
         source=config.reporting.rates.imbalance_data_source.price,
         start=time_index[0],
@@ -82,7 +82,7 @@ def get_rates_from_config(
                 "import": fixed_import,
                 "export": fixed_export
             },
-            customer={}  # TODO: read customer rates
+            customer={}  # TODO: read customer rates from DB
         )
     else:  # Read rates from local YAML files...
         # Parse the supply points config file:
@@ -98,6 +98,7 @@ def get_rates_from_config(
             file_path_resolver_func=file_path_resolver_func,
         )
 
+        # The rates files can include an 'experimental' block which contains beta features like fixed market rates and customer rates.
         exp_config = config.reporting.rates.experimental
         if exp_config:
             if exp_config.mkt_fixed_files:
