@@ -108,7 +108,7 @@ def approximate_solar_and_load(
     steps_per_hh = get_steps_per_hh(step_size)
 
     # Set up a more generic form for feeder config that allows an arbitrary number of feeders:
-    feeder_flows_ids = [meter_config.feeder_1.feeder_id, meter_config.feeder_2.feeder_id]
+    feeder_flows_ids = [meter_config.feeder_1.feeder_flows_id, meter_config.feeder_2.feeder_flows_id]
 
     # Filter the plot readings to only include the feeders of interest
     plot_meter_readings = plot_meter_readings[plot_meter_readings["feeder_id"].isin(feeder_flows_ids)]
