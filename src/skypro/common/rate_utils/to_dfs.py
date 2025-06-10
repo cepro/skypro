@@ -4,7 +4,11 @@ from typing import List, Tuple, Dict
 
 import pandas as pd
 
-from skypro.common.rates.rates import VolRate
+from skypro.common.rates.rates import VolRate, Rate, FixedRate
+
+"""
+This file has functions to convert Rate instances into time-series dataframes.
+"""
 
 
 @dataclass
@@ -33,8 +37,7 @@ class VolRatesForEnergyFlows:
         ]
 
 
-def get_vol_rates_dfs(time_index: pd.DatetimeIndex, all_rates: VolRatesForEnergyFlows, log: bool = True)\
-        -> (Dict[str, pd.DataFrame], Dict[str, pd.DataFrame]):
+def get_vol_rates_dfs(time_index: pd.DatetimeIndex, all_rates: VolRatesForEnergyFlows, log: bool = True) -> (Dict[str, pd.DataFrame], Dict[str, pd.DataFrame]):
     """
     Returns the market and internal volume-based rates (p/kWh) as dataframes for each flow.
     The first dictionary contains the "market rates" - i.e. those that we are actually charged or paid by our suppliers.
@@ -97,3 +100,32 @@ def get_vol_rates_dfs(time_index: pd.DatetimeIndex, all_rates: VolRatesForEnergy
     ], axis=1)
 
     return mkt_rates_dfs, int_rates_dfs
+
+
+def get_rates_dfs_by_type(
+        time_index: pd.DatetimeIndex,
+        rates_by_category: Dict[str, List[Rate]],
+        allow_vol_rates: bool
+) -> (Dict[str, pd.DataFrame], Dict[str, pd.DataFrame]):
+    """Returns two dictionaries of dataframes:
+       - The first has dataframes containing any fixed costs in pence, keyed by category
+       - The second has dataframes containing any volumetric rates in p/kWh, keyed by category
+    """
+
+    fixed_costs_dfs = {}
+    vol_rates_dfs = {}
+
+    for category, rates in rates_by_category.items():
+        fixed_costs_dfs[category] = pd.DataFrame(index=time_index)
+        vol_rates_dfs[category] = pd.DataFrame(index=time_index)
+
+        for rate in rates:
+            # Fixed costs and volume-based rates go into different columns
+            if isinstance(rate, FixedRate):
+                fixed_costs_dfs[category][rate.name] = rate.get_cost_series(time_index)
+            elif isinstance(rate, VolRate):
+                if not allow_vol_rates:
+                    raise ValueError("Volumetric rate found but not allowed")
+                vol_rates_dfs[category][rate.name] = rate.get_per_kwh_rate_series(time_index)
+
+    return fixed_costs_dfs, vol_rates_dfs

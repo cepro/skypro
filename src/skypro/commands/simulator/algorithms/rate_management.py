@@ -3,8 +3,8 @@ from typing import Tuple
 
 import numpy as np
 import pandas as pd
-from skypro.common.rates.microgrid import VolRatesForEnergyFlows, get_vol_rates_dfs
-from skypro.common.rates.osam import calculate_osam_ncsp
+from skypro.common.rate_utils.to_dfs import VolRatesForEnergyFlows, get_vol_rates_dfs
+from skypro.common.rate_utils.osam import calculate_osam_ncsp
 from skypro.common.rates.rates import OSAMFlatVolRate
 from skypro.common.timeutils.math_wallclock import add_wallclock_days
 

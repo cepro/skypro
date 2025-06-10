@@ -4,7 +4,7 @@ from typing import List, Tuple, Optional, Dict
 import numpy as np
 import pandas as pd
 
-from skypro.common.rates.microgrid import VolRatesForEnergyFlows
+from skypro.common.rate_utils.to_dfs import VolRatesForEnergyFlows
 from skypro.common.rates.rates import RegularFixedRate, MultiplierVolRate, ShapedVolRate, FlatVolRate, OSAMFlatVolRate, PeriodicFlatVolRate, FixedRate, VolRate
 from skypro.common.rates.supply_point import SupplyPoint
 from skypro.common.rates.time_varying_value import PeriodicValue

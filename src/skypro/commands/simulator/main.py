@@ -19,11 +19,10 @@ from skypro.common.data.get_profile import get_profile
 from skypro.common.data.get_timeseries import get_timeseries
 from skypro.common.microgrid_analysis.output import generate_output_df
 
-from skypro.common.rates.microgrid import get_vol_rates_dfs, VolRatesForEnergyFlows
-from skypro.common.rates.osam import calculate_osam_ncsp
-from skypro.common.rates.peripheral import get_rates_dfs_by_type
+from skypro.common.rate_utils.to_dfs import get_vol_rates_dfs, get_rates_dfs_by_type, VolRatesForEnergyFlows
+from skypro.common.rate_utils.osam import calculate_osam_ncsp
 from skypro.common.rates.rates import FixedRate, Rate, OSAMFlatVolRate
-from skypro.common.rates.rates_friendly_summary import get_friendly_rates_summary
+from skypro.common.rate_utils.friendly_summary import get_friendly_rates_summary
 from skypro.common.timeutils.math import floor_hh
 from skypro.common.timeutils.timeseries import get_step_size
 from tabulate import tabulate

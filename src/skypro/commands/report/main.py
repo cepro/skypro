@@ -13,14 +13,13 @@ from skypro.common.microgrid_analysis.daily_gains import plot_daily_gains
 from skypro.common.microgrid_analysis.output import generate_output_df
 from skypro.common.microgrid_analysis.bill_match import bill_match
 from skypro.common.notice.notice import Notice
-from skypro.common.rates.osam import calculate_osam_ncsp
-from skypro.common.rates.peripheral import get_rates_dfs_by_type
+from skypro.common.rate_utils.osam import calculate_osam_ncsp
+from skypro.common.rate_utils.to_dfs import get_rates_dfs_by_type, get_vol_rates_dfs
+from skypro.common.rate_utils.friendly_summary import get_friendly_rates_summary
 from skypro.common.rates.rates import OSAMFlatVolRate
-from skypro.common.rates.rates_friendly_summary import get_friendly_rates_summary
 from tabulate import tabulate
 
 from skypro.common.cli_utils.cli_utils import substitute_vars, set_auto_accept_cli_warnings
-from skypro.common.rates.microgrid import get_vol_rates_dfs
 
 from skypro.common.cli_utils.cli_utils import read_yaml_file
 from skypro.common.data.utility import prepare_data_dir

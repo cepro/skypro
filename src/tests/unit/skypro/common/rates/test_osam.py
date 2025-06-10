@@ -5,7 +5,7 @@ from datetime import datetime
 import pandas as pd
 import pytz
 
-from skypro.common.rates.osam import calculate_osam_ncsp
+from skypro.common.rate_utils.osam import calculate_osam_ncsp
 
 
 class TestCalculateOsamNcsp(unittest.TestCase):

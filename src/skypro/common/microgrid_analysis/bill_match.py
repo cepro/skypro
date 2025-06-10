@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 from skypro.common.config.bill_match import BillMatchLineItem
-from skypro.common.rates.osam import calculate_osam_rate_cost
+from skypro.common.rate_utils.osam import calculate_osam_rate_cost
 from skypro.common.rates.rates import OSAMFlatVolRate
 from tabulate import tabulate
 

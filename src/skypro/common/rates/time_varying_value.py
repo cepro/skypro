@@ -9,7 +9,7 @@ from skypro.common.timeutils.dayed_period import DayedPeriod
 T = TypeVar('T')  # Generic type parameter
 
 
-class TimeVaryingValue():
+class TimeVaryingValue:
     """
     A generic class that manages time-varying values of any type.
     Each value is valid from its start time until the start time of the next value.

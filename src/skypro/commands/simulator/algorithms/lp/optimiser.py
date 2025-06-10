@@ -4,7 +4,7 @@ from datetime import timedelta
 import numpy as np
 import pulp
 import pandas as pd
-from skypro.common.rates.microgrid import VolRatesForEnergyFlows
+from skypro.common.rate_utils.to_dfs import VolRatesForEnergyFlows
 from skypro.common.timeutils.math import floor_day
 from skypro.common.timeutils.math_wallclock import add_wallclock_days
 from skypro.common.timeutils.timeseries import get_step_size

@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Callable, cast
 import pandas as pd
 
 from skypro.common.config.rates_dataclasses import RatesFiles
-from skypro.common.rates.microgrid import VolRatesForEnergyFlows
+from skypro.common.rate_utils.to_dfs import VolRatesForEnergyFlows
 from skypro.common.config.dayed_period import DayedPeriodField
 from skypro.common.rates.rates import Rate, ShapedVolRate, FlatVolRate, PeriodicFlatVolRate, MultiplierVolRate, \
     OSAMFlatVolRate, RegularFixedRate, VolRate, PeriodicValue
