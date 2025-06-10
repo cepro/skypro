@@ -15,7 +15,7 @@ class BillMatch:
     Holds the estimated bills from a supplier
     """
     bill_total: float  # The total bill
-    mkt_fixed_bill: float # The total bill for market fixed costs
+    mkt_fixed_bill: float  # The total bill for market fixed costs
     mkt_vol_bill: float  # The total bill for market volume costs according to "OSAM flows"
     cepro_mkt_vol_bill: float  # The total bill for market volume costs according to "Cepro flows"
     error_pct_mkt_vol_bill: float  # The percentage between the above two numbers (OSAM vs Cepro flow bill calculations)

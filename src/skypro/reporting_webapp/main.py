@@ -16,8 +16,8 @@ from skypro.commands.report.config.config import parse_config
 from skypro.commands.report.main import report, Report
 from skypro.common.cli_utils.cli_utils import substitute_vars
 from skypro.common.microgrid_analysis.output import generate_output_df
+from skypro.common.microgrid_analysis.bill_match import bill_match
 from skypro.common.notice.notice import Notice
-from skypro.common.rates.bill_match import bill_match
 
 TIMEZONE = pytz.timezone("Europe/London")
 

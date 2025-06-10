@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from skypro.common.microgrid_analysis.breakdown import breakdown_microgrid_flows
 from skypro.common.microgrid_analysis.daily_gains import plot_daily_gains
-from skypro.common.rates.bill_match import bill_match
+from skypro.common.microgrid_analysis.bill_match import bill_match
 from skypro.common.rates.rates import OSAMFlatVolRate
 from tabulate import tabulate
 
