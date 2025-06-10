@@ -4,6 +4,9 @@ from enum import Enum
 
 
 class NoticeLevel(Enum):
+    """
+    Represents the severity of a notice.
+    """
     INFO = 1
     NOTEWORTHY = 2
     SEVERE = 3
