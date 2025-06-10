@@ -22,6 +22,11 @@ from skypro.common.notice.notice import Notice
 TIMEZONE = pytz.timezone("Europe/London")
 
 
+"""
+This is a Streamlit web app that uses the reporting functionality from `skypro/commands/report`
+"""
+
+
 def main():
     logging.basicConfig(level=logging.INFO)  # Set to logging.INFO for non-debug mode
 
@@ -43,9 +48,13 @@ def main():
 
     st.title("Simtricity Reporting")
 
+    # Draw the first row, which contains three columns:
+    # 1. A scenario selection (the scenarios are defined in the config file)
+    # 2. A month selector
+    # 3. A custom date range selector
+    # Either the month selector or custom date range selector will be used to set the time range of the reporting
     now = datetime.now()
     _, num_days = calendar.monthrange(now.year, now.month-1)
-
     col1, col2, col3 = st.columns(3)
     with col1:
         scenario_name = st.selectbox(
@@ -110,12 +119,14 @@ def main():
             file_path_resolver_func=lambda file: os.path.expanduser(substitute_vars(file, config["vars"])),  # Substitutes env vars and resolves `~` in file paths. This captures the `config` variable.
         )
 
+    # The reporting run has produced a set of 'notices' for the user - display them in a table, highlighting any severe notices
     notice_df = get_notice_df(result.notices)
     num_important_notices = len(notice_df[notice_df["level_number"] >= 2])
     num_notices = len(notice_df)
     with st.expander(f"{num_important_notices} important notices ({num_notices} in total)", icon="⚠️" if num_important_notices > 0 else None):
         st.dataframe(notice_df[["Level", "Description"]], hide_index=True)
 
+    # Present the import and export invoice estimates using 'bill matching' so that they are formatted like we see from our suppliers
     import_bill = bill_match(
         grid_energy_flow=result.df["grid_import"],
         mkt_vol_grid_rates_df=result.mkt_vol_rates_dfs["grid_to_batt"],  # use the grid rates for grid_to_batt as these include info about any OSAM rates
@@ -153,87 +164,9 @@ def main():
 
     st.write(f"Average cycles per day: {result.total_cycles/result.num_days:.1f}")
 
-    #
-    # with st.status("Downloading data..."):
-    #     st.write("Searching for data...")
-    #     time2.sleep(2)
-    #     st.write("Found URL.")
-    #     time2.sleep(1)
-    #     st.write("Downloading data...")
-    #     time2.sleep(1)
-
-    #
-    # @st.dialog("Import Bill Breakdown")
-    # def bill_breakdown_import():
-    #     # data = {
-    #     #     "Item": ["Commodity", "Non-commodity", "Standing charge", "Capacity charge"],
-    #     #     "Unit rate": ["10.0 p/kWh", "6.0 p/kWh", "20 £/day", "10 p/kVA/day"],
-    #     #     "Quantity": ["4500 kWh", "4500 kWh", "31 days", "4120 kVA-days"],
-    #     #     'Cost': [1100.12, 341.21, 301.12, 400.96]
-    #     # }
-    #     st.dataframe((import_bill.bill_by_line_items_df/100).round(2), hide_index=False)
-    #
-    # @st.dialog("Export Bill Breakdown")
-    # def bill_breakdown_export():
-    #     data = {
-    #         "Item": ["Commodity", "Supplier fee"],
-    #         "Unit rate": ["10.0 p/kWh", "0.7 p/kWh"],
-    #         "Quantity": ["4500 kWh", "4500 kWh"],
-    #         'Cost': [1100.12, 341.21]
-    #     }
-    #     st.dataframe(pd.DataFrame.from_dict(data), hide_index=True)
-    #
-    # @st.dialog("Customer Supply Breakdown")
-    # def customer_supply_breakdown():
-    #     data = {
-    #         "Item": ["Energy", "Standing charge"],
-    #         "Unit rate": ["17.0 p/kWh", "50 p/plot/day"],
-    #         "Quantity": ["6000 kWh", "1550 plot-days"],
-    #         'Cost': [-2000, -500]
-    #     }
-    #     st.dataframe(pd.DataFrame.from_dict(data), hide_index=True)
-
-    # with st.container(border=True):
-    #     st.subheader("Estimated Cashflows")
-    #     col1, col2, col3 = st.columns(3)
-    #
-    #     col1.metric(label="Import Bill", value=f"£{import_bill.bill_total/100:.2f}")
-    #     if col1.button("Breakdown", key="bill-breakdown-import"):
-    #         bill_breakdown_import()
-    #
-    #     col2.metric(label="Export Bill", value="-£1800")
-    #     if col2.button("Breakdown", key="bill-breakdown-export"):
-    #         bill_breakdown_export()
-    #
-    #     col3.metric(label="Customer Supply", value="-£800")
-    #     if col3.button("Breakdown", key="customer-supply-breakdown"):
-    #         customer_supply_breakdown()
-    #
-    # with st.container(border=True):
-    #     st.subheader("Solar")
-    #     col1, col2, col3 = st.columns(3)
-    #     col1.metric(label="Generation", value="2000 kWh", delta=-102)
-    #     col2.metric(label="Solar to load ", value="22 £/day", delta=+1.5)
-    #     col3.metric(label="Average value", value="4.8 p/kWh", delta=+0.0)
-    #
-    # with st.container(border=True):
-    #     st.subheader("Battery")
-    #     col1, col2, col3 = st.columns(3)
-    #     col1.metric(label="Strategy Benefit", value="85 £/day", delta=+2.00, help="Average daily profitability of the battery.")
-    #     col2.metric(label="**Cycling**", value=f"{cycles_per_day:.2f} cyc/day", delta=+0.1)
-    #     col3.metric(label="Efficiency", value="87.5 %", delta=-1.5)
-    #
-    # with st.container(border=True):
-    #     st.subheader("Microgrid")
-    #
-    #     col1, col2, col3 = st.columns(3)
-    #     col1.metric(label="Microgrid solar match", value="12 £/day", delta=0.1)
-    #     col2.metric(label="Solar self-use (inc. battery)", value="45 %", delta=-1.00)
-    #     col3.metric(label="Carbon savings", value="2,000kg", delta=-14.00)
-    #     # col3.metric(label="Load import price", value="9.1 p/kWh", delta=+1.5, delta_color="inverse")
-
     draw_sankey(result)
 
+    # Provide an option to download a CSV file for further analysis
     output_df = generate_output_df(
         df=result.df,
         int_final_vol_rates_dfs=result.int_vol_rates_dfs,
@@ -281,8 +214,10 @@ def get_db_url(env_var_name: str, env_config_path: str, env_config_section: str)
     return db_url
 
 
-def get_previous_months_df(num_months: int):
-
+def get_previous_months_df(num_months: int) -> pd.DataFrame:
+    """
+    Returns a dataframe containing the start and end dates of the previous months.
+    """
     starts = []
     ends = []
     current_date = datetime.now()
@@ -338,6 +273,9 @@ def check_password(password: str):
 
 
 def draw_sankey(result: Report):
+    """
+    Plots a Sankey diagram of the energy flows in the microgrid
+    """
     color_blue = "rgba(38, 70, 83, 0.5)"
     color_orange = "rgba(231, 111, 81, 0.5)"
     color_teal = "rgba(42, 157, 143, 0.5)"
@@ -400,6 +338,9 @@ def draw_sankey(result: Report):
 
 
 def get_notice_df(notices: List[Notice]) -> pd.DataFrame:
+    """
+    Returns a dataframe summarising the Notices, which can then be presented to the user.
+    """
     df = pd.DataFrame(columns=["level_number", "Description"])
     for notice in notices:
         df.loc[len(df)] = [notice.level.value, notice.detail]
@@ -415,6 +356,5 @@ def get_notice_df(notices: List[Notice]) -> pd.DataFrame:
     return df
 
 
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     main()
