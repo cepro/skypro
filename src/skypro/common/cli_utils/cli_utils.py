@@ -9,13 +9,16 @@ _auto_accept_cli_warnings = False
 
 
 def set_auto_accept_cli_warnings(auto_accept: bool):
+    """
+    A global variable configures whether warnings are auto-accepted or not.
+    """
     global _auto_accept_cli_warnings
     _auto_accept_cli_warnings = auto_accept
 
 
 def get_user_ack_of_warning_or_exit(warning_str: str):
     """
-    This forces the CLI user to read the warning by making them enter 'yes' to continue.
+    This forces the CLI user to read the warning by making them enter 'yes' to continue (if auto-accept is turned off).
     """
     global _auto_accept_cli_warnings
     if _auto_accept_cli_warnings:

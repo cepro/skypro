@@ -13,7 +13,7 @@ from skypro.common.rates.rates import Rate, ShapedVolRate, FlatVolRate, Periodic
 from skypro.common.rates.supply_point import SupplyPoint
 
 """
-This handles parsing of rates JSON/YAML configurations 
+This file handles parsing of rates from YAML/JSON configurations 
 """
 
 
@@ -171,7 +171,7 @@ def _parse_rates(
         imbalance_pricing: Optional[pd.Series],
 ) -> List[Rate]:
     """
-    Reads a configuration specifying a set of rates and returns lists of associated rate objects. The imbalance pricing
+    Parses a configuration specifying a set of rates and returns lists of associated rate objects. The imbalance pricing
     is used if there are any imbalance rates in the configuration.
     """
     rates = []
@@ -261,7 +261,7 @@ def _parse_imbalance_rate(
     Parses the configuration of an imbalance rate into a rate object
     """
     supplyPointName = config["supplyPoint"]
-    # The supply point should always be NSP, but allow the user to name the supply points as they wish
+    # The supply point should always be NSP when using imbalance pricing
     if supplyPointName != "nsp" and supplyPointName != "NSP":
         raise ValueError(f"Imbalance rate supply point should probably be nsp, but was '{supplyPointName}'")
 
@@ -284,13 +284,9 @@ def _parse_periodic_flat_rate(
         supply_points: Dict[str, SupplyPoint],
 ) -> PeriodicFlatVolRate:
     """
-    Parses the configuration of a DUoS rate into a rate object
+    Parses the configuration of a 'periodic flat' rate into a rate object
     """
-
-    # The supply point should always be MSP, but allow the user to name the supply points as they wish
     supplyPointName = config["supplyPoint"]
-    if supplyPointName != "msp" and supplyPointName != "MSP":
-        logging.warning(f"DUoS supply point unexpected: {supplyPointName}")
 
     periods = []
     for period_config in config["periods"]:

@@ -10,15 +10,6 @@ from skypro.common.config.utility import enforce_one_option, field_with_opts
 
 
 @dataclass
-class ConstantDataSource:
-    """
-    A special type of data source that is just a constant value - this is mostly used for setting solar or load profiles
-    to zero.
-    """
-    value: float
-
-
-@dataclass
 class BessReadingDataSource:
     """
     A source of 'bess readings' data - e.g. SoE, target power, etc. Mostly used for reporting on actuals. The data can come either from CSV or DB.
@@ -83,7 +74,7 @@ class TimeseriesDataSource:
 @dataclass
 class ConstantProfileDataSource:
     """
-    Represents a constant flat value
+    Represents a constant flat value - usually used to set Solar generation or Load to zero.
     """
     value: float
 
@@ -103,5 +94,8 @@ class ProfileDataSource:
 
 @dataclass
 class ImbalanceDataSource:
+    """
+    Configures the system imbalance price and volume data sources.
+    """
     price: TimeseriesDataSource = field_with_opts(key="price")
     volume: TimeseriesDataSource = field_with_opts(key="volume")

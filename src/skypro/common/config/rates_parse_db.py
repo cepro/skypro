@@ -12,6 +12,10 @@ from skypro.common.timeutils import ClockTimePeriod
 from skypro.common.timeutils.dayed_period import DayedPeriod
 from skypro.common.timeutils.days import Days
 
+"""
+This file handles parsing of rates from a database 
+"""
+
 
 def get_rates_from_db(
         supply_points_name: str,
@@ -26,7 +30,7 @@ def get_rates_from_db(
         future_offset: timedelta
 ) -> Tuple[VolRatesForEnergyFlows, List[FixedRate], List[FixedRate]]:
     """
-    Reads the Rates DB and returns the volumetric rates per flow, and the import and export Fixed rates in turn.
+    Reads the Rates database and returns the volumetric rates per flow, and the import and export Fixed rates in turn.
     If `future_offset` is set positive, then rates will be 'brought forwards' so that rates from the future will be used. This enables simulations that
     use historical datasets whilst using rates from the future.
     """
@@ -35,7 +39,7 @@ def get_rates_from_db(
 
     """
     The Rates DB stores rates a little differently to how they are modelled in software. The Rates DB has the notion of
-    Import and Export rates, whereas this code models rates with more with granularity, with rates against each flow of
+    Import and Export rates, whereas this code models rates with more with granularity- with rates against each flow of
     energy in the microgrid. For example, the code can model independent rates for the "solar_to_grid" flow and
     "batt_to_grid" flows, whereas the database can't as it only has knowledge of "Import" and "Export" rates.
     
@@ -542,4 +546,3 @@ def _parse_periods_from_db_row(row) -> List[DayedPeriod]:
         )
 
     return periods
-

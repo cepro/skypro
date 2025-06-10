@@ -6,9 +6,9 @@ from numpy import isnan
 
 def field_with_opts(key: Optional[str] = None, default: Optional = None) -> Field:
     """
-    This is just a convenience function for specifying the name that the field should have in YAML when defining a
+    This is a convenience function for specifying the name that the field should have in YAML when defining a
     configuration using marshmallow.
-    YAML is normallyCamelCase, whereas python usually_uses_underscores.
+    YAML is normallyCamelCase, whereas python usually_uses_underscores, so we often have to rename fields.
     You can also specify a default value for the field if the configuration doesn't contain a value.
     """
     meta_data = {}
