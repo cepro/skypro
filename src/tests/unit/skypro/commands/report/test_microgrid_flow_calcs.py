@@ -5,7 +5,7 @@ from typing import Tuple, List
 import numpy as np
 import pandas as pd
 
-from skypro.commands.report.flow_calcs import calculate_missing_net_flows_in_junction
+from skypro.commands.report.microgrid_flow_calcs import calculate_missing_net_flows_in_junction
 
 
 class TestJunction(unittest.TestCase):
