@@ -19,18 +19,15 @@ def get_plot_meter_readings(
         context: Optional[str],
 ) -> Tuple[pd.DataFrame, List[Notice]]:
     """
-    This reads a data source and returns plot-level meter readings in a dataframe- either CSVs from disk or directly
-    from a database
+    This reads a data source - either CSVs from disk or directly from a database - and returns plot-level meter readings in a dataframe alongside a list of warnings.
     :param source: locates the data in either local files or a remote database
-    :param start:
-    :param end:
+    :param start: inclusive
+    :param end: exclusive
     :param file_path_resolver_func: A function that does any env var substitutions necessary for file paths
     :param db_engine: SQLAlchemy DB engine, as required
     :param context: a string that is added to notices to help the user understand what the data is about
     :return:
     """
-
-    # logging.info(f"Reading data source '{source_str}'...")
 
     if source.flows_plot_meter_readings_data_source:
         df = _get_flows_plot_meter_readings(
@@ -59,7 +56,7 @@ def _get_flows_plot_meter_readings(
         db_engine
 ) -> pd.DataFrame:
     """
-    Reads Emlite plot meter readings that are on the given feeders.
+    Reads Emlite plot meter readings from the flows database that are on the given feeders.
     """
 
     feeder_id_list_str = ', '.join(f"'{str(u)}'::uuid" for u in source.feeder_ids)
@@ -82,7 +79,7 @@ def _get_flows_plot_meter_readings(
         f"AND fr.id = ANY(ARRAY[{feeder_id_list_str}]) "
         f"order by rih.timestamp, fr.id, mr.register_id"
     )
-    # TODO: we may want a more rigourous check for meters that are  missing ALL data for the enitre month?
+    # TODO: we may want a more rigorous check for meters that are  missing ALL data for the entire month?
 
     df = pd.read_sql(query, con=db_engine)
 
@@ -98,6 +95,9 @@ def _get_csv_plot_meter_readings(
     end: Optional[datetime],
     file_path_resolver_func: Optional[Callable],
 ) -> pd.DataFrame:
+    """
+    Pulls readings about the plot-level meters that are on the specified feeders from the given CSV files.
+    """
 
     df = get_csv_data_source(source, file_path_resolver_func)
 

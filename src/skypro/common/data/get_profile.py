@@ -15,6 +15,9 @@ def get_profile(
         time_index: pd.DatetimeIndex,
         file_path_resolver_func: Optional[Callable],
 ) -> pd.DataFrame:
+    """
+    Reads the profile data source and returns a dataframe containing the profile with the given time index
+    """
 
     if source.csv_profile_data_source:
         df = _get_csv_profile(
@@ -36,6 +39,9 @@ def _get_constant_profile(
     source: ConstantProfileDataSource,
     time_index: pd.DatetimeIndex,
 ) -> pd.DataFrame:
+    """
+    Returns a profile with a constant value
+    """
     df = pd.DataFrame(index=time_index)
     df["energy"] = source.value
     return df
@@ -45,6 +51,9 @@ def _get_csv_profile(
     source: CSVProfileDataSource,
     file_path_resolver_func: Optional[Callable],
 ) -> pd.DataFrame:
+    """
+    Returns a profile using the given CSV files
+    """
 
     df = get_csv_data_source(source, file_path_resolver_func)
 

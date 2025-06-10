@@ -17,12 +17,8 @@ def get_timeseries(
         context: Optional[str],
 ) -> Tuple[pd.DataFrame, List[Notice]]:
     """
-    This reads a data source and returns a generic time series
-
-    :return:
+    This reads a data source - either from the flows database or CSV files - and returns a generic time series
     """
-
-    # logging.info(f"Reading data source '{source_str}'...")
 
     if source.flows_market_data_source:
         df = _get_flows_market_data(
@@ -107,6 +103,9 @@ def _get_csv_timeseries(
     end: Optional[datetime],
     file_path_resolver_func: Optional[Callable],
 ) -> pd.DataFrame:
+    """
+    Reads timeseries data from the given CSV files.
+    """
 
     df = get_csv_data_source(source, file_path_resolver_func)
 
@@ -125,7 +124,5 @@ def _get_csv_timeseries(
     # Remove any data that is outside the time range of interest
     # TODO: only read in CSVs for the months that are required in the first place
     df = drop_extra_rows(df, start, end)
-
-    # TODO: rename CSV columns?
 
     return df
