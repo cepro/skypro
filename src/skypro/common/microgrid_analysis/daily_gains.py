@@ -5,8 +5,10 @@ DAYS_IN_MS = 24 * 60 * 60 * 1000
 
 
 def plot_daily_gains(costs_dfs):
+    """
+    Produces a plot of the daily import vs export costs daily, along with a 'gain' which is the difference.
+    """
 
-    # Plot bar chart of import vs export costs daily
     bess_daily_summed_charges = pd.DataFrame()
     bess_daily_summed_charges["charge"] = costs_dfs["bess_charge"].resample("1d").sum().sum(axis=1)
     bess_daily_summed_charges["discharge"] = costs_dfs["bess_discharge"].resample("1d").sum().sum(axis=1) * -1

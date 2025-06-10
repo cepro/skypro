@@ -119,7 +119,7 @@ def breakdown_microgrid_flows(
         else:
             result.total_flows[flow_name] = df[flow_name].sum()
     # Also include bess losses in the total flows
-    result.total_flows["bess_losses"] = df['bess_losses'].sum()  # TODO: what are we doing with this info?
+    result.total_flows["bess_losses"] = df['bess_losses'].sum()
     # The charge/discharge flows are representative of the flows into and out of the BESS. Losses are modelled as
     # 'internal to the battery'. So the total bess charge (from all sources) is larger than the total bess discharge
     # (to all loads).

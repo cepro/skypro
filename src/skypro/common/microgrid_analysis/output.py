@@ -22,7 +22,33 @@ def generate_output_df(
         config_entries: List[Tuple[str, Any]]
 ) -> pd.DataFrame:
     """
-    Creates a timeseries of microgrid behaviour suitable for saving to an output CSV file
+    Creates a dataframe of microgrid behaviour suitable for saving to an output CSV file.
+
+    Both simulation and reporting runs produce similar results dataframes (the `df` argument) and this function takes those results
+    and produces an output CSV. Usually with a row for each half-hour (see `aggregate_timebase` argument).
+
+    The column names in the INPUT dataframe (`df`) are consistent between reporting and simulation runs.
+    The column names in the OUTPUT dataframe/CSV follow Cepro's pre-existing naming conventions. Each column has one of the following prefixes:
+    - `agd` indicates that the value is an aggregated value (e.g. `agd:load` is the sum of all plot-level load)
+    - `m` indicates the value is a metered value (e.g. `m:battCharge` is the metered energy going into the battery)
+    - `c` indicates the value is calculated (e.g. `c:battLosses` is the estimated battery losses)
+    - `ivRate` indicates the value is an internal volumetric rate (e.g. p/kWh value that we internally assign to the energy)
+    - `mvRate` indicates the value is a market volumetric rate (e.g. p/kWh charged by suppliers)
+    - `mfCost` indicates the value is a market fixed cost (e.g. £/kVA/day charged by suppliers)
+
+    :param df: Dataframe containing the microgrid activity, either from a simulation run or a reporting run
+    :param int_final_vol_rates_dfs: the 'final internal volumetric rates', broken down by flow
+    :param mkt_final_vol_rates_dfs: the 'final market volumetric rates', broken down by flow
+    :param int_live_vol_rates_dfs: the 'live internal volumetric rates', broken down by flow
+    :param mkt_live_vol_rates_dfs: the 'live market volumetric rates', broken down by flow
+    :param mkt_fixed_costs_dfs: the 'market fixed costs'
+    :param customer_fixed_cost_dfs: the 'customer fixed costs'
+    :param customer_vol_rates_dfs: the 'customer volumetric rates'
+    :param load_energy_breakdown_df: the load energy dataframe, with a column giving the load of each constituent part
+    :param aggregate_timebase: optionally aggregate to a timebase, e.g. "30min"
+    :param rate_detail: optionally specify "all" to get detailed breakdown of rates in the output
+    :param config_entries: Optionally specify additional named columns to contain configuration information that should be saved to CSV. Only the first row will contain the associated value, which will be converted to a string.
+    :return:
     """
 
     output_df = pd.DataFrame(index=df.index)
@@ -257,7 +283,7 @@ def aggregate(output_df: pd.DataFrame, output_flow_name_map: Dict[str, str], tim
     # The `first_ensure_consistent` aggregation is actually done in two steps:
     #  1) consistency across each aggregation window is checked
     #  2) the `first` aggregation is applied
-    # (Originally a custom aggregation function was used to do both steps but it was very slow)
+    # (Originally a custom aggregation function was used to do both steps, but it was very slow)
     first_ensure_equal_cols = []
     for col, rule in agg_rules.items():
         if rule == "first_ensure_consistent":
