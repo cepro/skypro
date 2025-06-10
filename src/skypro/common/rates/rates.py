@@ -9,6 +9,14 @@ from skypro.common.rates.time_varying_value import TimeVaryingValue, PeriodicVal
 from skypro.common.timeutils.timeseries import get_step_size
 
 
+"""
+This file holds Rate objects which model how we are charged or paid for power / grid services.
+
+These objects are useful for configuring a simulation or reporting run. For further analysis they are normally converted
+into dataframes of the p/kWh rate or p/timestep cost.
+"""
+
+
 class Rate(ABC):
     """
     Abstract base class for all rates
@@ -23,12 +31,21 @@ class VolRate(Rate):
     """
 
     def get_per_kwh_rate(self, t: datetime) -> float:
+        """
+        Returns the p/kWh value at time `t`.
+        """
         raise NotImplementedError()
 
     def get_per_kwh_rate_series(self, time_index: pd.DatetimeIndex) -> pd.Series:
+        """
+        Returns the p/kWh value across the `time_index`.
+        """
         raise NotImplementedError()
 
     def get_cost(self, t: datetime, energy: float) -> float:
+        """
+        Returns the pence cost at time `t` given the flow of `energy`.
+        """
         raise NotImplementedError()
 
 
@@ -38,13 +55,16 @@ class FixedRate(Rate):
     """
 
     def get_cost_series(self, index: pd.DatetimeIndex) -> pd.Series:
+        """
+        Returns the pence cost across each interval of the `index`.
+        """
         raise NotImplementedError()
 
 
 class FlatVolRate(VolRate):
     """
-    Represents a p/kW charge at a flat rate.
-    The flat rate can be for 'all time' or it can vary occasionally over time (for example year by year).
+    Represents a p/kW charge at a flat rate
+    The flat rate can be for 'all time' or it can vary occasionally over time (for example the Ofgem price cap would be modelled as a FlatVolRate that may vary each quarter).
     """
     def __init__(self, name: str, values: List[Tuple[Optional[datetime], float]], supply_point: SupplyPoint):
         super().__init__(name)
@@ -78,8 +98,10 @@ class FlatVolRate(VolRate):
 
 class PeriodicFlatVolRate(VolRate):
     """
-    Represents a flat rate, e.g. 10p/kWh that is only charged at certain times of day - e.g. this can be used for DUoS
-    bands that apply only at certain times of day and is different for weekdays and weekends.
+    Represents a flat rate, e.g. 10p/kWh that is only charged at certain times of day.
+
+    For example, the DUoS red band would be modelled as a PeriodicFlatVolRate, and may only be active between 5pm - 7pm on weekdays. The p/kWh DuoS
+    rate will likely change on the 1st of April each year.
     """
     def __init__(
             self,
@@ -117,8 +139,9 @@ class PeriodicFlatVolRate(VolRate):
 
 class ShapedVolRate(VolRate):
     """
-    Represents a rate that varies over time (normally half-hourly) as given in a pricing pd.Series.
-    E.g. used for imbalance pricing.
+    Represents a p/kWh rate that varies over time (normally half-hourly) with the prices given in a pricing pd.Series.
+
+    For example, a ShapedVolRate would be used to model an imbalance passthrough and the imbalance price would be provided as a data series.
     """
     def __init__(self, name: str, pricing: pd.Series, supply_point: SupplyPoint):
         """The pricing series must have a DatetimeIndex (usually half-hourly) and have a price value in units of
@@ -148,8 +171,11 @@ class ShapedVolRate(VolRate):
 
 class MultiplierVolRate(VolRate):
     """
-    Represents a percentage fee that is applied to the revenue of other volume rates.
-    E.g. Statkraft takes 5% of all export earnings (both Imbalance and DUoS).
+    Represents a percentage fee that is applied to the revenue of other volume rates. For example, Statkraft takes
+    5% of all export earnings (both Imbalance and DUoS).
+
+    This type of Rate needs to be informed about the other rates which it needs to track in order to take a percentage- see the
+    `set_all_rates_in_set` method.
     """
     def __init__(self, name: str, mode: str, factors: List[Tuple[Optional[datetime], float]]):
         super().__init__(name)
@@ -201,7 +227,10 @@ class MultiplierVolRate(VolRate):
 
 class OSAMFlatVolRate(FlatVolRate):
     """
-    Represents a p/kWh rate that is subject to OSAM exemption, e.g. under P395
+    Represents a p/kWh rate that is subject to OSAM exemption under P395.
+
+    This object doesn't do the heavy lifting of the OSAM calculations, that happens elsewhere, and this object is fed
+    the resulting "non-chargeable settlement proportion" (NCSP) which defines how much the rate should be reduced by.
     """
     def __init__(self, name: str,  rates: List[Tuple[Optional[datetime], float]], supply_point: SupplyPoint):
         super().__init__(name, rates, supply_point)
@@ -248,6 +277,8 @@ class OSAMFlatVolRate(FlatVolRate):
 class RegularFixedRate(FixedRate):
     """
     Represents a fixed p/day charge.
+
+    For example a DNO may charge us a standing charge which changes every year.
     """
     def __init__(self, name: str, daily_costs: List[Tuple[Optional[datetime], float]]):
         super().__init__(name)
