@@ -4,14 +4,20 @@ import pytz
 
 
 class ClockTimePeriod:
-    # Represents a period of time, e.g. "4pm to 7pm" in some timezone. Note there is no date information.
+    """
+    Represents a recurring period of time, e.g. "4pm to 7pm" in some timezone. Note there is no date information.
+    """
     def __init__(self, start: time, end: time, tz_str: str):
-        self.start = start
-        self.end = end
-        self.tz = pytz.timezone(tz_str)
+
+        if start.tzinfo is not None or end.tzinfo is not None:
+            raise ValueError("start and end times must be naive of timezones")
 
         if start > end:
             raise ValueError("start must be before end")
+
+        self.start = start
+        self.end = end
+        self.tz = pytz.timezone(tz_str)
 
     def __str__(self) -> str:
         return f"{self.start} -> {self.end}"

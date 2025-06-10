@@ -2,10 +2,13 @@ from datetime import datetime
 
 import pytz
 
-from skypro.common.timeutils import is_weekday
-
 
 class Days:
+    """
+    Represents a set of days, e.g. "weekdays", "weekends" or "all".
+    We need a timezone specified because a given instant in time might be a Sunday in one timezone and a Monday in another timezone.
+    """
+
     def __init__(self, name: str, tz_str: str):
         self.name = name
         self.tz = pytz.timezone(tz_str)
@@ -26,3 +29,10 @@ class Days:
             return not is_weekday(t)
         else:
             raise ValueError(f"Unknown days string: '{self.name}'")
+
+
+def is_weekday(t: datetime) -> bool:
+    """
+    Returns True if the given datetime is on a weekday, or false if it's at the weekend
+    """
+    return t.weekday() < 5

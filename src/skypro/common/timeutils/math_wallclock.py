@@ -8,8 +8,8 @@ def add_wallclock_days(t: datetime, n: int) -> datetime:
     """
     Adds `n` days to the given time, properly accounting for the timezone.
 
-    The native datetime library treats days as 24hours, and doesn't account for DST boundaries. The Pendulum library
-    supports days sometimes being 23 or 25 hours and properly adjusts for DST.
+    The native datetime library treats days as 24hours, and doesn't account for DST boundaries. The Arrow library
+    supports days sometimes being 23 or 25 hours and so properly adjusts for DST.
     """
     t_arrow = arrow.get(t)
     t_arrow = t_arrow.shift(days=n)

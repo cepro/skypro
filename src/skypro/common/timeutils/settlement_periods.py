@@ -4,7 +4,7 @@ import pytz
 
 def date_and_sp_num_to_utc_datetime(date_series: pd.Series, sp_number_series: pd.Series, sp_timezone_str: str) -> pd.Series:
     """
-    Converts the date and settlement period number to the tz-aware UTC time.
+    Converts the date and GB settlement period number to the tz-aware UTC time.
     """
     tz = pytz.timezone(sp_timezone_str)
     dt = (
