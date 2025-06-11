@@ -2,7 +2,7 @@
 
 A microgrid is modelled as having seven fundamental flows of energy as illustrated below:
 
-![flows](flows.png)
+![flows](../../../../docs/flows.png)
 
 ### Volumetric and fixed rates
 
