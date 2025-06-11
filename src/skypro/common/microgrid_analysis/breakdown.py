@@ -148,9 +148,11 @@ def breakdown_microgrid_flows(
 
     # Calculate the average p/kWh rates associated with the various energy flows
     for flow_name, total_cost in result.total_int_vol_costs.items():
-        result.avg_int_vol_rates[flow_name] = total_cost / result.total_flows[flow_name]
+        energy = result.total_flows[flow_name]
+        result.avg_int_vol_rates[flow_name] = total_cost / energy if energy != 0 else np.nan
     for flow_name, total_cost in result.total_mkt_vol_costs.items():
-        result.avg_mkt_vol_rates[flow_name] = total_cost / result.total_flows[flow_name]
+        energy = result.total_flows[flow_name]
+        result.avg_mkt_vol_rates[flow_name] = total_cost / energy if energy != 0 else np.nan
 
     # Here we put some of the above data into summary dataframes for convenience.
     fundamental_flow_names = list(int_vol_rates_dfs.keys())
