@@ -71,7 +71,13 @@ def main():
         '-o', '--output',
         dest='output_file_path',
         default=None,
-        help='Optionally specify an output file path to write a CSV to'
+        help='Optionally specify an output file path to write a CSV to, with half-hour granularity'
+    )
+    parser_report.add_argument(
+        '-s', '--summary-output',
+        dest='summary_output_file_path',
+        default=None,
+        help='Optionally specify an output file path to write a CSV summary to'
     )
     parser_report.add_argument(
         '-p', '--plot',

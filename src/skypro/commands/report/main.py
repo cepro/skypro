@@ -71,6 +71,7 @@ def report_cli(
         do_save_profiles: bool,
         skip_cli_warnings: bool,
         output_file_path: Optional[str] = None,
+        summary_output_file_path: Optional[str] = None,
 ):
     """
     CLI interface onto the reporting functionality.
@@ -114,7 +115,7 @@ def report_cli(
     if do_plots:
         plot_load_and_solar(result.df)
 
-    if output_file_path:
+    if output_file_path:  # The main output file has half-hour granularity
         generate_output_df(
             df=result.df,
             int_final_vol_rates_dfs=result.int_vol_rates_dfs,
@@ -130,6 +131,25 @@ def report_cli(
             config_entries=[],
         ).to_csv(
             output_file_path,
+            index_label="utctime"
+        )
+
+    if summary_output_file_path:  # The summary output file has a single row to summarise the entire report
+        generate_output_df(
+            df=result.df,
+            int_final_vol_rates_dfs=result.int_vol_rates_dfs,
+            mkt_final_vol_rates_dfs=result.mkt_vol_rates_dfs,
+            int_live_vol_rates_dfs=None,
+            mkt_live_vol_rates_dfs=None,
+            mkt_fixed_costs_dfs=result.mkt_fixed_cost_dfs,
+            customer_fixed_cost_dfs=result.customer_fixed_cost_dfs,
+            customer_vol_rates_dfs=result.customer_vol_rates_dfs,
+            load_energy_breakdown_df=None,
+            aggregate_timebase="all",
+            rate_detail=None,
+            config_entries=[],
+        ).to_csv(
+            summary_output_file_path,
             index_label="utctime"
         )
 
