@@ -6,16 +6,16 @@ The app supports different 'scenarios'- each of which have an associated reporti
 This is useful because it allows multiple microgrids to be reviewed from the same app.
 It also means you can compare multiple Supplier arrangements, for example, you could have a scenario where P395 is active, and one where it's not.
 
-The app calls into the main reporting code- using the reporting configuration file associated with the selected scenario - and presents the results to the user.
+The app calls into the main reporting code (using the appropriate configuration file) and visualises the results.
 
 ![screenshot](../../../docs/reporting_webapp_screenshot.png)
 
 ## Usage
 
-The Streamlit app can be launched using the command below:
+The Streamlit app can be launched with:
 ```
 SKIP_PASSWORD=true CONFIG_FILE=src/skypro/reporting_webapp/example_config.yaml streamlit run src/skypro/reporting_webapp/main.py
 ```
-This will run an example configuration, which uses the integration testing fixtures.
-The fixtures only have data available for August 2024 - so that is the only month that works in this example!
+This should open a window in your default browser.
+This example configuration uses the integration testing fixtures which only have data available for August 2024 - so that is the only month that works in this example!
  
