@@ -86,6 +86,12 @@ def main():
         help='If specified, the load and solar profiles will be saved for future use in simulations. They are saved '
              'into the directory given by `profilesSaveDir` in the config file.'
     )
+    parser_report.add_argument(
+        '-y',
+        dest='skip_cli_warnings',
+        action="store_true",
+        help='If specified, command line warnings will be auto-accepted.'
+    )
     add_env_file_arg(parser_report)
 
     kwargs = vars(parser.parse_args())

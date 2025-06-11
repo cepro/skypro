@@ -11,7 +11,7 @@ class TestIntegration(unittest.TestCase):
 
     def test_integration(self):
         """
-        This spawns the Skypro cli tool in a subprocess, runs it with a set of known inputs/configurations, and checks
+        This spawns the Skypro simulation tool in a subprocess, runs it with a set of known inputs/configurations, and checks
         that the summarised results are within tolerance.
         This should allow us to ensure that the results do not change unexpectedly, although of course if the algorithm
         genuinely changes then we should expect the results to change and update them appropriately here.
@@ -99,7 +99,8 @@ class TestIntegration(unittest.TestCase):
 
         for sub in subtests:
             with self.subTest(sub.msg):
-                logging.info(f"Starting integration test '{sub.msg}'...")
+                print(f"\n\n\n\nSTARTING SIMULATION INTEGRATION TEST '{sub.msg}' - - - - - - - - - - - - - - - - - - - - -")
+
                 res = subprocess.run([
                     'python3',
                     './src/skypro/main.py',

@@ -19,7 +19,7 @@ from skypro.common.rate_utils.friendly_summary import get_friendly_rates_summary
 from skypro.common.rates.rates import OSAMFlatVolRate
 from tabulate import tabulate
 
-from skypro.common.cli_utils.cli_utils import substitute_vars, set_auto_accept_cli_warnings
+from skypro.common.cli_utils.cli_utils import substitute_vars, set_auto_accept_cli_warnings, get_user_ack_of_warning_or_exit
 
 from skypro.common.cli_utils.cli_utils import read_yaml_file
 from skypro.common.data.utility import prepare_data_dir
@@ -69,7 +69,8 @@ def report_cli(
         env_file_path: str,
         do_plots: bool,
         do_save_profiles: bool,
-        output_file_path: Optional[str] = None
+        skip_cli_warnings: bool,
+        output_file_path: Optional[str] = None,
 ):
     """
     CLI interface onto the reporting functionality.
@@ -77,7 +78,7 @@ def report_cli(
     logging.info("Reporting - - - - - - - - - - - - -")
     logging.info(f"Using config file: {config_file_path}")
 
-    set_auto_accept_cli_warnings(False)
+    set_auto_accept_cli_warnings(skip_cli_warnings)
 
     # Secrets and $VARIABLES can be specified in an environment file
     env_config = read_yaml_file(env_file_path)
@@ -394,11 +395,7 @@ def log_report_summary(config: Config, result: Report):
     # Only force the user to acknowledge the notices if there are any level 2 or above
     num_important_warnings = len(notice_df[notice_df["level_number"] >= 2])
     if num_important_warnings > 0:
-        user_input = input(
-            f"WARNING: There are {num_important_warnings} important notice(s) listed above. This may make the results invalid, would you like to continue anyway?")
-        if user_input.lower() not in ['yes', 'y']:
-            print("Exiting")
-            exit(-1)
+        get_user_ack_of_warning_or_exit(f"WARNING: There are {num_important_warnings} important notice(s) listed above. This may make the results invalid, would you like to continue anyway?")
 
     # Friendly names to present to the user
     flow_name_map = {

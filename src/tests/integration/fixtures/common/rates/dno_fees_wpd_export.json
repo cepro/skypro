@@ -1,6 +1,6 @@
 {
   "duos": {
-    "duosRed": {
+    "gduosRed": {
       "rate": -10.0540,
       "supplyPoint": "msp",
       "periods": [
@@ -11,7 +11,7 @@
         }
       ]
     },
-    "duosAmber": {
+    "gduosAmber": {
       "rate": -0.4350,
       "supplyPoint": "msp",
       "periods": [
@@ -32,7 +32,7 @@
         }
       ]
     },
-    "duosGreen": {
+    "gduosGreen": {
       "rate": -0.027,
       "supplyPoint": "msp",
       "periods": [
