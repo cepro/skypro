@@ -108,7 +108,7 @@ class TestIntegration(unittest.TestCase):
                     './src/tests/integration/fixtures/env.json',
                     '-y',
                     '--config',
-                    './src/tests/integration/fixtures/simulation_config.yaml',
+                    './src/tests/integration/fixtures/simulation/config.yaml',
                     '--sim',
                     sub.sim_name,
                 ])
