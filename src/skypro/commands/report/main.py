@@ -23,7 +23,7 @@ from skypro.common.cli_utils.cli_utils import substitute_vars, set_auto_accept_c
 
 from skypro.common.cli_utils.cli_utils import read_yaml_file
 from skypro.common.data.utility import prepare_data_dir
-from skypro.commands.report.time import get_month_timerange
+from skypro.common.timeutils.month_str import get_month_timerange
 from skypro.commands.report.config.config import parse_config, Config
 from skypro.commands.report.microgrid_flow_calcs import calc_flows
 from skypro.commands.report.plots import plot_load_and_solar

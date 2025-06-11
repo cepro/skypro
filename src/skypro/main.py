@@ -2,6 +2,7 @@ import argparse
 import logging
 import importlib.metadata
 
+from skypro.commands.pull_elexon_imbalance.main import pull_elexon_imbalance
 from skypro.commands.report.main import report_cli
 from skypro.commands.simulator.main import simulate
 
@@ -20,7 +21,8 @@ def main():
     # Create a dictionary of commands, mapping to their python function
     commands = {
         "simulate": simulate,
-        "report": report_cli
+        "report": report_cli,
+        "pull-elexon-imbalance": pull_elexon_imbalance,
     }
 
     parser = argparse.ArgumentParser()
@@ -99,6 +101,15 @@ def main():
         help='If specified, command line warnings will be auto-accepted.'
     )
     add_env_file_arg(parser_report)
+
+    parser_pull_elexon_imbalance = subparsers.add_parser('pull-elexon-imbalance')
+    parser_pull_elexon_imbalance.add_argument(
+        '-m', '--month',
+        dest='month_str',
+        required=True,
+        help='The month to pull data for, e.g. 2024-04'
+    )
+    add_env_file_arg(parser_pull_elexon_imbalance)
 
     kwargs = vars(parser.parse_args())
 

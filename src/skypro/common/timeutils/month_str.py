@@ -7,7 +7,7 @@ import pytz
 
 def get_first_and_last_date(month_str: str) -> Tuple[date, date]:
     """
-    Returns the first and last date of the given month.
+    Returns the first and last date of the given month string (formatted like '2025-06').
     """
     try:
         start_date = datetime.strptime(month_str, '%Y-%m').date()
@@ -23,7 +23,7 @@ def get_first_and_last_date(month_str: str) -> Tuple[date, date]:
 def get_month_timerange(month_str: str, timezone_str: str) -> Tuple[datetime, datetime]:
     """
     Returns the first instant of the given month, and the first instant of the next month. So the months range
-    is start <= t < end.
+    is start <= t < end. The month is specified as a string in a format like '2025-06'.
     Note, this function doesn't use dateutils.relativedelta because it does not seem to honour DST timezones!
     """
     try:

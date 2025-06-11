@@ -1,6 +1,6 @@
 import os
-from datetime import datetime, timedelta
-from typing import Callable, Optional, List
+from datetime import datetime, timedelta, date
+from typing import Callable, Optional, List, Union
 
 import pandas as pd
 
@@ -103,7 +103,7 @@ def _notice_level_for_duration(duration: timedelta) -> NoticeLevel:
         return NoticeLevel.INFO
 
 
-def prepare_data_dir(data_dir: str, data_source: str, sub_dir: str, date_tag: datetime) -> str:
+def prepare_data_dir(data_dir: str, data_source: str, sub_dir: str, date_tag: Union[datetime | date]) -> str:
     """
     Creates a directory for saving data into and returns the file name to use
     - `data_dir` is the base directory
