@@ -1,10 +1,6 @@
 import logging
 import unittest
 import subprocess
-from dataclasses import dataclass
-from datetime import timedelta
-
-import pandas as pd
 
 
 class TestIntegration(unittest.TestCase):
