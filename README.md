@@ -40,6 +40,7 @@ The structure of this file should be as follows:
     }
 }
 ```
+
 The `vars` section allows you to define arbitrary variables that are resolved in configuration file paths.
 For example, if you're configuring a simulation run and all the load profiles are in a certain directory, then you could configure a variable like `"PROFILE_DIR": "~/myprofiles"`, and then 
 anywhere you use `$PROFILE_DIR` in the configuration it will be resolved appropriately.
