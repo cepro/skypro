@@ -21,8 +21,32 @@ See `src/skypro/reporting_webapp/README.md` for more information.
 Information about the costs and revenues associated with using power are fundamental to the codebase and a high-level understanding of how they are modelled is important for interpreting results.
 See `src/skypro/common/rates/README.md` for a background on how rates and energy flows are modelled in the codebase.
 
-## Secrets
-env file
+## Environment configuration
+Skypro uses a JSON 'environment file' to contain general directory configurations as well as secrets.
+By default Skypro looks for the environment file in `~/.simt/env.json`, but the location can be customised with the `--env` command line option.
+
+The structure of this file should be as follows:
+```json
+{
+    "vars": {
+        "DIR_SHORTCUT_1": "/path/to/some/working/directory",
+        "DIR_SHORTCUT_2": "/path/to/another/working/directory"
+    },
+    "flows": {
+      "dbUrl": "url-with-credentials-for-the-flows-database"
+    },
+    "rates": {
+      "dbUrl": "url-with-credentials-for-the-rates-database"
+    }
+}
+```
+The `vars` section allows you to define arbitrary variables that are resolved in configuration file paths.
+For example, if you're configuring a simulation run and all the load profiles are in a certain directory, then you could configure a variable like `"PROFILE_DIR": "~/myprofiles"`, and then 
+anywhere you use `$PROFILE_DIR` in the configuration it will be resolved appropriately.
+
+The `flows` section configures how to access the Flows database - this is only used if Skypro is configured to pull data from the Flows database.
+
+The `rates` section configures how to access the Rates database - this is only used if Skypro is configured to pull data from a Rates database.
 
 
 ## Installation
