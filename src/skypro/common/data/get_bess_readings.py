@@ -5,7 +5,7 @@ import pandas as pd
 
 from skypro.common.config.data_source import BessReadingDataSource, CSVBessReadingsDataSource
 from skypro.common.config.data_source_flows import FlowsBessReadingsDataSource
-from skypro.common.data.utility import sanity_checks, get_csv_data_source, drop_extra_rows
+from skypro.common.data.utility import sanity_checks, get_csv_data_source, drop_extra_rows, convert_cols_to_str_type
 from skypro.common.notice.notice import Notice
 
 
@@ -68,6 +68,9 @@ def _get_flows_bess_readings(
     )
 
     df = pd.read_sql(query, con=db_engine)
+
+    # SQLAlchemy reads UUIDs as the formal UUID type, but we want them as strings for simplicity
+    convert_cols_to_str_type(df, ["device_id"])
 
     df = df.rename(columns={"time_b": "time"})
     df["time"] = pd.to_datetime(df["time"], format="ISO8601")

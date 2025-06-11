@@ -3,14 +3,17 @@ import plotly.express as px
 
 
 def plot_load_and_solar(df: pd.DataFrame):
-    px.line(df[[
+
+    plot_df = df[[
         "plot_load_feeder1",
         "plot_load_feeder2",
         "feeder1_net",
         "feeder2_net",
         "solar_feeder1",
         "solar_feeder2",
-    ]]).show()
+    ]]
+    plot_df = plot_df.apply(lambda col: pd.to_numeric(col, errors='coerce'))  # Plotly can't handle mixed data types - make sure they are all numeric
+    px.line(plot_df).show()
 
 
 def plot_cycle_rate(df):

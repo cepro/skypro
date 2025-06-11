@@ -5,7 +5,7 @@ import pandas as pd
 
 from skypro.common.config.data_source import MeterReadingDataSource, FlowsMeterReadingsDataSource, \
     CSVMeterReadingsDataSource
-from skypro.common.data.utility import get_csv_data_source, drop_extra_rows, sanity_checks
+from skypro.common.data.utility import get_csv_data_source, drop_extra_rows, sanity_checks, convert_cols_to_str_type
 from skypro.common.notice.notice import Notice
 
 
@@ -64,6 +64,9 @@ def _get_flows_meter_readings(
         f"order by time_b"
     )
     df = pd.read_sql(query, con=db_engine)
+
+    # SQLAlchemy reads UUIDs as the formal UUID type, but we want them as strings for simplicity
+    convert_cols_to_str_type(df, ["device_id"])
 
     df = df.rename(columns={"time_b": "time"})
 

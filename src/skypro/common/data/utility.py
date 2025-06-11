@@ -117,3 +117,11 @@ def prepare_data_dir(data_dir: str, data_source: str, sub_dir: str, date_tag: da
     file_name = f"{data_source}_{sub_dir}_{date_tag:%Y_%m}.csv"
     file_path = os.path.join(directory, file_name)
     return file_path
+
+
+def convert_cols_to_str_type(df: pd.DataFrame, cols: List[str]):
+    """
+    This converts the given columns in the dataframe to strings in place.
+    """
+    for col in cols:
+        df[col] = df[col].astype(str)

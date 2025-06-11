@@ -6,7 +6,7 @@ import pandas as pd
 from skypro.common.config.data_source import PlotMeterReadingDataSource
 from skypro.common.config.data_source_csv import CSVPlotMeterReadingsDataSource
 from skypro.common.config.data_source_flows import FlowsPlotMeterReadingsDataSource
-from skypro.common.data.utility import get_csv_data_source, drop_extra_rows, sanity_checks
+from skypro.common.data.utility import get_csv_data_source, drop_extra_rows, sanity_checks, convert_cols_to_str_type
 from skypro.common.notice.notice import Notice
 
 
@@ -82,6 +82,9 @@ def _get_flows_plot_meter_readings(
     # TODO: we may want a more rigorous check for meters that are  missing ALL data for the entire month?
 
     df = pd.read_sql(query, con=db_engine)
+
+    # SQLAlchemy reads UUIDs as the formal UUID type, but we want them as strings for simplicity
+    convert_cols_to_str_type(df, ["feeder_id", "register_id"])
 
     df = df.rename(columns={"timestamp": "time"})
     df["time"] = pd.to_datetime(df["time"], format="ISO8601")
