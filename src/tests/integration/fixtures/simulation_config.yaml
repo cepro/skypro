@@ -12,14 +12,14 @@ sandbox:
       profiles:
         - source:
             csvProfile:
-              dir: "./src/tests/integration/fixtures/solar/"
+              dir: "./src/tests/integration/fixtures/simulation/solar/"
           profiledSizeKwp: 4.4
           scaledSizeKwp: 210
     load:
       profiles:
         - source:
             csvProfile:
-              dir: "./src/tests/integration/fixtures/load/"
+              dir: "./src/tests/integration/fixtures/simulation/load/"
           profiledNumPlots: 12
           scaledNumPlots: 54
     bess:
@@ -28,43 +28,43 @@ sandbox:
       chargeEfficiency: 0.85
 
   rates: &rates
-    supplyPointsConfigFile: "./src/tests/integration/fixtures/rates/supply_points_a.json"
+    supplyPointsConfigFile: "./src/tests/integration/fixtures/common/rates/supply_points_a.json"
     files:
       solarToBatt: [ ]
       gridToBatt:
-        - "./src/tests/integration/fixtures/rates/supply_fees_import.json"
-        - "./src/tests/integration/fixtures/rates/dno_fees_wpd_import.json"
+        - "./src/tests/integration/fixtures/common/rates/supply_fees_import.json"
+        - "./src/tests/integration/fixtures/common/rates/dno_fees_wpd_import.json"
       battToGrid:
-        - "./src/tests/integration/fixtures/rates/supply_fees_export.json"
-        - "./src/tests/integration/fixtures/rates/dno_fees_wpd_export.json"
+        - "./src/tests/integration/fixtures/common/rates/supply_fees_export.json"
+        - "./src/tests/integration/fixtures/common/rates/dno_fees_wpd_export.json"
       battToLoad: [ ]
       solarToGrid:
-        - "./src/tests/integration/fixtures/rates/supply_fees_export.json"
-        - "./src/tests/integration/fixtures/rates/dno_fees_wpd_export.json"
+        - "./src/tests/integration/fixtures/common/rates/supply_fees_export.json"
+        - "./src/tests/integration/fixtures/common/rates/dno_fees_wpd_export.json"
       gridToLoad:
-        - "./src/tests/integration/fixtures/rates/supply_fees_import.json"
-        - "./src/tests/integration/fixtures/rates/dno_fees_wpd_import.json"
+        - "./src/tests/integration/fixtures/common/rates/supply_fees_import.json"
+        - "./src/tests/integration/fixtures/common/rates/dno_fees_wpd_import.json"
       solarToLoad: [ ]
     imbalanceDataSource:
       price:
         csvTimeseries:
-          dir: "./src/tests/integration/fixtures/elexon_imbalance_price/"
+          dir: "./src/tests/integration/fixtures/common/elexon_imbalance_price/"
       volume:
         csvTimeseries:
-          dir: "./src/tests/integration/fixtures/elexon_imbalance_volume/"
+          dir: "./src/tests/integration/fixtures/simulation/elexon_imbalance_volume/"
     experimental:
       marketFixedCostFiles:
         all:
-          - "./src/tests/integration/fixtures/rates/fixed_market_rates.yaml"
+          - "./src/tests/integration/fixtures/common/rates/fixed_market_rates.yaml"
       customerLoadFiles:
         all:
-          - "./src/tests/integration/fixtures/rates/customer_rates.yaml"
+          - "./src/tests/integration/fixtures/common/rates/customer_rates.yaml"
 
   output: &output
     simulation:
-      csv: "./src/tests/integration/output_sim.csv"
+      csv: "./src/tests/integration/simulation_output.csv"
     summary:
-      csv: "./src/tests/integration/output_summary.csv"
+      csv: "./src/tests/integration/simulation_output_summary.csv"
       rateDetail: "all"
 
 simulations:

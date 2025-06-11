@@ -117,7 +117,7 @@ class TestIntegration(unittest.TestCase):
                 if res.returncode != 0:
                     raise ValueError("Non zero exit code")
 
-                df = pd.read_csv("./src/tests/integration/output_summary.csv")
+                df = pd.read_csv("./src/tests/integration/simulation_output_summary.csv")
 
                 columns_to_compare = sub.expected_summary_df.columns
                 df = df[columns_to_compare]
