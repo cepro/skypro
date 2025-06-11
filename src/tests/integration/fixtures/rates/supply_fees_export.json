@@ -4,7 +4,7 @@
     "isExport": true
   },
   "multiplierRate": {
-    "name": "StatkraftMultiplier",
+    "name": "multiplier",
     "factor": -0.05,
     "ratesToMultiply": "all-in-this-direction"
   }

@@ -32,17 +32,17 @@ sandbox:
     files:
       solarToBatt: [ ]
       gridToBatt:
-        - "./src/tests/integration/fixtures/rates/supply_fees_bryt_import.json"
+        - "./src/tests/integration/fixtures/rates/supply_fees_import.json"
         - "./src/tests/integration/fixtures/rates/dno_fees_wpd_import.json"
       battToGrid:
-        - "./src/tests/integration/fixtures/rates/supply_fees_statkraft_export.json"
+        - "./src/tests/integration/fixtures/rates/supply_fees_export.json"
         - "./src/tests/integration/fixtures/rates/dno_fees_wpd_export.json"
       battToLoad: [ ]
       solarToGrid:
-        - "./src/tests/integration/fixtures/rates/supply_fees_statkraft_export.json"
+        - "./src/tests/integration/fixtures/rates/supply_fees_export.json"
         - "./src/tests/integration/fixtures/rates/dno_fees_wpd_export.json"
       gridToLoad:
-        - "./src/tests/integration/fixtures/rates/supply_fees_bryt_import.json"
+        - "./src/tests/integration/fixtures/rates/supply_fees_import.json"
         - "./src/tests/integration/fixtures/rates/dno_fees_wpd_import.json"
       solarToLoad: [ ]
     imbalanceDataSource:

@@ -4,11 +4,11 @@
     "isExport": false
   },
   "powerFixed": {
-    "brytAccountManagement": {
+    "accountManagement": {
       "rate": 1.177,
       "supplyPoint": "nsp"
     },
-    "brytCashOutFee": {
+    "cashOutFee": {
       "rate": 0.878,
       "supplyPoint": "nsp"
     }
