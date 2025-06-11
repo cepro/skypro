@@ -31,7 +31,7 @@ def main():
         '-c', '--config',
         dest='config_file_path',
         required=True,
-        help='JSON configuration file for this simulation'
+        help='YAML configuration file for this simulation'
     )
     parser_simulate.add_argument(
         '--sim',
@@ -59,7 +59,7 @@ def main():
         '-c', '--config',
         dest='config_file_path',
         required=True,
-        help='The JSON configuration file for the report'
+        help='The YAML configuration file for the report'
     )
     parser_report.add_argument(
         '-m', '--month',
