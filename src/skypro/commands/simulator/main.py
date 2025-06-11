@@ -10,25 +10,24 @@ import pandas as pd
 import plotly.graph_objects as go
 import pytz
 import sqlalchemy
-from simt_common.config.data_source import TimeseriesDataSource
-from simt_common.config.path_field import resolve_file_path
-from simt_common.config.rates_parse_yaml import parse_supply_points, parse_vol_rates_files_for_all_energy_flows, parse_rate_files
-from simt_common.config.rates_parse_db import get_rates_from_db
-from simt_common.config.time_offset import time_offset_str_to_timedelta
-from simt_common.data.get_profile import get_profile
-from simt_common.data.get_timeseries import get_timeseries
-from simt_common.microgrid_analysis.output import generate_output_df
+from skypro.common.config.data_source import TimeseriesDataSource
+from skypro.common.config.path_field import resolve_file_path
+from skypro.common.config.rates_parse_yaml import parse_supply_points, parse_vol_rates_files_for_all_energy_flows, parse_rate_files
+from skypro.common.config.rates_parse_db import get_rates_from_db
+from skypro.common.config.time_offset import time_offset_str_to_timedelta
+from skypro.common.data.get_profile import get_profile
+from skypro.common.data.get_timeseries import get_timeseries
+from skypro.common.microgrid_analysis.output import generate_output_df
 
-from simt_common.rates.microgrid import get_vol_rates_dfs, VolRatesForEnergyFlows
-from simt_common.rates.osam import calculate_osam_ncsp
-from simt_common.rates.peripheral import get_rates_dfs_by_type
-from simt_common.rates.rates import FixedRate, Rate, OSAMFlatVolRate
-from simt_common.rates.rates_friendly_summary import get_friendly_rates_summary
-from simt_common.timeutils.math import floor_hh
-from simt_common.timeutils.timeseries import get_step_size
+from skypro.common.rate_utils.to_dfs import get_vol_rates_dfs, get_rates_dfs_by_type, VolRatesForEnergyFlows
+from skypro.common.rate_utils.osam import calculate_osam_ncsp
+from skypro.common.rates.rates import FixedRate, Rate, OSAMFlatVolRate
+from skypro.common.rate_utils.friendly_summary import get_friendly_rates_summary
+from skypro.common.timeutils.math import floor_hh
+from skypro.common.timeutils.timeseries import get_step_size
 from tabulate import tabulate
 
-from skypro.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings, get_user_ack_of_warning_or_exit
+from skypro.common.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings, get_user_ack_of_warning_or_exit
 from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
 from skypro.commands.simulator.algorithms.price_curve.algo import PriceCurveAlgo
 from skypro.commands.simulator.config.parse_config import parse_config

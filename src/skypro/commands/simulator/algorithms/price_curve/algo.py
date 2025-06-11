@@ -5,7 +5,7 @@ from typing import Tuple, List
 import numpy as np
 import pandas as pd
 import pytz
-from simt_common.rates.microgrid import VolRatesForEnergyFlows
+from skypro.common.rate_utils.to_dfs import VolRatesForEnergyFlows
 
 from skypro.commands.simulator.algorithms.price_curve.peak import get_peak_approach_energies, get_peak_power
 from skypro.commands.simulator.algorithms.price_curve.system_state import get_system_state, SystemState

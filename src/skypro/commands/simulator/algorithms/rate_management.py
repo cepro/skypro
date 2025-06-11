@@ -3,10 +3,10 @@ from typing import Tuple
 
 import numpy as np
 import pandas as pd
-from simt_common.rates.microgrid import VolRatesForEnergyFlows, get_vol_rates_dfs
-from simt_common.rates.osam import calculate_osam_ncsp
-from simt_common.rates.rates import OSAMFlatVolRate
-from simt_common.timeutils.math_wallclock import add_wallclock_days
+from skypro.common.rate_utils.to_dfs import VolRatesForEnergyFlows, get_vol_rates_dfs
+from skypro.common.rate_utils.osam import calculate_osam_ncsp
+from skypro.common.rates.rates import OSAMFlatVolRate
+from skypro.common.timeutils.math_wallclock import add_wallclock_days
 
 from skypro.commands.simulator.microgrid import calculate_microgrid_flows
 

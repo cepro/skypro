@@ -1,0 +1,16 @@
+{
+  "imbalance": {
+    "supplyPoint": "nsp",
+    "isExport": false
+  },
+  "powerFixed": {
+    "accountManagement": {
+      "rate": 1.177,
+      "supplyPoint": "nsp"
+    },
+    "cashOutFee": {
+      "rate": 0.878,
+      "supplyPoint": "nsp"
+    }
+  }
+}

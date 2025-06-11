@@ -166,3 +166,6 @@ output_summary.csv
 mirrors_symlink
 tmp
 output_sim.csv
+simulation_output.csv
+simulation_output_summary.csv
+reporting_output_summary.csv

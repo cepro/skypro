@@ -1,0 +1,162 @@
+# This file configures a reporting run for integration tests.
+# It's not intended to match with any particular real-world scenarios- it's purpose
+# is to enable the reporting code to be tested and act as an example configuration.
+
+
+reporting:
+  metering:
+
+    plotMeters:  # 'Plot meters' are Emlite meters that are dotted around the site, measuring individual house loads/solar
+      dataSource:
+        csvPlotMeterReadings:
+          feederIds: ["9aa07641-f356-4aa3-b4b5-fb4e7ec88bb9", "745ba4e7-c6ee-4caf-af4b-f581bf759ee9"]
+          dir: "./src/tests/integration/fixtures/reporting/plot_readings/"
+#        Alternatively these plot meter readings could be pulled from a database with the following format:
+#        flowsPlotMeterReadings:
+#          feederIds:
+#            - "9aa07641-f356-4aa3-b4b5-fb4e7ec88bb9"
+#            - "745ba4e7-c6ee-4caf-af4b-f581bf759ee9"
+
+    microgridMeters:  # 'Microgrid meters' are the Acuvim meters in the microgrid distribution board
+      bessInverter:
+        dataSource:
+          csvMeterReadings:
+            dir: "./src/tests/integration/fixtures/reporting/microgrid_meter_readings/"
+            meterId: "8333c68b-d5e0-4caf-94f7-0e97c78b913a"  # Acuvim meter ID
+#          Alternatively these microgrid meter readings could be pulled from a database with the following format:
+#          flowsMeterReadings:
+#            meterId: "8333c68b-d5e0-4caf-94f7-0e97c78b913a"  # Acuvim meter ID
+      mainIncomer:
+        dataSource:
+          csvMeterReadings:
+            dir: "./src/tests/integration/fixtures/reporting/microgrid_meter_readings/"
+            meterId: "9fe7c7fa-f0f7-4998-b9bc-330adab2ec4c"
+      evCharger:
+        dataSource:
+          csvMeterReadings:
+            dir: "./src/tests/integration/fixtures/reporting/microgrid_meter_readings/"
+            meterId: "39666f1c-8165-478b-92be-b9941cf46d4d"
+      feeder1:
+        feederId: "9aa07641-f356-4aa3-b4b5-fb4e7ec88bb9"  # Feeder ID to match with plot readings
+        dataSource:
+          csvMeterReadings:
+            dir: "./src/tests/integration/fixtures/reporting/microgrid_meter_readings/"
+            meterId: "b4cf6c49-c577-48f0-8a49-9d3c5c3764c9"
+      feeder2:
+        feederId: "745ba4e7-c6ee-4caf-af4b-f581bf759ee9"  # Feeder ID to match with plot readings
+        dataSource:
+          csvMeterReadings:
+            dir: "./src/tests/integration/fixtures/reporting/microgrid_meter_readings/"
+            meterId: "f46075b4-3a8b-4a6a-a9ca-1022902b335b"
+
+  bess:
+    energyCapacity: 1280  # how many kWh is the battery
+    dataSource:
+      csvBessReadings:
+        dir: "./src/tests/integration/fixtures/reporting/bess_readings/"
+        bessId: "539cab31-6c7f-44ae-bd6a-744af19d8d0c"
+#      Alternatively these BESS readings could be pulled from a database with the following format:
+#      flowsBessReadings:
+#        bessId: "539cab31-6c7f-44ae-bd6a-744af19d8d0c"
+
+  gridConnection:   # Defines the kVA size of the grid connection
+    importCapacity: 230
+    exportCapacity: 500
+
+  rates:
+    supplyPointsConfigFile: "./src/tests/integration/fixtures/common/rates/supply_points_a.json"
+    files:
+      solarToBatt: [ ]
+      gridToBatt:
+        - "./src/tests/integration/fixtures/common/rates/supply_fees_import.json"
+        - "./src/tests/integration/fixtures/common/rates/dno_fees_wpd_import.json"
+      battToGrid:
+        - "./src/tests/integration/fixtures/common/rates/supply_fees_export.json"
+        - "./src/tests/integration/fixtures/common/rates/dno_fees_wpd_export.json"
+      battToLoad: [ ]
+      solarToGrid:
+        - "./src/tests/integration/fixtures/common/rates/supply_fees_export.json"
+        - "./src/tests/integration/fixtures/common/rates/dno_fees_wpd_export.json"
+      gridToLoad:
+        - "./src/tests/integration/fixtures/common/rates/supply_fees_import.json"
+        - "./src/tests/integration/fixtures/common/rates/dno_fees_wpd_import.json"
+      solarToLoad: [ ]
+    imbalanceDataSource:
+      price:
+        csvTimeseries:
+          dir: "./src/tests/integration/fixtures/common/elexon_imbalance_price/"
+      volume:
+        csvTimeseries:
+          dir: "./src/tests/integration/fixtures/simulation/elexon_imbalance_volume/"
+    experimental:
+      marketFixedCostFiles:
+        import:
+          - "./src/tests/integration/fixtures/common/rates/fixed_market_rates.yaml"
+        export: []
+      customerLoadFiles:
+        all:
+          - "./src/tests/integration/fixtures/common/rates/customer_rates.yaml"
+
+#  Alternatively, the rates could be pulled from a database with the following format:
+#  rates:
+#    ratesDB:
+#      supplyPoints: "supply_point_name"
+#      siteSpecific:
+#        region: "south_west"
+#        bands: ["lv4", "lv"]
+#      importBundles: [ "import_supplier_bundle", "final_consumption_levies" ]
+#      exportBundles: [ "export_supplier_bundle" ]
+#
+#    imbalanceDataSource:
+#      price:
+#        flowsMarketData:
+#          type: "elexon-imbalance-price"
+#      volume:
+#        flowsMarketData:
+#          type: "elexon-imbalance-volume"
+
+  # This section configures how the estimated import and export bills are presented to the user - each Supplier will have
+  # their own way of formatting invoices and here we configure which rates are presented under which headings so that the
+  # user can make a direct comparison.
+  billMatch:
+    import:  # Configure the import supplier invoice
+      lineItems:
+        "Commodity":
+          rates:
+            - imbalance
+          unit: "p/kwh"
+        "Non Commodity":
+          rates: [ ]  # If final consumption levies were used they could be included here
+          unit: "p/kwh"
+        "Management Fee":
+          rates:
+            - accountManagement
+            - cashOutFee
+          unit: "p/kwh"
+        "Fixed Rates":
+          rates:
+            - meterManagementFee
+            - supplierFee
+          unit: "p/day"
+        "DUoS":
+          rates:
+            - duosRed
+            - duosAmber
+            - duosGreen
+          unit: "p/kwh"
+
+    export: # Configure the export supplier invoice
+      lineItems:
+        "Power (inc. loss benefit and 5% charge)":
+          rates:
+            - gimbalance
+            - supplierMultiplier
+          unit: "p/kwh"
+        "GDUoS":
+          rates:
+            - gduosRed
+            - gduosAmber
+            - gduosGreen
+          unit: "p/kwh"
+
+  profilesSaveDir: "./src/tests/integration/"

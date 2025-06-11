@@ -1,0 +1,144 @@
+configFormatVersion: 4.0.0
+sandbox:
+  timeFrame: &timeframe
+    start: "2024-01-01T00:00:00+00:00"
+    end: "2024-01-30T23:40:00+00:00"
+
+  site: &site
+    gridConnection:
+      importLimit: 220
+      exportLimit: 475
+    solar:
+      profiles:
+        - source:
+            csvProfile:
+              dir: "./src/tests/integration/fixtures/simulation/solar/"
+          profiledSizeKwp: 4.4
+          scaledSizeKwp: 210
+    load:
+      profiles:
+        - source:
+            csvProfile:
+              dir: "./src/tests/integration/fixtures/simulation/load/"
+          profiledNumPlots: 12
+          scaledNumPlots: 54
+    bess:
+      energyCapacity: 1280
+      nameplatePower: 565
+      chargeEfficiency: 0.85
+
+  rates: &rates
+    supplyPointsConfigFile: "./src/tests/integration/fixtures/common/rates/supply_points_a.json"
+    files:
+      solarToBatt: [ ]
+      gridToBatt:
+        - "./src/tests/integration/fixtures/common/rates/supply_fees_import.json"
+        - "./src/tests/integration/fixtures/common/rates/dno_fees_wpd_import.json"
+      battToGrid:
+        - "./src/tests/integration/fixtures/common/rates/supply_fees_export.json"
+        - "./src/tests/integration/fixtures/common/rates/dno_fees_wpd_export.json"
+      battToLoad: [ ]
+      solarToGrid:
+        - "./src/tests/integration/fixtures/common/rates/supply_fees_export.json"
+        - "./src/tests/integration/fixtures/common/rates/dno_fees_wpd_export.json"
+      gridToLoad:
+        - "./src/tests/integration/fixtures/common/rates/supply_fees_import.json"
+        - "./src/tests/integration/fixtures/common/rates/dno_fees_wpd_import.json"
+      solarToLoad: [ ]
+    imbalanceDataSource:
+      price:
+        csvTimeseries:
+          dir: "./src/tests/integration/fixtures/common/elexon_imbalance_price/"
+      volume:
+        csvTimeseries:
+          dir: "./src/tests/integration/fixtures/simulation/elexon_imbalance_volume/"
+    experimental:
+      marketFixedCostFiles:
+        all:
+          - "./src/tests/integration/fixtures/common/rates/fixed_market_rates.yaml"
+      customerLoadFiles:
+        all:
+          - "./src/tests/integration/fixtures/common/rates/customer_rates.yaml"
+
+  output: &output
+    simulation:
+      csv: "./src/tests/integration/simulation_output.csv"
+    summary:
+      csv: "./src/tests/integration/simulation_output_summary.csv"
+      rateDetail: "all"
+
+simulations:
+  integrationTestPriceCurve:
+    timeFrame: *timeframe
+    site: *site
+    strategy:
+      priceCurveAlgo:
+        peak:
+          period:
+            days: "weekdays:Europe/London"
+            start: "17:00:00:Europe/London"
+            end: "19:00:00:Europe/London"
+          approach:
+            toSoe: 1050
+            assumedChargePower: 200
+            forceChargeDurationFactor: 1
+            encourageChargeDurationFactor: 0
+            chargeCushionMins: 20
+        nivChasePeriods:
+        - period:
+            days: "weekdays:Europe/London"
+            start: "00:00:00:Europe/London"
+            end: "23:59:59:Europe/London"
+          niv:
+            chargeCurve: [
+              {x: -Infinity, y: 1280},
+              {x: 4, y: 1280},
+              {x: 6, y: 1000},
+              {x: 12, y: 0}
+            ]
+            dischargeCurve: [
+              {x: 8, y: 1280},
+              {x: 18, y: 1000},
+              {x: 25, y: 1000},
+              {x: 35, y: 0},
+              {x: Infinity, y: 0}
+            ]
+            curveShiftLong: 6
+            curveShiftShort: 2
+            volumeCutoffForPrediction: 150000
+        - period:
+            days: "weekends:Europe/London"
+            start: "00:00:00:Europe/London"
+            end: "23:59:59:Europe/London"
+          niv:
+            chargeCurve: [
+              {x: -Infinity, y: 1280},
+              {x: -2, y: 1280},
+              {x: 6, y: 400},
+              {x: 12, y: 0}
+            ]
+            dischargeCurve: [
+              {x: 8, y: 1280},
+              {x: 14, y: 400},
+              {x: 35, y: 100},
+              {x: Infinity, y: 0}
+            ]
+            curveShiftLong: 3
+            curveShiftShort: 3
+            volumeCutoffForPrediction: 150000
+    rates:
+      live: *rates
+      final: *rates
+    output: *output
+
+  integrationTestPerfectHindsightLP:
+    timeFrame: *timeframe
+    site: *site
+    strategy:
+      perfectHindsightOptimiser:
+        blocks:
+          maxAvgCyclesPerDay: 1.5
+    rates:
+      live: *rates
+      final: *rates
+    output: *output
