@@ -21,10 +21,7 @@ from skypro.common.notice.notice import Notice
 
 TIMEZONE = pytz.timezone("Europe/London")
 
-
-"""
-This is a Streamlit web app that uses the reporting functionality from `skypro/commands/report`
-"""
+# This is a Streamlit web app that uses the reporting functionality from `skypro/commands/report`
 
 
 def main():
