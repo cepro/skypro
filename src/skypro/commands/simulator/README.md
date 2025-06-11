@@ -15,10 +15,12 @@ When the simulation has finished some summary statistics are given (similar to t
 
 ## Usage
 
+To run a microgrid simulation and plot the results: `skypro simulate -c <simulation-config-file> -o ./output.csv --plot`
+
 See `skypro simulate -h` for help with command line options.
 
 ## Configuration
 
-See the integration tests for an example configuration YAML file with inline comments: `src/tests/integration/fixtures/config.yaml`
+See the integration tests for an example configuration YAML file with inline comments: `src/tests/integration/fixtures/simulation/config.yaml`
 
 Also, see the `src/skypro/commands/simulator/config/config.py` file for the configuration definition in code with comments.

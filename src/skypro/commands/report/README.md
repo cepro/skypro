@@ -13,10 +13,12 @@ However, other data inconsistencies may be transient, for example, some metering
 
 ## Usage
 
+To run a microgrid report and plot the results: `skypro report -c <report-config-file> -m 2025-04 --plot`
+
 See `skypro report -h` for help with command line options.
 
 ## Configuration
 
-TODO: see integration tests for an example configuration YAML file with inline comments.
+See the integration tests for an example configuration YAML file with inline comments: `src/tests/integration/fixtures/reporting/config.yaml`
 
 Also, see the `skypro/commands/report/config/config.py` file for the configuration definition in code with comments.

@@ -50,15 +50,3 @@ To publish the repository to test.pypi:
 If this is your first time publishing to test.pypi then you will also need to do the following steps before publishing:
 1. `poetry config repositories.test-pypi https://test.pypi.org/legacy/`
 2. `poetry config pypi-token.test-pypi  pypi-YYYYYYYY` using an API token from your account on the test.pypi website.
-
-
-
-
-## CLI tool usage
-
-Run `skypro -h` / `skypro report -h` / `skypro simulate -h` for help.
-
-To run a microgrid simulation and plot the results: `skypro simulate -c <simulation-config-file> -o ./output.csv --plot`
-
-To run a microgrid report and plot the results: `skypro report -c <report-config-file> -m 2025-04 --plot`
-
