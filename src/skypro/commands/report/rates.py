@@ -8,7 +8,7 @@ from skypro.common.config.rates_parse_db import get_rates_from_db
 from skypro.common.data.get_timeseries import get_timeseries
 from skypro.common.notice.notice import Notice
 from skypro.common.rate_utils.to_dfs import VolRatesForEnergyFlows
-from skypro.common.rates.rates import FixedRate, Rate, VolRate
+from skypro.common.rates.rates import FixedRate, VolRate
 from skypro.common.timeutils.timeseries import get_steps_per_hh, get_step_size
 
 from skypro.commands.report.config.config import Config
