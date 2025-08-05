@@ -20,6 +20,15 @@ class SiteSpecifier:
 
 
 @dataclass
+class CustomerRatesDB:
+    """
+    Configures rates for customers (i.e. domestic homes) to be pulled from a database
+    """
+    import_bundles: List[str] = field_with_opts(key="importBundles")  # Names of any import rate bundles to use for the customer load
+    export_bundles: List[str] = field_with_opts(key="exportBundles")  # Names of any export rate bundles to use for the customer export
+
+
+@dataclass
 class RatesDB:
     """
     Configures rates to be pulled from a database.
@@ -29,6 +38,7 @@ class RatesDB:
     import_bundles: List[str] = field_with_opts(key="importBundles")  # Names of any import rate bundles to use in addition to the site specific ones (e.g. Supplier arrangements)
     export_bundles: List[str] = field_with_opts(key="exportBundles")  # Names of any export rate bundles to use in addition to the site specific ones (e.g. Supplier arrangements).
     future_offset_str: Optional[str] = field_with_opts(key="futureOffset")  # For simulations, it can be useful to bring the rates forwards in time, for example we might want to use the 2025 rates for a simulation run over 2024
+    customer: Optional[CustomerRatesDB]  # Optionally define rates for customers - these are only really used for reporting purposes as this doesn't affect control algorithms
 
 
 @dataclass

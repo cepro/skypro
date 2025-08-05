@@ -21,7 +21,7 @@ from skypro.common.microgrid_analysis.output import generate_output_df
 
 from skypro.common.rate_utils.to_dfs import get_vol_rates_dfs, get_rates_dfs_by_type, VolRatesForEnergyFlows
 from skypro.common.rate_utils.osam import calculate_osam_ncsp
-from skypro.common.rates.rates import FixedRate, Rate, OSAMFlatVolRate
+from skypro.common.rates.rates import FixedRate, VolRate, OSAMFlatVolRate
 from skypro.common.rate_utils.friendly_summary import get_friendly_rates_summary
 from skypro.common.timeutils.math import floor_hh
 from skypro.common.timeutils.timeseries import get_step_size
@@ -51,8 +51,9 @@ class ParsedRates:
     """
     live_mkt_vol: VolRatesForEnergyFlows = field(default_factory=VolRatesForEnergyFlows)   # Volume-based (p/kWh) market/supplier rates for each energy flow, as predicted in real-time
     final_mkt_vol: VolRatesForEnergyFlows = field(default_factory=VolRatesForEnergyFlows)  # Volume-based (p/kWh) market/supplier rates for each energy flow
-    mkt_fix: Dict[str, List[FixedRate]] = field(default_factory=dict)   # Fixed p/day rates associated with market/suppliers
-    customer: Dict[str, List[Rate]] = field(default_factory=dict)  # Volume and fixed rates charged to customers, in string categories
+    final_mkt_fix: Dict[str, List[FixedRate]] = field(default_factory=dict)   # Fixed p/day rates associated with market/suppliers
+    final_customer_vol: Dict[str, List[VolRate]] = field(default_factory=dict)  # Volume rates charged to customers, in string categories
+    final_customer_fix: Dict[str, List[FixedRate]] = field(default_factory=dict)  # Fixed rates charged to customers, in string categories
 
 
 def simulate(
@@ -197,13 +198,21 @@ def _run_one_simulation(
     # not affect the algorithm, but which are passed through into the output CSV
     mkt_fixed_cost_dfs, _ = get_rates_dfs_by_type(
         time_index=time_index,
-        rates_by_category=rates.mkt_fix,
+        rates_by_category=rates.final_mkt_fix,
         allow_vol_rates=False,
+        allow_fix_rates=True,
     )
-    customer_fixed_cost_dfs, customer_vol_rates_dfs = get_rates_dfs_by_type(
+    _, customer_vol_rates_dfs = get_rates_dfs_by_type(
         time_index=time_index,
-        rates_by_category=rates.customer,
+        rates_by_category=rates.final_customer_vol,
         allow_vol_rates=True,
+        allow_fix_rates=False,
+    )
+    customer_fix_costs_dfs, _ = get_rates_dfs_by_type(
+        time_index=time_index,
+        rates_by_category=rates.final_customer_fix,
+        allow_vol_rates=False,
+        allow_fix_rates=True,
     )
 
     # Generate an output file if configured to do so
@@ -217,7 +226,7 @@ def _run_one_simulation(
             int_live_vol_rates_dfs=None,  # These 'live' rates aren't available in the output CSV at the moment as they are
             mkt_live_vol_rates_dfs=None,  # calculated by the price curve algo internally and not returned
             mkt_fixed_costs_dfs=mkt_fixed_cost_dfs,
-            customer_fixed_cost_dfs=customer_fixed_cost_dfs,
+            customer_fixed_cost_dfs=customer_fix_costs_dfs,
             customer_vol_rates_dfs=customer_vol_rates_dfs,
             load_energy_breakdown_df=load_energy_breakdown_df,
             aggregate_timebase=simulation_output_config.aggregate,
@@ -255,7 +264,7 @@ def _run_one_simulation(
         int_live_vol_rates_dfs=None,  # These 'live' rates aren't available in the output CSV at the moment as they are
         mkt_live_vol_rates_dfs=None,  # calculated by the price curve algo internally and not returned
         mkt_fixed_costs_dfs=mkt_fixed_cost_dfs,
-        customer_fixed_cost_dfs=customer_fixed_cost_dfs,
+        customer_fixed_cost_dfs=customer_fix_costs_dfs,
         customer_vol_rates_dfs=customer_vol_rates_dfs,
         load_energy_breakdown_df=load_energy_breakdown_df,
         aggregate_timebase="all",
@@ -511,6 +520,8 @@ def _get_rates_from_config(
             import_grid_capacity=0,
             export_grid_capacity=0,
             future_offset=time_offset_str_to_timedelta(rates_config.live.rates_db.future_offset_str),
+            customer_import_bundle_names=[],
+            customer_export_bundle_names=[],
         )
         parsed_rates.final_mkt_vol, _, _ = get_rates_from_db(
             supply_points_name=rates_config.final.rates_db.supply_points_name,
@@ -523,8 +534,9 @@ def _get_rates_from_config(
             import_grid_capacity=0,
             export_grid_capacity=0,
             future_offset=time_offset_str_to_timedelta(rates_config.final.rates_db.future_offset_str),
+            customer_import_bundle_names=rates_config.final.rates_db.customer.import_bundles if rates_config.final.rates_db.customer is not None else [],
+            customer_export_bundle_names=rates_config.final.rates_db.customer.export_bundles if rates_config.final.rates_db.customer is not None else [],
         )
-        # TODO: support fixed and customer costs when reading from the rates DB
 
     else:   # Read rates from local YAML files...
         final_supply_points = parse_supply_points(
@@ -560,16 +572,25 @@ def _get_rates_from_config(
                     for rate in rates:
                         if not isinstance(rate, FixedRate):
                             raise ValueError(f"Only fixed rates can be specified in the fixedMarketFiles, got: '{rate.name}'")
-                    parsed_rates.mkt_fix[category_str] = cast(List[FixedRate], rates)
+                    parsed_rates.final_mkt_fix[category_str] = cast(List[FixedRate], rates)
 
             if rates_config.final.experimental.customer_load_files:
                 for category_str, files in rates_config.final.experimental.customer_load_files.items():
-                    parsed_rates.customer[category_str] = parse_rate_files(
+                    rates = parse_rate_files(
                         files=files,
                         supply_points=final_supply_points,
                         imbalance_pricing=None,
                         file_path_resolver_func=file_path_resolver_func
                     )
+                    parsed_rates.final_customer_fix[category_str] = []
+                    parsed_rates.final_customer_vol[category_str] = []
+                    for rate in rates:
+                        if isinstance(rate, FixedRate):
+                            parsed_rates.final_customer_fix[category_str].append(rate)
+                        elif isinstance(rate, VolRate):
+                            parsed_rates.final_customer_vol[category_str].append(rate)
+                        else:
+                            raise ValueError(f"Unknown rate type: {rate}")
 
     return parsed_rates, df
 

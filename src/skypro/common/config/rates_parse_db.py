@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import time, datetime, timedelta
 from typing import List, Tuple, Optional, Dict
 
@@ -5,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from skypro.common.rate_utils.to_dfs import VolRatesForEnergyFlows
-from skypro.common.rates.rates import RegularFixedRate, MultiplierVolRate, ShapedVolRate, FlatVolRate, OSAMFlatVolRate, PeriodicFlatVolRate, FixedRate, VolRate
+from skypro.common.rates.rates import RegularFixedRate, MultiplierVolRate, ShapedVolRate, FlatVolRate, OSAMFlatVolRate, PeriodicFlatVolRate, FixedRate, VolRate, Rate
 from skypro.common.rates.supply_point import SupplyPoint
 from skypro.common.rates.time_varying_value import PeriodicValue
 from skypro.common.timeutils import ClockTimePeriod
@@ -15,6 +16,20 @@ from skypro.common.timeutils.days import Days
 """
 This file handles parsing of rates from a database 
 """
+
+
+@dataclass
+class RatesFromDB:
+    """
+    This class holds the results of a call to `get_rates_from_db`
+    """
+    mkt_vol_by_flow: VolRatesForEnergyFlows  # Volumetric market rates (p/kWh), separated by flow
+    mkt_fix_import: List[FixedRate]  # Fixed (e.g. p/day) market import rates
+    mkt_fix_export: List[FixedRate]  # Fixed (e.g. p/day) market export rates (normally fixed rates are on the import side, not export, so this is usually empty)
+    customer_vol_import: List[VolRate]  # Volumetric customer import rates
+    customer_vol_export: List[VolRate]  # Volumetric customer export rates
+    customer_fix_import: List[FixedRate]  # Fixed customer import rates
+    customer_fix_export: List[FixedRate]  # Fixed customer export rates
 
 
 def get_rates_from_db(
@@ -27,10 +42,12 @@ def get_rates_from_db(
         imbalance_pricing: pd.Series,
         import_grid_capacity: Optional[float],
         export_grid_capacity: Optional[float],
-        future_offset: timedelta
-) -> Tuple[VolRatesForEnergyFlows, List[FixedRate], List[FixedRate]]:
+        future_offset: timedelta,
+        customer_import_bundle_names: List[str],
+        customer_export_bundle_names: List[str]
+) -> RatesFromDB:
     """
-    Reads the Rates database and returns the volumetric rates per flow, and the import and export Fixed rates in turn.
+    Reads the Rates database and returns the various parsed rates.
     If `future_offset` is set positive, then rates will be 'brought forwards' so that rates from the future will be used. This enables simulations that
     use historical datasets whilst using rates from the future.
     """
@@ -47,7 +64,7 @@ def get_rates_from_db(
     flows, and OSAM is not applied to the "grid_to_load" flows (which pay full price under P395/OSAM).    
     """
 
-    import_vol_rates_with_osam, import_fixed_rates = _combine_rates(
+    mkt_vol_import_rates_with_osam, mkt_fix_import = _combine_rates(
         [
             _get_site_specific_from_db(
                 region=site_region,
@@ -76,7 +93,7 @@ def get_rates_from_db(
         ]
     )
 
-    import_vol_rates_without_osam, _ = _combine_rates(
+    mkt_vol_import_rates_without_osam, _ = _combine_rates(
         [
             _get_site_specific_from_db(
                 region=site_region,
@@ -105,7 +122,7 @@ def get_rates_from_db(
         ]
     )
 
-    export_vol_rates, export_fixed_rates = _combine_rates(
+    mkt_vol_export_rates, mkt_fix_export = _combine_rates(
         [
             _get_site_specific_from_db(
                 region=site_region,
@@ -134,17 +151,56 @@ def get_rates_from_db(
         ]
     )
 
-    all_vol_rates = VolRatesForEnergyFlows(
-        grid_to_batt=import_vol_rates_with_osam,
-        grid_to_load=import_vol_rates_without_osam,
-        solar_to_grid=export_vol_rates,
-        batt_to_grid=export_vol_rates,
+    customer_vol_import, customer_fix_import = _combine_rates(
+        [
+            _get_bundle_from_db(
+                bundle_name=bundle_name,
+                db_engine=db_engine,
+                imbalance_pricing=imbalance_pricing,
+                supply_points=supply_points,
+                grid_connection_capacity=import_grid_capacity,
+                future_offset=future_offset,
+                osam_support="no"
+            )
+            for bundle_name in customer_import_bundle_names
+        ]
+    )
+    customer_vol_export, customer_fix_export = _combine_rates(
+        [
+            _get_bundle_from_db(
+                bundle_name=bundle_name,
+                db_engine=db_engine,
+                imbalance_pricing=imbalance_pricing,
+                supply_points=supply_points,
+                grid_connection_capacity=import_grid_capacity,
+                future_offset=future_offset,
+                osam_support="no"
+            )
+            for bundle_name in customer_export_bundle_names
+        ]
+    )
+
+    mkt_vol_by_flow = VolRatesForEnergyFlows(
+        grid_to_batt=mkt_vol_import_rates_with_osam,
+        grid_to_load=mkt_vol_import_rates_without_osam,
+        solar_to_grid=mkt_vol_export_rates,
+        batt_to_grid=mkt_vol_export_rates,
         batt_to_load=[],
         solar_to_load=[],
         solar_to_batt=[],
     )
 
-    return all_vol_rates, import_fixed_rates, export_fixed_rates
+    all_rates = RatesFromDB(
+        mkt_vol_by_flow=mkt_vol_by_flow,
+        mkt_fix_import=mkt_fix_import,
+        mkt_fix_export=mkt_fix_export,
+        customer_vol_import=customer_vol_import,
+        customer_vol_export=customer_vol_export,
+        customer_fix_import=customer_fix_import,
+        customer_fix_export=customer_fix_export,
+    )
+
+    return all_rates
 
 
 def _get_supply_points_from_db(name: str, db_engine) -> Dict[str, SupplyPoint]:
