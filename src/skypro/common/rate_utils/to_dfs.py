@@ -105,7 +105,8 @@ def get_vol_rates_dfs(time_index: pd.DatetimeIndex, all_rates: VolRatesForEnergy
 def get_rates_dfs_by_type(
         time_index: pd.DatetimeIndex,
         rates_by_category: Dict[str, List[Rate]],
-        allow_vol_rates: bool
+        allow_vol_rates: bool,
+        allow_fix_rates: bool,
 ) -> (Dict[str, pd.DataFrame], Dict[str, pd.DataFrame]):
     """Returns two dictionaries of dataframes:
        - The first has dataframes containing any fixed costs in pence, keyed by category
@@ -122,6 +123,8 @@ def get_rates_dfs_by_type(
         for rate in rates:
             # Fixed costs and volume-based rates go into different columns
             if isinstance(rate, FixedRate):
+                if not allow_fix_rates:
+                    raise ValueError("Fixed rate found but not allowed")
                 fixed_costs_dfs[category][rate.name] = rate.get_cost_series(time_index)
             elif isinstance(rate, VolRate):
                 if not allow_vol_rates:

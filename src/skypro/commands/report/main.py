@@ -296,11 +296,19 @@ def report(
         time_index=time_index,
         rates_by_category=rates.mkt_fix,
         allow_vol_rates=False,
+        allow_fix_rates=True,
     )
-    customer_fixed_cost_dfs, customer_vol_rates_dfs = get_rates_dfs_by_type(
+    _, customer_vol_rates_dfs = get_rates_dfs_by_type(
         time_index=time_index,
-        rates_by_category=rates.customer,
+        rates_by_category=rates.customer_vol,
         allow_vol_rates=True,
+        allow_fix_rates=False,
+    )
+    customer_fixed_cost_dfs, _ = get_rates_dfs_by_type(
+        time_index=time_index,
+        rates_by_category=rates.customer_fix,
+        allow_vol_rates=False,
+        allow_fix_rates=True
     )
 
     return Report(

@@ -89,7 +89,7 @@ class ProfileDataSource:
     constant_profile_data_source: Optional[ConstantProfileDataSource] = field_with_opts(key="constant")
 
     def __post_init__(self):
-        enforce_one_option([self.csv_profile_data_source, self.constant_profile_data_source],"'csvProfile', 'constant'")
+        enforce_one_option([self.csv_profile_data_source, self.constant_profile_data_source], "'csvProfile', 'constant'")
 
 
 @dataclass

@@ -15,8 +15,8 @@ def missing_data_warnings(df: pd.DataFrame, data_name: str) -> List[Notice]:
         return [
              Notice(
                 detail=f"{pct:.1f}% of '{data_name}' data is missing ({num_missing} NaN fields)",
-                level=pct_to_notice_level(pct)
-            )
+                level=pct_to_notice_level(pct),
+             )
         ]
 
     return []
