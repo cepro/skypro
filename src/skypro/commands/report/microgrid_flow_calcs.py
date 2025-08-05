@@ -156,8 +156,7 @@ def calculate_missing_net_flows_in_junction(
             pct_missing = (nans_df[col_to_predict].sum() / len(nans_df)) * 100
             df.loc[rows_to_predict, col_to_predict] = total * col_to_predict_direction
             notices.append(Notice(
-                detail=f"{pct_missing:.1f}% of '{col_to_predict}' fields are missing, but {pct_to_fill:.1f}% can be calculated"
-                    " using redundant microgrid metering data",
+                detail=f"{pct_missing:.1f}% of '{col_to_predict}' fields are missing, but {pct_to_fill:.1f}% can be calculated using redundant microgrid metering data",
                 level=pct_to_notice_level(pct_missing)
             ))
 

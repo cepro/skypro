@@ -115,7 +115,7 @@ def _get_csv_plot_meter_readings(
         "energyImportedActiveDelta": "kwh",
     })
 
-    df = df[df["feeder_id"].isin([str(id) for id in source.feeder_ids])]
+    df = df[df["feeder_id"].isin([str(feeder_id) for feeder_id in source.feeder_ids])]
 
     # Remove any data that is outside the time range of interest
     # TODO: only read in CSVs for the months that are required in the first place
