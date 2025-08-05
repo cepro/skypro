@@ -1,5 +1,0 @@
-vars: {}
-
-reportScenarios:
-  "Some scenario":
-    config: "./src/tests/integration/fixtures/reporting/config.yaml"
