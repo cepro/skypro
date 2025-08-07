@@ -115,6 +115,14 @@ def report_cli(
     if do_plots:
         plot_load_and_solar(result.df)
 
+    # This dataframe determines how the load is broken down in the output file - here we configure three different sub-components
+    # of load, so we will get CSV columns for load.feeder1, load.feeder2, and load.ev.
+    load_energy_breakdown_df = result.df[["plot_load_feeder1", "plot_load_feeder2", "ev_load"]].rename(columns={
+        "plot_load_feeder1": "feeder1",
+        "plot_load_feeder2": "feeder2",
+        "ev_load": "ev"
+    })
+
     if output_file_path:  # The main output file has half-hour granularity
         generate_output_df(
             df=result.df,
@@ -125,7 +133,7 @@ def report_cli(
             mkt_fixed_costs_dfs=result.mkt_fixed_cost_dfs,
             customer_fixed_cost_dfs=result.customer_fixed_cost_dfs,
             customer_vol_rates_dfs=result.customer_vol_rates_dfs,
-            load_energy_breakdown_df=None,
+            load_energy_breakdown_df=load_energy_breakdown_df,
             aggregate_timebase="30min",
             rate_detail=None,
             config_entries=[],
@@ -135,6 +143,7 @@ def report_cli(
         )
 
     if summary_output_file_path:  # The summary output file has a single row to summarise the entire report
+
         generate_output_df(
             df=result.df,
             int_final_vol_rates_dfs=result.int_vol_rates_dfs,
@@ -144,7 +153,7 @@ def report_cli(
             mkt_fixed_costs_dfs=result.mkt_fixed_cost_dfs,
             customer_fixed_cost_dfs=result.customer_fixed_cost_dfs,
             customer_vol_rates_dfs=result.customer_vol_rates_dfs,
-            load_energy_breakdown_df=None,
+            load_energy_breakdown_df=load_energy_breakdown_df,
             aggregate_timebase="all",
             rate_detail=None,
             config_entries=[],

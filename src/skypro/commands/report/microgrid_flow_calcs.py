@@ -47,6 +47,7 @@ def calc_flows(
     df["bess_net"] = df["bess_charge"] - df["bess_discharge"]
 
     # Taking the net of the EV circuit is probably overkill as the EVs shouldn't be exporting
+    df["ev_load"] = readings.ev_meter["energy_imported_active_delta"]
     df["ev_net"] = readings.ev_meter["energy_imported_active_delta"] - readings.ev_meter["energy_exported_active_delta"]
 
     df["feeder1_net"] = readings.feeder1_meter["energy_imported_active_delta"] - readings.feeder1_meter["energy_exported_active_delta"]
@@ -101,7 +102,7 @@ def calc_flows(
     notices.extend(new_notices)
 
     df["solar"] = df[["solar_feeder1", "solar_feeder2"]].sum(axis=1)
-    df["load"] = df[["plot_load_feeder1", "plot_load_feeder2"]].sum(axis=1)
+    df["load"] = df[["plot_load_feeder1", "plot_load_feeder2", "ev_load"]].sum(axis=1)
     df["solar_to_load"] = np.minimum(df["solar"], df["load"])  # requires emlite data
 
     # These columns are required for the output CSV, and could be calculated, but there's not currently a need for it

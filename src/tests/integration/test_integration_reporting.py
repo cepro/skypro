@@ -26,7 +26,7 @@ class TestIntegration(unittest.TestCase):
                 msg="report202408",
                 month="2024-08",
                 expected_summary_df=pd.DataFrame.from_dict({
-                    "agd:load": [9290.688],
+                    "agd:load": [9755.188],
                     "agd:solar": [21969.16780],
                     "m:upImport": [31385.62743],
                     "m:upExport": [38970.21875],
@@ -34,12 +34,15 @@ class TestIntegration(unittest.TestCase):
                     "m:battDischarge": [26568.10938],
                     "c:solarToGrid": [12384.01863],
                     "c:gridToLoad": [4571.26804],
-                    "c:solarToLoad": [4860.90924],
+                    "c:solarToLoad": [5002.03904],
                     "c:battToLoad": [456.48816],
                     "c:battToGrid": [26111.62122],
                     "c:solarToBatt": [4583.11013],
                     "c:gridToBatt": [26339.78050],
                     "other:osam.ncsp": [0.96923],
+                    "agd:load.feeder1": [3446.75500],
+                    "agd:load.feeder2": [5843.93300],
+                    "agd:load.ev": [464.50000],
                     "mfCost:import": [48050.00000],
                     "mfCost:export": [0.00000],
                     "cfCost:all": [-62000.00000],
@@ -50,7 +53,7 @@ class TestIntegration(unittest.TestCase):
                     "ivRate:gridToLoad.final": [0.00000],
                     "ivRate:solarToBatt.final": [3.88745],
                     "ivRate:battToLoad.final": [-19.21144],
-                    "ivRate:solarToLoad.final": [-10.17220],
+                    "ivRate:solarToLoad.final": [-10.17701],
                     "mvRate:solarToBatt.final": [0.00000],
                     "mvRate:gridToBatt.final": [6.00367],
                     "mvRate:battToLoad.final": [0.00000],
@@ -88,7 +91,7 @@ class TestIntegration(unittest.TestCase):
 
                 columns_to_compare = sub.expected_summary_df.columns
                 df = df[columns_to_compare]
-
+                
                 error = (df - sub.expected_summary_df).abs()
                 tolerance = 0.01
 
