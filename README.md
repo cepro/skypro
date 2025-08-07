@@ -12,6 +12,11 @@ The Skypro reporting tool collates data to documents and analyse real-world perf
 This tool is run on the command line using `skypro report`.
 See `src/skypro/commands/report/README.md` for more information.
 
+## Reporting web app
+The Skypro reporting web app makes reporting results accessible to non-cli users.
+This is run using Streamlit.
+See `src/skypro/reporting_webapp/README.md` for more information.
+
 ## Rates and energy flows
 Information about the costs and revenues associated with using power are fundamental to the codebase and a high-level understanding of how they are modelled is important for interpreting results.
 See `src/skypro/common/rates/README.md` for a background on how rates and energy flows are modelled in the codebase.
