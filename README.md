@@ -12,8 +12,8 @@ The Skypro reporting tool collates data to documents and analyse real-world perf
 This tool is run on the command line using `skypro report`.
 See `src/skypro/commands/report/README.md` for more information.
 
-## Reporting web app
-The Skypro reporting web app makes reporting results accessible to non-cli users.
+## Reporting web app - DEPRECATED
+The Skypro reporting web app makes reporting results accessible to non-cli users. It is now deprecated.
 This is run using Streamlit.
 See `src/skypro/reporting_webapp/README.md` for more information.
 

@@ -1,4 +1,4 @@
-# Skypro reporting web app
+# DEPRECATED - Skypro reporting web app
 
 This is a Streamlit web app that makes the reporting functionality available over a web front end.
 
