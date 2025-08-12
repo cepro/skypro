@@ -509,7 +509,7 @@ def _get_rates_from_config(
 
     # Rates can either be read from the "rates database" or from local YAML files
     if rates_config.live.rates_db is not None:
-        parsed_rates.live_mkt_vol, _, _ = get_rates_from_db(
+        db_rates_live = get_rates_from_db(
             supply_points_name=rates_config.live.rates_db.supply_points_name,
             site_region=rates_config.live.rates_db.site_specific.region,
             site_bands=rates_config.live.rates_db.site_specific.bands,
@@ -523,7 +523,9 @@ def _get_rates_from_config(
             customer_import_bundle_names=[],
             customer_export_bundle_names=[],
         )
-        parsed_rates.final_mkt_vol, _, _ = get_rates_from_db(
+        parsed_rates.live_mkt_vol = db_rates_live.mkt_vol_by_flow
+
+        db_rates_final = get_rates_from_db(
             supply_points_name=rates_config.final.rates_db.supply_points_name,
             site_region=rates_config.final.rates_db.site_specific.region,
             site_bands=rates_config.final.rates_db.site_specific.bands,
@@ -537,6 +539,7 @@ def _get_rates_from_config(
             customer_import_bundle_names=rates_config.final.rates_db.customer.import_bundles if rates_config.final.rates_db.customer is not None else [],
             customer_export_bundle_names=rates_config.final.rates_db.customer.export_bundles if rates_config.final.rates_db.customer is not None else [],
         )
+        parsed_rates.final_mkt_vol = db_rates_final.mkt_vol_by_flow
 
     else:   # Read rates from local YAML files...
         final_supply_points = parse_supply_points(

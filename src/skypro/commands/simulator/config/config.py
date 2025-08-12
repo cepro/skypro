@@ -221,7 +221,7 @@ class PriceCurveAlgo:
     Configures the price curve algorithm.
     """
     microgrid: Optional[Microgrid] = field_with_opts(key="microgrid")
-    peak: Peak = field_with_opts(key="peak")
+    peak: Optional[Peak] = field_with_opts(key="peak")
     niv_chase_periods: List[NivPeriod] = field_with_opts(key="nivChasePeriods")
 
 
