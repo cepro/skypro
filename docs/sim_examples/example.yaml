@@ -36,8 +36,8 @@ sandbox:
         csvProfile:
           dir: "docs/sim_examples/data/load"
 
-  finalRates: &finalRates
-    # This block configures the rates based on final Elexon imbalance data. In practice the Elexon imbalance data is
+  finalRatesDB: &finalRatesDB
+    # This block configures the rates from a database, based on final Elexon imbalance data. In practice the Elexon imbalance data is
     # available a few hours after the end of the settlement period.
     ratesDB:
       supplyPoints: "hmce"
@@ -55,8 +55,8 @@ sandbox:
         flowsMarketData:
           type: "elexon-imbalance-volume"
 
-  modoRates: &modoRates
-    # This block configures the rates based on predicted imbalance data from Modo. This data becomes available in the simulation
+  modoRatesDB: &modoRatesDB
+    # This block configures the rates, from a database, based on predicted imbalance data from Modo. This data becomes available in the simulation
     # at the time that in became available in the real world.
     ratesDB:
       supplyPoints: "hmce"
@@ -75,6 +75,40 @@ sandbox:
         flowsMarketData:
           type: "modo-imbalance-volume-forecast"
           isPredictive: true
+
+  ratesFiles: &ratesFiles
+    # This block configures the rates, from YAML files
+    supplyPointsConfigFile: "docs/sim_examples/data/rates/supply_points_a.yaml"
+    files:
+      solarToBatt: [ ]
+      gridToBatt:
+        - "docs/sim_examples/data/rates/supply_fees_import.yaml"
+        - "docs/sim_examples/data/rates/dno_fees_wpd_import.yaml"
+      battToGrid:
+        - "docs/sim_examples/data/rates/supply_fees_export.yaml"
+        - "docs/sim_examples/data/rates/dno_fees_wpd_export.yaml"
+      battToLoad: [ ]
+      solarToGrid:
+        - "docs/sim_examples/data/rates/supply_fees_export.yaml"
+        - "docs/sim_examples/data//rates/dno_fees_wpd_export.yaml"
+      gridToLoad:
+        - "docs/sim_examples/data/rates/supply_fees_import.yaml"
+        - "docs/sim_examples/data/rates/dno_fees_wpd_import.yaml"
+      solarToLoad: [ ]
+    imbalanceDataSource:
+      price:
+        csvTimeseries:
+          dir: "docs/sim_examples/data/elexon_imbalance_price/"
+      volume:
+        csvTimeseries:
+          dir: "docs/sim_examples/data/elexon_imbalance_volume/"
+    experimental:
+      marketFixedCostFiles:
+        all:
+          - "docs/sim_examples/data/rates/fixed_market_rates.yaml"
+      customerLoadFiles:
+        all:
+          - "docs/sim_examples/data/rates/customer_rates.yaml"
 
   solarShiftingAlgo: &solarShiftingAlgo
     # This configures the battery to 'avoid imports' (i.e. discharge into excess load) and 'avoid exports' (i.e. charge
@@ -197,8 +231,25 @@ simulations:
         blocks:
           maxAvgCyclesPerDay: 1.25
     rates:
-      live: *finalRates
-      final: *finalRates
+      live: *finalRatesDB
+      final: *finalRatesDB
+
+  lpOptWithFileBasedRates:
+    # As above, but taking rates from local YAML files
+    output: *output
+    timeFrame: *timeframe
+    site:
+      gridConnection: *gridConnection
+      bess: *bess
+      solar: *solar
+      load: *load
+    strategy:
+      perfectHindsightOptimiser:
+        blocks:
+          maxAvgCyclesPerDay: 1.25
+    rates:
+      live: *ratesFiles
+      final: *ratesFiles
 
   lpOptWithConstraintManagement:
     # This runs a scenario where the algorithm needs to do 'active constraint management' because the load power
@@ -217,8 +268,8 @@ simulations:
           doActiveExportConstraintManagement: true  # tell the LP optimiser to do constraint management
           doActiveImportConstraintManagement: true
     rates:
-      live: *finalRates
-      final: *finalRates
+      live: *finalRatesDB
+      final: *finalRatesDB
 
   solarShifting:
     # This runs a simple solar shifting algorithm, where excess solar power is stored in the battery and exported into
@@ -233,8 +284,8 @@ simulations:
     strategy:
       *solarShiftingAlgo
     rates:
-      live: *finalRates
-      final: *finalRates
+      live: *finalRatesDB
+      final: *finalRatesDB
 
   priceCurve:
     # This runs a strategy based on the price curve algorithm with 'peak approach' logic
@@ -248,8 +299,8 @@ simulations:
     strategy:
       *priceCurveAlgo
     rates:
-      live: *finalRates
-      final: *finalRates
+      live: *finalRatesDB
+      final: *finalRatesDB
 
   priceCurveWithModoRates:
     # Similar to above, but using Modo imbalance data. Final performance is gauged against the Elexon imbalance data.
@@ -263,8 +314,8 @@ simulations:
     strategy:
       *priceCurveAlgo
     rates:
-      live: *modoRates
-      final: *finalRates
+      live: *modoRatesDB
+      final: *finalRatesDB
 
 
 
