@@ -1,0 +1,245 @@
+configFormatVersion: "4.0.0"
+
+
+sandbox:
+  timeframe: &timeframe
+    start: "2025-03-01T00:00:00+00:00"
+    end: "2025-04-30T00:00:00+00:00"
+
+  gridConnection: &gridConnection
+    importLimit: 220
+    exportLimit: 490
+
+  energyCapacity: &energyCapacity 1280
+
+  bess: &bess
+    energyCapacity: *energyCapacity
+    nameplatePower: 565
+    chargeEfficiency: 0.85
+
+  solar: &solar
+    profile:
+      source:
+        csvProfile:
+          dir: "$SKYPRO_DIR/profiles/unscaled/hazelmead_actuals/solar"
+
+  load: &load
+    profile:
+      source:
+        csvProfile:
+          dir: "$SKYPRO_DIR/profiles/unscaled/hazelmead_actuals/load"
+
+  finalRates: &finalRates
+    # This block configures the rates based on final Elexon imbalance data. In practice the Elexon imbalance data is
+    # available a few hours after the end of the settlement period.
+    ratesDB:
+      supplyPoints: "hmce"
+      siteSpecific: # This block pulls all rates which apply to the south_west lv band AND the south_west lv4 band
+        region: "south_west"
+        bands: [ "lv4", "lv" ]
+      importBundles: [ "supplier_unify_ssp", "final_consumption_levies" ]
+      exportBundles: [ "supplier_statkraft_ssp" ]
+      futureOffset: "0y"  # Here you can specify to offset the rates by a number of years - allowing simulation of future rates.
+    imbalanceDataSource:
+      price:
+        flowsMarketData:
+          type: "elexon-imbalance-price"
+      volume:
+        flowsMarketData:
+          type: "elexon-imbalance-volume"
+
+  modoRates: &modoRates
+    # This block configures the rates based on predicted imbalance data from Modo. This data becomes available in the simulation
+    # at the time that in became available in the real world.
+    ratesDB:
+      supplyPoints: "hmce"
+      siteSpecific:
+        region: "south_west"
+        bands: [ "lv4", "lv" ]
+      importBundles: [ "supplier_unify_ssp", "final_consumption_levies" ]
+      exportBundles: [ "supplier_statkraft_ssp" ]
+      futureOffset: "0y"
+    imbalanceDataSource:
+      price:
+        flowsMarketData:
+          type: "modo-imbalance-price-forecast"
+          isPredictive: true
+      volume:
+        flowsMarketData:
+          type: "modo-imbalance-volume-forecast"
+          isPredictive: true
+
+  solarShiftingAlgo: &solarShiftingAlgo
+    # This configures the battery to 'avoid imports' (i.e. discharge into excess load) and 'avoid exports' (i.e. charge
+    # from excess solar). This is actually done as part of the price curve algorithm because it already contains all
+    # the necessary logic - the niv chasing is just disabled. In the future this could be made into a separate algorithm.
+    priceCurveAlgo:
+      microgrid:
+        localControl:
+          importAvoidance: true
+          exportAvoidance: true
+      nivChasePeriods:
+        # This defines NO niv chase periods are defined as we don't actually want to do any niv chasing in this case!
+        - period:
+            days: "all:Europe/London"
+            start: "00:00:00:Europe/London"
+            end: "23:59:59:Europe/London"
+          niv:
+            chargeCurve: []
+            dischargeCurve: []
+            curveShiftLong: 0
+            curveShiftShort: 0
+            volumeCutoffForPrediction: 0
+
+  priceCurveAlgo: &priceCurveAlgo
+    priceCurveAlgo:
+      microgrid:
+        localControl:
+          importAvoidance: false
+          exportAvoidance: false
+        imbalanceControl:
+          dischargeIntoLoadWhenShort: true
+          chargeFromSolarWhenLong: true
+          nivCutoffForSystemStateAssumption: 0
+      peak:
+        period:
+          days: "weekdays:Europe/London"
+          start: "17:00:00:Europe/London"
+          end: "19:00:00:Europe/London"
+        approach:
+          toSoe: 1100
+          encourageToSoe: 1200
+          assumedChargePower: 200
+          forceChargeDurationFactor: 1.25
+          encourageChargeDurationFactor: 2.5
+          chargeCushionMins: 120
+        dynamic:
+          prioritiseResidualLoad: true
+      nivChasePeriods:
+        - period:
+            days: "weekdays:Europe/London"
+            start: "00:00:00:Europe/London"
+            end: "23:59:59:Europe/London"
+          niv:
+            chargeCurve: [
+              { "x": -Infinity, "y": *energyCapacity },
+              { "x": 4, "y": *energyCapacity },
+              { "x": 6, "y": 1200 },
+              { "x": 12, "y": 0 }
+            ]
+            dischargeCurve: [
+              { "x": 8, "y": *energyCapacity },
+              { "x": 18, "y": 1200 },
+              { "x": 25, "y": 1200 },
+              { "x": 35, "y": 0 },
+              { "x": Infinity, "y": 0 }
+            ]
+            curveShiftLong: 4
+            curveShiftShort: 2
+            volumeCutoffForPrediction: 150000
+        - period:
+            days: "weekends:Europe/London"
+            start: "00:00:00:Europe/London"
+            end: "23:59:59:Europe/London"
+          niv:
+            chargeCurve: [
+              { "x": -Infinity, "y": *energyCapacity },
+              { "x": -2, "y": *energyCapacity },
+              { "x": 6, "y": 400 },
+              { "x": 12, "y": 0 }
+            ]
+            dischargeCurve: [
+              { "x": 8, "y": *energyCapacity },
+              { "x": 14, "y": 400 },
+              { "x": 35, "y": 100 },
+              { "x": Infinity, "y": 0 }
+            ]
+            curveShiftLong: 0
+            curveShiftShort: 0
+            volumeCutoffForPrediction: 150000
+
+  output: &output
+    summary:
+      csv: "docs/sim_examples/data/outputs/$_SIM_NAME_summary.csv"
+    simulation:
+      csv: "docs/sim_examples/data/outputs/$_SIM_NAME.csv"
+      aggregate: "30min"
+      rateDetail: "all"
+
+allSimulations:
+  output:
+    summary:
+      csv: "docs/sim_examples/data/outputs/example_1_all_sims.csv"
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - SIMULATIONS - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+simulations:
+
+  lpOpt:
+    # This runs a 'perfect hindsight linear programming optimiser'
+    output: *output
+    timeFrame: *timeframe
+    site:
+      gridConnection: *gridConnection
+      bess: *bess
+      solar: *solar
+      load: *load
+    strategy:
+      perfectHindsightOptimiser:
+        blocks:
+          maxAvgCyclesPerDay: 1.25
+          doActiveExportConstraintManagement: true
+          doActiveImportConstraintManagement: true
+    rates:
+      live: *finalRates
+      final: *finalRates
+
+  solarShifting:
+    # This runs a simple solar shifting algorithm, where excess solar power is stored in the battery and exported into
+    # any load overnight. The battery does no grid trading
+    output: *output
+    timeFrame: *timeframe
+    site:
+      gridConnection: *gridConnection
+      bess: *bess
+      solar: *solar
+      load: *load
+    strategy:
+      *solarShiftingAlgo
+    rates:
+      live: *finalRates
+      final: *finalRates
+
+  priceCurve:
+    # This runs a strategy based on the price curve algorithm with 'peak approach' logic
+    output: *output
+    timeFrame: *timeframe
+    site:
+      gridConnection: *gridConnection
+      bess: *bess
+      solar: *solar
+      load: *load
+    strategy:
+      *priceCurveAlgo
+    rates:
+      live: *finalRates
+      final: *finalRates
+
+  priceCurveWithModoRates:
+    # Similar to above, but using Modo imbalance data. Final performance is gauged against the Elexon imbalance data.
+    output: *output
+    timeFrame: *timeframe
+    site:
+      gridConnection: *gridConnection
+      bess: *bess
+      solar: *solar
+      load: *load
+    strategy:
+      *priceCurveAlgo
+    rates:
+      live: *modoRates
+      final: *finalRates
+
+
+
