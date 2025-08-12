@@ -3,8 +3,8 @@ configFormatVersion: "4.0.0"
 
 sandbox:
   timeframe: &timeframe
-    start: "2025-03-01T00:00:00+00:00"
-    end: "2025-04-30T00:00:00+00:00"
+    start: "2025-02-01T00:00:00+00:00"
+    end: "2025-03-31T00:00:00+00:00"
 
   gridConnection: &gridConnection
     importLimit: 220
@@ -21,13 +21,13 @@ sandbox:
     profile:
       source:
         csvProfile:
-          dir: "$SKYPRO_DIR/profiles/unscaled/hazelmead_actuals/solar"
+          dir: "docs/sim_examples/data/solar"
 
   load: &load
     profile:
       source:
         csvProfile:
-          dir: "$SKYPRO_DIR/profiles/unscaled/hazelmead_actuals/load"
+          dir: "docs/sim_examples/data/load"
 
   finalRates: &finalRates
     # This block configures the rates based on final Elexon imbalance data. In practice the Elexon imbalance data is

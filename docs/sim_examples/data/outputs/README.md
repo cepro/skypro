@@ -1,0 +1,1 @@
+This is where the output files from the examples will be put when Skypro is run.
