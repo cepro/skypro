@@ -29,6 +29,26 @@ sandbox:
         csvProfile:
           dir: "docs/sim_examples/data/load"
 
+  multipleTaggedLoads: &multipleTaggedLoads
+    # This block defines a load profile that is the aggregate of three different load profiles. In this example the same
+    # underlying data is used for each, just scaled differently.
+    profiles:
+      - tag: "ev"
+        scalingFactor: 0.3
+        source:
+          csvProfile:
+           dir: "docs/sim_examples/data/load"
+      - tag: "domestic"
+        scalingFactor: 0.7
+        source:
+          csvProfile:
+            dir: "docs/sim_examples/data/load"
+      - tag: "heat"
+        scalingFactor: 0.2
+        source:
+          csvProfile:
+            dir: "docs/sim_examples/data/load"
+
   loadBig: &loadBig
     profile:
       scalingFactor: 4.0 # Multiply up the load by 4x. Scaling can also be done in terms of kWp or number of plots.
@@ -226,6 +246,23 @@ simulations:
       bess: *bess
       solar: *solar
       load: *load
+    strategy:
+      perfectHindsightOptimiser:
+        blocks:
+          maxAvgCyclesPerDay: 1.25
+    rates:
+      live: *finalRatesDB
+      final: *finalRatesDB
+
+  lpOptWithTaggedLoads:
+    # As above, using tagged loads - run with the `--plot` option to see the profiles.
+    output: *output
+    timeFrame: *timeframe
+    site:
+      gridConnection: *gridConnection
+      bess: *bess
+      solar: *solar
+      load: *multipleTaggedLoads
     strategy:
       perfectHindsightOptimiser:
         blocks:
