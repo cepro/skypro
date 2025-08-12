@@ -29,6 +29,13 @@ sandbox:
         csvProfile:
           dir: "docs/sim_examples/data/load"
 
+  loadBig: &loadBig
+    profile:
+      scalingFactor: 4.0 # Multiply up the load by 4x. Scaling can also be done in terms of kWp or number of plots.
+      source:
+        csvProfile:
+          dir: "docs/sim_examples/data/load"
+
   finalRates: &finalRates
     # This block configures the rates based on final Elexon imbalance data. In practice the Elexon imbalance data is
     # available a few hours after the end of the settlement period.
@@ -189,7 +196,25 @@ simulations:
       perfectHindsightOptimiser:
         blocks:
           maxAvgCyclesPerDay: 1.25
-          doActiveExportConstraintManagement: true
+    rates:
+      live: *finalRates
+      final: *finalRates
+
+  lpOptWithConstraintManagement:
+    # This runs a scenario where the algorithm needs to do 'active constraint management' because the load power
+    # exceeds the grid connection import capacity.
+    output: *output
+    timeFrame: *timeframe
+    site:
+      gridConnection: *gridConnection
+      bess: *bess
+      solar: *solar
+      load: *loadBig
+    strategy:
+      perfectHindsightOptimiser:
+        blocks:
+          maxAvgCyclesPerDay: 1.25
+          doActiveExportConstraintManagement: true  # tell the LP optimiser to do constraint management
           doActiveImportConstraintManagement: true
     rates:
       live: *finalRates
