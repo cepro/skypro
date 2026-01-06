@@ -35,16 +35,22 @@ The structure of this file should be as follows:
     "flows": {
       "dbUrl": "url-with-credentials-for-the-flows-database"
     },
+    "flux": {
+      "dbUrl": "url-with-credentials-for-the-flux-database",
+      "schema": "flux"
+    },
     "rates": {
       "dbUrl": "url-with-credentials-for-the-rates-database"
     }
 }
 ```
 The `vars` section allows you to define arbitrary variables that are resolved in configuration file paths.
-For example, if you're configuring a simulation run and all the load profiles are in a certain directory, then you could configure a variable like `"PROFILE_DIR": "~/myprofiles"`, and then 
+For example, if you're configuring a simulation run and all the load profiles are in a certain directory, then you could configure a variable like `"PROFILE_DIR": "~/myprofiles"`, and then
 anywhere you use `$PROFILE_DIR` in the configuration it will be resolved appropriately.
 
-The `flows` section configures how to access the Flows database - this is only used if Skypro is configured to pull data from the Flows database.
+The `flows` section configures how to access the Flows database - this is only used if Skypro is configured to pull data from the Flows database (e.g., plot meter readings).
+
+The `flux` section (added in v2.0.0) configures how to access the Flux database - this is used for meter readings, BESS readings, and market data. The optional `schema` field defaults to "flux". For legacy databases where all data is in the `flows` schema, set `"schema": "flows"`.
 
 The `rates` section configures how to access the Rates database - this is only used if Skypro is configured to pull data from a Rates database.
 

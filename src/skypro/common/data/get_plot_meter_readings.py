@@ -16,7 +16,8 @@ def get_plot_meter_readings(
         end: Optional[datetime],
         file_path_resolver_func: Optional[Callable],
         db_engine: Optional,
-        context: Optional[str],
+        schema: str = "flows",
+        context: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, List[Notice]]:
     """
     This reads a data source - either CSVs from disk or directly from a database - and returns plot-level meter readings in a dataframe alongside a list of warnings.
@@ -34,7 +35,8 @@ def get_plot_meter_readings(
             source=source.flows_plot_meter_readings_data_source,
             start=start,
             end=end,
-            db_engine=db_engine
+            db_engine=db_engine,
+            schema=schema
         )
     elif source.csv_plot_meter_readings_data_source:
         df = _get_csv_plot_meter_readings(
@@ -53,7 +55,8 @@ def _get_flows_plot_meter_readings(
         source: FlowsPlotMeterReadingsDataSource,
         start: datetime,
         end: datetime,
-        db_engine
+        db_engine,
+        schema: str = "flows",
 ) -> pd.DataFrame:
     """
     Reads Emlite plot meter readings from the flows database that are on the given feeders.
@@ -68,12 +71,12 @@ def _get_flows_plot_meter_readings(
         "mr.register_id as register_id, "
         "mr2.nature as nature, "
         "rih.kwh AS kwh "
-        "FROM flows.register_interval_hh rih "
-        "JOIN flows.meter_registers mr ON mr.register_id = rih.register_id "
-        "JOIN flows.meter_registers mr2 on mr.register_id = mr2.register_id "
-        "JOIN flows.service_head_meter shm on shm.meter = mr2.meter_id "
-        "JOIN flows.service_head_registry shr on shr.id = shm.service_head "
-        "JOIN flows.feeder_registry fr on fr.id = shr.feeder "
+        f"FROM {schema}.register_interval_hh rih "
+        f"JOIN {schema}.meter_registers mr ON mr.register_id = rih.register_id "
+        f"JOIN {schema}.meter_registers mr2 on mr.register_id = mr2.register_id "
+        f"JOIN {schema}.service_head_meter shm on shm.meter = mr2.meter_id "
+        f"JOIN {schema}.service_head_registry shr on shr.id = shm.service_head "
+        f"JOIN {schema}.feeder_registry fr on fr.id = shr.feeder "
         f"WHERE rih.timestamp >= '{start.isoformat()}' "
         f"AND rih.timestamp < '{end.isoformat()}' "
         f"AND fr.id = ANY(ARRAY[{feeder_id_list_str}]) "

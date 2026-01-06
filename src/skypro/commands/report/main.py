@@ -4,6 +4,20 @@ from dataclasses import dataclass
 from datetime import timedelta, datetime
 from typing import Optional, Callable, List, Dict
 
+
+def get_db_url(env_var_name: str, env_config: dict, config_key: str) -> str:
+    """Get DB URL from environment variable, falling back to env.json config."""
+    url = os.environ.get(env_var_name)
+    if url:
+        return url
+    return env_config[config_key]["dbUrl"]
+
+
+def get_schema_name(env_config: dict, config_key: str, default: str) -> str:
+    """Get schema name from env config, with a default fallback."""
+    config_section = env_config.get(config_key, {})
+    return config_section.get("schema", default)
+
 import numpy as np
 import pandas as pd
 
@@ -104,8 +118,11 @@ def report_cli(
     # Run the actual reporting logic
     result = report(
         config=config,
-        flows_db_url=env_config["flows"]["dbUrl"],
-        rates_db_url=env_config["rates"]["dbUrl"],
+        flows_db_url=get_db_url("FLOWS_DB_URL", env_config, "flows"),
+        rates_db_url=get_db_url("RATES_DB_URL", env_config, "rates"),
+        flux_db_url=get_db_url("FLUX_DB_URL", env_config, "flux"),
+        flows_schema=get_schema_name(env_config, "flows", default="flows"),
+        flux_schema=get_schema_name(env_config, "flux", default="flux"),
         start=start,
         end=end,
         step_size=step_size,
@@ -179,6 +196,9 @@ def report(
     config: Config,
     flows_db_url: str,
     rates_db_url: str,
+    flux_db_url: str,
+    flows_schema: str,
+    flux_schema: str,
     start: datetime,
     end: datetime,
     step_size: timedelta,
@@ -201,12 +221,14 @@ def report(
         file_path_resolver_func=file_path_resolver_func,
         flows_db_engine=flows_db_url,
         rates_db_engine=rates_db_url,
+        flux_db_engine=flux_db_url,
+        flux_schema=flux_schema,
     )
     notices.extend(new_notices)
 
     _log_rates_to_screen(rates, time_index)
 
-    readings, new_notices = get_readings(config, time_index, flows_db_url, file_path_resolver_func)
+    readings, new_notices = get_readings(config, time_index, flows_db_url, flux_db_url, flows_schema, flux_schema, file_path_resolver_func)
     notices.extend(new_notices)
 
     df, new_notices = calc_flows(

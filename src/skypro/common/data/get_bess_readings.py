@@ -15,7 +15,8 @@ def get_bess_readings(
         end: Optional[datetime],
         file_path_resolver_func: Optional[Callable],
         db_engine: Optional,
-        context: Optional[str],
+        schema: str = "flux",
+        context: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, List[Notice]]:
     """
     This reads a data source - either CSVs from disk or directly from a database - and returns BESS readings in a dataframe alongside a list of warnings.
@@ -33,7 +34,8 @@ def get_bess_readings(
             source=source.flows_bess_readings_data_source,
             start=start,
             end=end,
-            db_engine=db_engine
+            db_engine=db_engine,
+            schema=schema
         )
     elif source.csv_bess_readings_data_source:
         df = _get_csv_bess_readings(
@@ -52,7 +54,8 @@ def _get_flows_bess_readings(
         source: FlowsBessReadingsDataSource,
         start: datetime,
         end: datetime,
-        db_engine
+        db_engine,
+        schema: str = "flux"
 ) -> pd.DataFrame:
     """
     Pulls readings about the identified BESS from the mg_bess_readings table.
@@ -60,7 +63,7 @@ def _get_flows_bess_readings(
 
     query = (
         f"SELECT time_b, device_id, soe_avg, target_power_avg "
-        "FROM flows.mg_bess_readings_30m WHERE "
+        f"FROM {schema}.mg_bess_readings_30m WHERE "
         f"time_b >= '{start.isoformat()}' AND "
         f"time_b < '{end.isoformat()}' AND "
         f"device_id = '{source.bess_id}' "
