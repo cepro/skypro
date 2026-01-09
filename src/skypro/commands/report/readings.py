@@ -25,7 +25,7 @@ class AllReadings:
     plot_meter: pd.DataFrame
 
 
-def get_readings(config, time_index, flows_db_url, file_path_resolver_func) -> Tuple[AllReadings, List[Notice]]:
+def get_readings(config, time_index, flows_db_url, flux_db_url, flows_schema, flux_schema, file_path_resolver_func) -> Tuple[AllReadings, List[Notice]]:
     """
     Pulls in the various meter and BESS readings (these will be resolved either from DB or local CSV files)
     """
@@ -39,7 +39,8 @@ def get_readings(config, time_index, flows_db_url, file_path_resolver_func) -> T
             start=time_index[0],
             end=time_index[-1],
             file_path_resolver_func=file_path_resolver_func,
-            db_engine=flows_db_url,
+            db_engine=flux_db_url,  # Meter readings function is in flux schema
+            schema=flux_schema,
             context=context
         )
         notices.extend(new_notices_2)
@@ -61,6 +62,7 @@ def get_readings(config, time_index, flows_db_url, file_path_resolver_func) -> T
         end=time_index[-1],
         file_path_resolver_func=file_path_resolver_func,
         db_engine=flows_db_url,
+        schema=flows_schema,
         context="plot meter readings"
     )
     notices.extend(new_notices)
@@ -71,7 +73,8 @@ def get_readings(config, time_index, flows_db_url, file_path_resolver_func) -> T
         start=time_index[0],
         end=time_index[-1],
         file_path_resolver_func=file_path_resolver_func,
-        db_engine=flows_db_url,
+        db_engine=flux_db_url,  # BESS readings are in flux schema
+        schema=flux_schema,
         context="bess readings"
     )
     notices.extend(new_notices)

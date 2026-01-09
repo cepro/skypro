@@ -32,6 +32,8 @@ def get_rates_from_config(
         file_path_resolver_func: Callable,
         flows_db_engine,
         rates_db_engine,
+        flux_db_engine,
+        flux_schema: str = "flux",
 ) -> Tuple[ParsedRates, List[Notice]]:
     """
     This reads the rates configuration block and returns the ParsedRates, and a list of Notices if there are issues with data quality.
@@ -46,7 +48,8 @@ def get_rates_from_config(
         start=time_index[0],
         end=time_index[-1],
         file_path_resolver_func=file_path_resolver_func,
-        db_engine=flows_db_engine,
+        db_engine=flux_db_engine,  # Market data is in flux schema
+        schema=flux_schema,
         context="elexon imbalance data"
     )
     notices.extend(new_notices)

@@ -14,7 +14,8 @@ def get_timeseries(
         end: Optional[datetime],
         file_path_resolver_func: Optional[Callable],
         db_engine: Optional,
-        context: Optional[str],
+        schema: str = "flux",
+        context: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, List[Notice]]:
     """
     This reads a data source - either from the flows database or CSV files - and returns a generic time series
@@ -25,7 +26,8 @@ def get_timeseries(
             source=source.flows_market_data_source,
             start=start,
             end=end,
-            db_engine=db_engine
+            db_engine=db_engine,
+            schema=schema
         )
     elif source.csv_timeseries_data_source:
         df = _get_csv_timeseries(
@@ -44,7 +46,8 @@ def _get_flows_market_data(
         source: FlowsMarketDataSource,
         start: datetime,
         end: datetime,
-        db_engine
+        db_engine,
+        schema: str = "flux"
 ) -> pd.DataFrame:
     """
     Reads data of the given type from the market_data flows table. The returned dataframe will have columns for:
@@ -64,8 +67,8 @@ def _get_flows_market_data(
         # If the data is 'predictive' then we need to pull not just the latest values, but all the updates that happened
         # along the way.
         query = (
-            "SELECT time, created_at, value FROM flows.market_data "
-            "JOIN flows.market_data_types on market_data.type = market_data_types.id "
+            f"SELECT time, created_at, value FROM {schema}.market_data "
+            f"JOIN {schema}.market_data_types on market_data.type = market_data_types.id "
             f"WHERE "
             f"  time >= '{start.isoformat()}' AND "
             f"  time <= '{end.isoformat()}' AND "
@@ -77,8 +80,8 @@ def _get_flows_market_data(
         # SELECT DISTINCT ON clause.
         query = (
             " WITH data AS ( "
-            "   SELECT time, created_at, value FROM flows.market_data "
-            "   JOIN flows.market_data_types on market_data.type = market_data_types.id "
+            f"   SELECT time, created_at, value FROM {schema}.market_data "
+            f"   JOIN {schema}.market_data_types on market_data.type = market_data_types.id "
             f"  WHERE "
             f"    time >= '{start.isoformat()}' AND "
             f"    time <= '{end.isoformat()}' AND "

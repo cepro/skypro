@@ -15,7 +15,8 @@ def get_meter_readings(
         end: Optional[datetime],
         file_path_resolver_func: Optional[Callable],
         db_engine: Optional,
-        context: Optional[str],
+        schema: str = "flux",
+        context: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, List[Notice]]:
     """
     This reads a data source - either CSVs from disk or directly from a database - and returns meter readings in a dataframe alongside a list of warnings.
@@ -33,7 +34,8 @@ def get_meter_readings(
             source=source.flows_meter_readings_data_source,
             start=start,
             end=end,
-            db_engine=db_engine
+            db_engine=db_engine,
+            schema=schema
         )
     elif source.csv_meter_readings_data_source:
         df = _get_csv_meter_readings(
@@ -53,6 +55,7 @@ def _get_flows_meter_readings(
         start: datetime,
         end: datetime,
         db_engine,
+        schema: str = "flux",
 ) -> pd.DataFrame:
     """
     Pulls readings about the identified meter from the mg_meter_readings table.
@@ -60,7 +63,7 @@ def _get_flows_meter_readings(
     query = (
         f"SELECT time_b, device_id, energy_imported_active_delta, energy_exported_active_delta, "
         "energy_imported_active_min, energy_exported_active_min "
-        f"FROM get_meter_readings_5m(start_time => '{start.isoformat()}'::timestamptz, end_time => '{end.isoformat()}'::timestamptz, device_ids => ARRAY['{source.meter_id}'::uuid]) "
+        f"FROM {schema}.get_meter_readings_5m(start_time => '{start.isoformat()}'::timestamptz, end_time => '{end.isoformat()}'::timestamptz, device_ids => ARRAY['{source.meter_id}'::uuid]) "
         f"order by time_b"
     )
     df = pd.read_sql(query, con=db_engine)

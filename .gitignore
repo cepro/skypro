@@ -121,6 +121,8 @@ celerybeat.pid
 
 # Environments
 .env
+local.env
+local.*.env.json
 .venv
 env/
 venv/
@@ -170,3 +172,9 @@ simulation_output.csv
 simulation_output_summary.csv
 reporting_output_summary.csv
 docs/sim_examples/data/outputs
+
+# Database integration tests (contains env-specific outputs)
+dbtests/
+
+# Claude Code
+.claude/
