@@ -327,17 +327,36 @@ def apply_aggregation_functions(df: pd.DataFrame, agg_rules: Dict) -> pd.DataFra
     return result_df
 
 
-def safe_average(a, weights=None):
+def safe_average(a, weights=None, nan_threshold=0.05):
     """
-    Wraps np.average and handles the case where weights sum to zero by returning NaN (np.average throws an exception)
+    Wraps np.average and handles:
+    - NaN values in the input (excluded if below threshold, otherwise returns NaN)
+    - Weights that sum to zero (returns 0.0 instead of raising exception)
+
+    Args:
+        nan_threshold: Maximum fraction of NaN values allowed (default 5%).
+                       If exceeded, returns NaN to indicate unreliable result.
     """
+    a = np.array(a)
+    nan_count = np.isnan(a).sum()
+    nan_fraction = nan_count / len(a) if len(a) > 0 else 0
 
-    if weights is not None and np.sum(weights) == 0:
-        ret_val = 0.0
-    else:
-        ret_val = np.average(a, weights=weights)
+    if nan_fraction > nan_threshold:
+        return np.nan  # Too much missing data - result would be unreliable
 
-    return ret_val
+    mask = ~np.isnan(a)
+
+    if weights is not None:
+        weights = np.array(weights)[mask]
+        if np.sum(weights) == 0:
+            return 0.0
+
+    a = a[mask]
+
+    if len(a) == 0:
+        return np.nan
+
+    return np.average(a, weights=weights)
 
 
 def ensure_consistent_value_across_aggregation_window(df: pd.DataFrame, rows_per_agg_window: int):
