@@ -5,6 +5,27 @@ import numpy as np
 import pandas as pd
 
 
+def safe_sum(df: pd.DataFrame, nan_threshold: float = 0.05) -> float:
+    """
+    Sum all values in a DataFrame, handling NaN with a threshold.
+
+    If more than nan_threshold fraction of values are NaN, returns NaN.
+    Otherwise, sums only the valid values.
+
+    Args:
+        nan_threshold: Maximum fraction of NaN values allowed (default 5%).
+                       If exceeded, returns NaN to indicate unreliable result.
+    """
+    flat = df.values.flatten()
+    nan_count = np.isnan(flat).sum()
+    nan_fraction = nan_count / len(flat) if len(flat) > 0 else 0
+
+    if nan_fraction > nan_threshold:
+        return np.nan  # Too much missing data
+
+    return np.nansum(flat)
+
+
 @dataclass
 class MicrogridBreakdown:
     """Summarises key info about a microgrid."""
@@ -129,12 +150,12 @@ def breakdown_microgrid_flows(
         if np.isnan(result.total_flows[flow_name]):
             result.total_int_vol_costs[flow_name] = np.nan
         else:
-            result.total_int_vol_costs[flow_name] = cost_df.sum(skipna=False).sum(skipna=False)
+            result.total_int_vol_costs[flow_name] = safe_sum(cost_df)
     for flow_name, cost_df in result.mkt_vol_costs_dfs.items():
         if np.isnan(result.total_flows[flow_name]):
             result.total_mkt_vol_costs[flow_name] = np.nan
         else:
-            result.total_mkt_vol_costs[flow_name] = cost_df.sum(skipna=False).sum(skipna=False)
+            result.total_mkt_vol_costs[flow_name] = safe_sum(cost_df)
 
     result.total_int_bess_gain = - result.total_int_vol_costs["bess_discharge"] - result.total_int_vol_costs["bess_charge"]
 
