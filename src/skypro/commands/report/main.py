@@ -4,20 +4,6 @@ from dataclasses import dataclass
 from datetime import timedelta, datetime
 from typing import Optional, Callable, List, Dict
 
-
-def get_db_url(env_var_name: str, env_config: dict, config_key: str) -> str:
-    """Get DB URL from environment variable, falling back to env.json config."""
-    url = os.environ.get(env_var_name)
-    if url:
-        return url
-    return env_config[config_key]["dbUrl"]
-
-
-def get_schema_name(env_config: dict, config_key: str, default: str) -> str:
-    """Get schema name from env config, with a default fallback."""
-    config_section = env_config.get(config_key, {})
-    return config_section.get("schema", default)
-
 import numpy as np
 import pandas as pd
 
@@ -45,6 +31,20 @@ from skypro.commands.report.rates import get_rates_from_config
 from skypro.commands.report.warnings import missing_data_warnings, energy_discrepancy_warnings
 
 TIMEZONE_STR = "Europe/London"
+
+
+def get_db_url(env_var_name: str, env_config: dict, config_key: str) -> str:
+    """Get DB URL from environment variable, falling back to env.json config."""
+    url = os.environ.get(env_var_name)
+    if url:
+        return url
+    return env_config[config_key]["dbUrl"]
+
+
+def get_schema_name(env_config: dict, config_key: str, default: str) -> str:
+    """Get schema name from env config, with a default fallback."""
+    config_section = env_config.get(config_key, {})
+    return config_section.get("schema", default)
 
 
 @dataclass
