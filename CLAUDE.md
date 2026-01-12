@@ -113,3 +113,19 @@ On-site Allocation Methodology for calculating final demand levies. Runs in para
 ## Dependencies
 
 pandas, plotly, pulp, pendulum, sqlalchemy, psycopg2-binary, marshmallow, pyyaml
+
+## Merge Log
+
+| Date | PR | Branch | Summary |
+|------|-----|--------|---------|
+| 2026-01-12 | - | main | License changed from AGPL-3.0 to MIT |
+| 2026-01-09 | #59 | bugfix/nan-threshold-aggregation | Fix NaN propagation in rate averages and cost totals (v2.0.1) |
+| 2026-01-09 | #58 | feature/flux-schema-support | Flux/flows schema separation for DB queries (v2.0.0) |
+| 2025-08-12 | #50 | example-configs | Self-contained example configs, peak config toggle |
+| 2025-08-07 | #49 | load-discrepancy-include-ev | Include EV load in totals, load energy breakdown in CSV |
+| 2025-08-07 | #48 | remove-streamlit-app | Revert streamlit removal, add deprecated warning |
+| 2025-08-05 | #47 | remove-streamlit-app | Remove streamlit webapp (later reverted) |
+| 2025-08-05 | #46 | customer-rates-from-db | Customer rates from database (v1.1.0) |
+| 2025-06-11 | #44 | open-source-preparation | Merge simt-common into repo, anonymise profiles, add tests |
+| 2025-06-04 | #42 | open-source-review | Code cleanup, drop spread algo, improve comments |
+| 2025-05-15 | #41 | rates-db | Rates database support, site-specific rates (v0.19.0) |
