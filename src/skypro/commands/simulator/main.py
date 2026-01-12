@@ -28,8 +28,10 @@ from skypro.common.timeutils.timeseries import get_step_size
 from tabulate import tabulate
 
 from skypro.common.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings, get_user_ack_of_warning_or_exit
+from skypro.commands.simulator.algorithms.base import StrategyContext
 from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
 from skypro.commands.simulator.algorithms.price_curve.algo import PriceCurveAlgo
+from skypro.commands.simulator.algorithms.registry import get_strategy, list_strategies
 from skypro.commands.simulator.config.parse_config import parse_config
 from skypro.commands.simulator.config.config import Config, SimulationCase, AllRates, SolarOrLoad
 from skypro.commands.simulator.microgrid import calculate_microgrid_flows
@@ -178,6 +180,38 @@ def _run_one_simulation(
             df=df[cols_to_share_with_algo],
         )
         df_algo = opt.run()
+    elif sim_config.strategy.extension:
+        # Extension strategy loaded from external package via entry points
+        ext_config = sim_config.strategy.extension
+        strategy_class = get_strategy(ext_config.name)
+        if strategy_class is None:
+            available = list_strategies()
+            available_str = ", ".join(available) if available else "none"
+            raise ValueError(
+                f"Extension strategy '{ext_config.name}' not found. "
+                f"Available strategies: {available_str}. "
+                f"Make sure the extension package is installed."
+            )
+
+        cols_to_share_with_algo = [
+            "solar",
+            "load",
+            "time_into_sp",
+            "microgrid_residual_power",
+            "bess_max_power_charge",
+            "bess_max_power_discharge",
+            "bess_max_charge",
+            "bess_max_discharge",
+        ]
+        context = StrategyContext(
+            df=df[cols_to_share_with_algo],
+            bess_energy_capacity=sim_config.site.bess.energy_capacity,
+            bess_nameplate_power=sim_config.site.bess.nameplate_power,
+            bess_charge_efficiency=sim_config.site.bess.charge_efficiency,
+            license_file=ext_config.license_file,
+        )
+        strategy = strategy_class(context=context, config=ext_config.config or {})
+        df_algo = strategy.run()
     else:
         raise ValueError("Unknown algorithm chosen")
 

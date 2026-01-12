@@ -263,15 +263,28 @@ class Optimiser:
 
 
 @dataclass
+class ExtensionStrategy:
+    """
+    Configures an extension strategy loaded from an external package.
+    Extension strategies are discovered via Python entry points in the 'skypro.strategies' group.
+    """
+    name: str  # Name of the strategy (must match entry point name)
+    license_file: Optional[str] = field_with_opts(key="licenseFile")  # Path to license file for premium strategies
+    config: Optional[Dict] = None  # Strategy-specific configuration
+
+
+@dataclass
 class Strategy:
     """
-    Configures which optimisation strategy to use for a simulation - at the moment either the price curve algo or the perfect hindsight optimiser.
+    Configures which optimisation strategy to use for a simulation.
+    Options: priceCurveAlgo, perfectHindsightOptimiser, or extension (for premium/external strategies).
     """
     price_curve_algo: Optional[PriceCurveAlgo] = field_with_opts(key="priceCurveAlgo")
     optimiser: Optional[Optimiser] = field_with_opts(key="perfectHindsightOptimiser")
+    extension: Optional[ExtensionStrategy] = field_with_opts(key="extension")
 
     def __post_init__(self):
-        enforce_one_option([self.price_curve_algo, self.optimiser], "'priceCurveAlgo', 'perfectHindsightOptimiser'")
+        enforce_one_option([self.price_curve_algo, self.optimiser, self.extension], "'priceCurveAlgo', 'perfectHindsightOptimiser', 'extension'")
 
 
 @dataclass
