@@ -1,6 +1,6 @@
 # Skypro Codebase
 
-Python CLI for microgrid simulation and reporting. Published to test.pypi.org.
+Python CLI for microgrid simulation and reporting. Published to pypi.org.
 
 ## Project Structure
 
@@ -82,7 +82,7 @@ Key sections:
 
 ### Install
 ```bash
-pip install --upgrade --extra-index-url https://test.pypi.org/simple/ skypro
+pip install --upgrade skypro
 ```
 
 ### Run Tests
@@ -93,7 +93,7 @@ PYTHONPATH=src python -m unittest discover --start-directory src
 ### Publish
 1. Update version in `pyproject.toml`
 2. `poetry build`
-3. `poetry publish -r test-pypi`
+3. `poetry publish`
 
 ## Key Concepts
 

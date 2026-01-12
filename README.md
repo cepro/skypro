@@ -57,8 +57,9 @@ The `rates` section configures how to access the Rates database - this is only u
 
 ## Installation
 
-To install from test.pypi:
-- `pip3 install --upgrade --extra-index-url https://test.pypi.org/simple/ skypro`
+```bash
+pip install --upgrade skypro
+```
 
 
 ## Development
@@ -69,14 +70,28 @@ To run the tests: `PYTHONPATH=src python -m unittest discover  --start-directory
 Some of the tests akin to integration tests which run a whole simulation and check the results.
 To run an individual integration test directly: `simulate --env src/tests/integration/fixtures/env.json --config src/tests/integration/fixtures/config.yaml -y --sim integrationTestPerfectHindsightLP`
 
-### Publishing
-To publish the repository to test.pypi:
+### Publishing to PyPI
+To publish a release to PyPI:
 1. Make your code changes
 2. Update the semver version number in `pyproject.toml`
 3. Commit to git and push
 4. Run `poetry build` and observe the new version number
-5. Run `poetry publish -r test-pypi` to publish
+5. Run `poetry publish` to publish
 
-If this is your first time publishing to test.pypi then you will also need to do the following steps before publishing:
+If this is your first time publishing then configure your PyPI token:
+`poetry config pypi-token.pypi pypi-YYYYYYYY` using an API token from your account on pypi.org.
+
+### Publishing feature branches to Test PyPI
+To publish a feature branch for testing before merging:
+1. Update version in `pyproject.toml` with a pre-release suffix (e.g., `2.1.0a1`)
+2. Run `poetry build`
+3. Run `poetry publish -r test-pypi` to publish
+
+Users can install test versions with:
+```bash
+pip install --extra-index-url https://test.pypi.org/simple/ skypro==2.1.0a1
+```
+
+First-time Test PyPI setup:
 1. `poetry config repositories.test-pypi https://test.pypi.org/legacy/`
-2. `poetry config pypi-token.test-pypi  pypi-YYYYYYYY` using an API token from your account on the test.pypi website.
+2. `poetry config pypi-token.test-pypi pypi-YYYYYYYY` using a token from test.pypi.org.
