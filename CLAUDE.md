@@ -80,6 +80,8 @@ Key sections:
 
 ## Development
 
+**IMPORTANT:** Always ask the user before pushing commits to the `main` branch on GitHub.
+
 ### Install
 ```bash
 pip install --upgrade skypro
