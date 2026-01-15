@@ -90,10 +90,30 @@ pip install --upgrade skypro
 PYTHONPATH=src python -m unittest discover --start-directory src
 ```
 
-### Publish
-1. Update version in `pyproject.toml`
-2. `poetry build`
-3. `poetry publish`
+### Publish to PyPI
+
+**Credentials:** Store PyPI API token in `~/.simt/pypi.token` (one line, token only).
+
+Generate token at: https://pypi.org/manage/account/token/
+
+```bash
+# 1. Update version in pyproject.toml
+# 2. Build
+python -m build
+
+# 3. Publish (reads token from ~/.simt/pypi.token)
+TWINE_USERNAME=__token__ TWINE_PASSWORD=$(cat ~/.simt/pypi.token) python -m twine upload dist/*
+
+# Or use uv:
+uv publish dist/* --token $(cat ~/.simt/pypi.token)
+```
+
+**Test PyPI** (for feature branches):
+```bash
+# Token from https://test.pypi.org/manage/account/token/
+# Store in ~/.simt/testpypi.token
+TWINE_USERNAME=__token__ TWINE_PASSWORD=$(cat ~/.simt/testpypi.token) python -m twine upload --repository testpypi dist/*
+```
 
 ## Key Concepts
 
