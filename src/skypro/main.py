@@ -16,7 +16,6 @@ def main():
     logging.basicConfig(level=logging.INFO)  # Set to logging.INFO for non-debug mode
 
     version = importlib.metadata.version('skypro')
-    logging.info(f"Skypro version {version}")
 
     # Create a dictionary of commands, mapping to their python function
     commands = {
@@ -26,6 +25,11 @@ def main():
     }
 
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--version', '-V',
+        action='version',
+        version=f'skypro {version}'
+    )
     subparsers = parser.add_subparsers(dest='subparser')
 
     parser_simulate = subparsers.add_parser('simulate')
