@@ -86,6 +86,7 @@ def report_cli(
         skip_cli_warnings: bool,
         output_file_path: Optional[str] = None,
         summary_output_file_path: Optional[str] = None,
+        rate_detail: Optional[str] = None,
 ):
     """
     CLI interface onto the reporting functionality.
@@ -107,6 +108,9 @@ def report_cli(
 
     # Read in the main config file
     config = parse_config(config_file_path, env_vars=env_vars)
+
+    # Resolve rate_detail: CLI flag takes precedence over config value
+    effective_rate_detail = rate_detail or getattr(config.reporting, 'rate_detail', None)
 
     # Reporting is run with 5 minute granularity, and the CLI interface specifies whole months.
     # 5 minutely data is best as the BESS strategy can change quite a lot within the half-hour, as it reacts to
@@ -152,7 +156,7 @@ def report_cli(
             customer_vol_rates_dfs=result.customer_vol_rates_dfs,
             load_energy_breakdown_df=load_energy_breakdown_df,
             aggregate_timebase="30min",
-            rate_detail=None,
+            rate_detail=effective_rate_detail,
             config_entries=[],
         ).to_csv(
             output_file_path,
@@ -172,7 +176,7 @@ def report_cli(
             customer_vol_rates_dfs=result.customer_vol_rates_dfs,
             load_energy_breakdown_df=load_energy_breakdown_df,
             aggregate_timebase="all",
-            rate_detail=None,
+            rate_detail=effective_rate_detail,
             config_entries=[],
         ).to_csv(
             summary_output_file_path,

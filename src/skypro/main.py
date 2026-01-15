@@ -100,6 +100,13 @@ def main():
         action="store_true",
         help='If specified, command line warnings will be auto-accepted.'
     )
+    parser_report.add_argument(
+        '--rate-detail',
+        dest='rate_detail',
+        default=None,
+        help="Rate detail level for output: 'all' for individual rate components (e.g., duosRed, imbalance), "
+             "or comma-separated list of specific rates. Overrides config file value."
+    )
     add_env_file_arg(parser_report)
 
     parser_pull_elexon_imbalance = subparsers.add_parser('pull-elexon-imbalance')

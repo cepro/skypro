@@ -112,6 +112,7 @@ class Reporting:
     bill_match: BillMatch = field_with_opts(key="billMatch")
     profiles_save_dir: PathType = field_with_opts(key="profilesSaveDir")  # Optionally save out the load and solar profiles to disk (useful for running simulations with actual solar and load profiles).
     rates: Rates
+    rate_detail: Optional[str] = field_with_opts(key="rateDetail", default=None)  # Rate detail level: 'all' for individual rate components, or comma-separated list
 
 
 @dataclass
