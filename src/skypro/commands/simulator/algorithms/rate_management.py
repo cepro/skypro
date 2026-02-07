@@ -68,7 +68,7 @@ def add_total_vol_rates_to_df(
     df: pd.DataFrame,
     index_to_add_for: pd.DatetimeIndex,
     mkt_vol_rates: VolRatesForEnergyFlows,
-    live_or_final: str,
+    live_or_final_tag: str,
 ) -> pd.DataFrame:
     """
     Adds the total market and internal p/kWh rates for each flow to the dataframe for the period specified by
@@ -86,9 +86,9 @@ def add_total_vol_rates_to_df(
 
     # Then we sum up the individual rates to create a total for each flow
     for set_name, vol_rates_df in mkt_vol_rates_dfs.items():
-        df.loc[index_to_add_for, f"mkt_vol_rate_{live_or_final}_{set_name}"] = vol_rates_df.sum(axis=1, skipna=False)
+        df.loc[index_to_add_for, f"mkt_vol_rate{live_or_final_tag}_{set_name}"] = vol_rates_df.sum(axis=1, skipna=False)
     for set_name, vol_rates_df in int_vol_rates_dfs.items():
-        df.loc[index_to_add_for, f"int_vol_rate_{live_or_final}_{set_name}"] = vol_rates_df.sum(axis=1, skipna=False)
+        df.loc[index_to_add_for, f"int_vol_rate{live_or_final_tag}_{set_name}"] = vol_rates_df.sum(axis=1, skipna=False)
 
     return df
 
