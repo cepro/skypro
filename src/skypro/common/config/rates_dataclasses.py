@@ -55,6 +55,12 @@ class RatesFiles:
     solar_to_load: List[PathType] = field_with_opts(key="solarToLoad")
     grid_to_load: List[PathType] = field_with_opts(key="gridToLoad")
 
+    # Remote solar flows - used when a `remoteSite` is configured on the simulation. Optional so
+    # existing configs (without remote solar) keep working.
+    remote_solar_to_load: Optional[List[PathType]] = field_with_opts(key="remoteSolarToLoad")
+    remote_solar_to_batt: Optional[List[PathType]] = field_with_opts(key="remoteSolarToBatt")
+    remote_solar_to_grid: Optional[List[PathType]] = field_with_opts(key="remoteSolarToGrid")
+
 
 @dataclass
 class ExperimentalRates:

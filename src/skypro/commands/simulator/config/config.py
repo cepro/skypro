@@ -104,6 +104,18 @@ class Site:
 
 
 @dataclass
+class RemoteSite:
+    """
+    Optionally configures a remote generation asset (typically solar) which is "sleeved" into the
+    on-site battery via a VPP / P442 exempt supply arrangement. When `allow_flow_to_site` is true,
+    the optimiser is allowed to charge the battery from the remote solar generation (at a rate
+    defined by the `remote_solar_to_batt` rate files), as well as export it to the grid.
+    """
+    allow_flow_to_site: bool = field_with_opts(key="allowFlowToSite")
+    solar: SolarOrLoad
+
+
+@dataclass
 class Niv:
     """
     Configuration to do NIV chasing using the price curve algorithm.
@@ -357,6 +369,7 @@ class SimulationCase:
     output: Optional[SimOutput]
     timeframe: TimeFrame = field_with_opts(key="timeFrame")
     site: Site
+    remote_site: Optional[RemoteSite] = field_with_opts(key="remoteSite")
     strategy: Strategy
     rates: AllRates
 
