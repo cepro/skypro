@@ -168,6 +168,7 @@ def _run_one_simulation(
     elif sim_config.strategy.optimiser:
         cols_to_share_with_algo = [  # We have calculated a variety of columns above, but only give the algorithm the columns that it needs
             "solar",
+            "remote_solar",
             "load",
             "bess_max_charge",
             "bess_max_discharge",
@@ -177,6 +178,9 @@ def _run_one_simulation(
             algo_config=sim_config.strategy.optimiser,
             bess_config=sim_config.site.bess,
             final_vol_rates=rates.final_mkt_vol,
+            allow_remote_flow_to_site=(
+                sim_config.remote_site.allow_flow_to_site if sim_config.remote_site else False
+            ),
             df=df[cols_to_share_with_algo],
         )
         df_algo = opt.run()
@@ -224,7 +228,12 @@ def _run_one_simulation(
     # Add the results of the algo into the main dataframe
     df = pd.concat([df, df_algo], axis=1)
 
-    df = calculate_microgrid_flows(df)
+    df = calculate_microgrid_flows(
+        df,
+        allow_remote_flow_to_site=(
+            sim_config.remote_site.allow_flow_to_site if sim_config.remote_site else False
+        ),
+    )
 
     df, final_int_vol_rates_dfs, final_mkt_vol_rates_dfs, osam_df, osam_rates = _process_final_rates(df, rates)
 
@@ -399,6 +408,23 @@ def _process_profiles_and_prepare_dataframe(df: pd.DataFrame, sim_config: Simula
     )
     df["load"] = load_energy_breakdown_df.sum(axis=1)
     df["load_power"] = total_load_power
+
+    # Optionally a remote (sleeved) generation asset can be configured for VPP / P442 exempt supply
+    # modelling. When present, its solar generation is made available to the optimiser and the
+    # microgrid flow attribution.
+    if sim_config.remote_site:
+        remote_solar_energy_breakdown_df, total_remote_solar_power = _process_profiles(
+            time_index=df.index,
+            config=sim_config.remote_site.solar,
+            do_plots=do_plots,
+            context_hint="Remote Solar",
+            file_path_resolver_func=file_path_resolver_func,
+        )
+        df["remote_solar"] = remote_solar_energy_breakdown_df.sum(axis=1)
+        df["remote_solar_power"] = total_remote_solar_power
+    else:
+        df["remote_solar"] = 0.0
+        df["remote_solar_power"] = 0.0
 
     # Process grid connection profiles - normally the microgrid will sit on a grid connection with a fixed capacity in each direction, but sometimes we want to model
     # a grid connection that has varying capacity over time. For example, if there is load and solar installed which is not part of the microgrid, but which effects the

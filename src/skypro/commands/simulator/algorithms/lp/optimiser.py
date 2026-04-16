@@ -24,15 +24,21 @@ class Optimiser:
         algo_config: OptimiserConfig,
         bess_config: Bess,
         final_vol_rates: VolRatesForEnergyFlows,
+        allow_remote_flow_to_site: bool,
         df: pd.DataFrame,
     ):
         """
-        See _preprocess_input_data for required columns in `df`
+        See _preprocess_input_data for required columns in `df`.
+
+        `allow_remote_flow_to_site` controls whether the optimiser may charge the battery from a
+        remote (sleeved) generation asset. When False, the corresponding LP variable is pinned to 0
+        so remote solar only ever exports directly to the grid.
         """
 
         self._algo_config = algo_config
         self._bess_config = bess_config
         self._final_vol_rates = final_vol_rates
+        self._allow_remote_flow_to_site = allow_remote_flow_to_site
         self._df_in = self._preprocess_input_data(df.copy())
 
     def run(self) -> pd.DataFrame:
@@ -83,6 +89,14 @@ class Optimiser:
                 mkt_vol_rates=self._final_vol_rates,
                 live_or_final="final"
             )
+
+            # TODO: the remote_solar_to_batt rate is not yet stacked through the normal rate pipeline.
+            # For now we approximate it as "solar_to_grid + 1 p/kWh" so the optimiser has a cost signal
+            # that slightly prefers direct export over sleeved-to-battery unless arbitrage justifies it.
+            # Replace this with proper rate-stack wiring once the rate parser honours the
+            # remote_solar_to_batt rate files from RatesFiles. Inherited from adhoc-encore-analysis-2
+            # commit df784d6; behaviour is identical to the original Encore analysis until this is fixed.
+            block_df_in["mkt_vol_rate_final_remote_solar_to_batt"] = block_df_in["mkt_vol_rate_final_solar_to_grid"] + 1
 
             logging.info(f"Optimising range {block_df_in.index[0]} -> {block_df_in.index[-1]}...")
             block_df_out, block_num_nan = self._run_one_optimisation(
@@ -186,6 +200,7 @@ class Optimiser:
         lp_var_bess_discharges_to_grid = []
         lp_var_bess_charges = []
         lp_var_bess_charges_from_solar = []
+        lp_var_bess_charges_from_remote_solar = []
         lp_var_bess_charges_from_grid = []
         lp_var_bess_is_charging = []
         lp_costs = []
@@ -209,6 +224,15 @@ class Optimiser:
                     name=f"solar_to_batt_{timeslot_idx}",
                     lowBound=0,
                     upBound=df_in.iloc[timeslot_idx]["solar_not_supplying_load"]
+                )
+            )
+            # Remote solar charging is pinned to 0 unless allow_remote_flow_to_site is True, in
+            # which case it is bounded by the available remote_solar at this timeslot.
+            lp_var_bess_charges_from_remote_solar.append(
+                pulp.LpVariable(
+                    name=f"remote_solar_to_batt_{timeslot_idx}",
+                    lowBound=0,
+                    upBound=df_in.iloc[timeslot_idx]["remote_solar"] if self._allow_remote_flow_to_site else 0
                 )
             )
             lp_var_bess_charges_from_grid.append(
@@ -261,11 +285,13 @@ class Optimiser:
             int_rate_final_solar_to_batt = df_in.iloc[timeslot_idx]["int_vol_rate_final_solar_to_batt"]
             mkt_rate_final_batt_to_grid = df_in.iloc[timeslot_idx]["mkt_vol_rate_final_batt_to_grid"]
             int_rate_final_batt_to_load = df_in.iloc[timeslot_idx]["int_vol_rate_final_batt_to_load"]
+            mkt_rate_final_remote_solar_to_batt = df_in.iloc[timeslot_idx]["mkt_vol_rate_final_remote_solar_to_batt"]
             if np.any(np.isnan([
                 mkt_rate_final_grid_to_batt,
                 int_rate_final_solar_to_batt,
                 mkt_rate_final_batt_to_grid,
-                int_rate_final_batt_to_load
+                int_rate_final_batt_to_load,
+                mkt_rate_final_remote_solar_to_batt,
             ])):
                 # the costs function throws an exception when these are NaN, so set to zero but disallow any activity
                 # by adding constraints
@@ -273,7 +299,9 @@ class Optimiser:
                 int_rate_final_solar_to_batt = 0
                 mkt_rate_final_batt_to_grid = 0
                 int_rate_final_batt_to_load = 0
+                mkt_rate_final_remote_solar_to_batt = 0
                 problem += lp_var_bess_charges_from_solar[timeslot_idx] == 0
+                problem += lp_var_bess_charges_from_remote_solar[timeslot_idx] == 0
                 problem += lp_var_bess_charges_from_grid[timeslot_idx] == 0
                 problem += lp_var_bess_discharges_to_load[timeslot_idx] == 0
                 problem += lp_var_bess_discharges_to_grid[timeslot_idx] == 0
@@ -283,6 +311,7 @@ class Optimiser:
             lp_costs.append(
                 lp_var_bess_charges_from_grid[timeslot_idx] * mkt_rate_final_grid_to_batt +
                 lp_var_bess_charges_from_solar[timeslot_idx] * int_rate_final_solar_to_batt +
+                lp_var_bess_charges_from_remote_solar[timeslot_idx] * mkt_rate_final_remote_solar_to_batt +
                 lp_var_bess_discharges_to_grid[timeslot_idx] * mkt_rate_final_batt_to_grid +
                 lp_var_bess_discharges_to_load[timeslot_idx] * int_rate_final_batt_to_load
             )
@@ -304,13 +333,18 @@ class Optimiser:
 
             # Constraints to define that all the flows are positive - prevent the optimiser from using a negative
             problem += lp_var_bess_charges_from_solar[timeslot_idx] >= 0.0
+            problem += lp_var_bess_charges_from_remote_solar[timeslot_idx] >= 0.0
             problem += lp_var_bess_charges_from_grid[timeslot_idx] >= 0.0
             problem += lp_var_bess_discharges_to_load[timeslot_idx] >= 0.0
             problem += lp_var_bess_discharges_to_grid[timeslot_idx] >= 0.0
 
             # Constraints to define the total of all charge flows and total of all discharge flows. This is just for
             # convenience as the totals are used a few times later on.
-            problem += lp_var_bess_charges[timeslot_idx] == lp_var_bess_charges_from_solar[timeslot_idx] + lp_var_bess_charges_from_grid[timeslot_idx]
+            problem += lp_var_bess_charges[timeslot_idx] == (
+                lp_var_bess_charges_from_solar[timeslot_idx]
+                + lp_var_bess_charges_from_remote_solar[timeslot_idx]
+                + lp_var_bess_charges_from_grid[timeslot_idx]
+            )
             problem += lp_var_bess_discharges[timeslot_idx] == lp_var_bess_discharges_to_load[timeslot_idx] + lp_var_bess_discharges_to_grid[timeslot_idx]
 
             # Constraints for maximum charge/discharge rates AND make charge and discharge mutually exclusive
@@ -349,6 +383,7 @@ class Optimiser:
         # Don't allow any battery activity in the last period as this requires more complicated constraints to make it
         # work (the end of each optimisation is dropped anyway as the individual optimisations runs are combined)
         problem += lp_var_bess_charges_from_solar[-1] == 0
+        problem += lp_var_bess_charges_from_remote_solar[-1] == 0
         problem += lp_var_bess_charges_from_grid[-1] == 0
         problem += lp_var_bess_discharges_to_load[-1] == 0
         problem += lp_var_bess_discharges_to_grid[-1] == 0
@@ -358,6 +393,7 @@ class Optimiser:
             problem += (
                 lp_var_bess_soe[timeslot_idx] == lp_var_bess_soe[timeslot_idx - 1]
                 + lp_var_bess_charges_from_solar[timeslot_idx - 1] * self._bess_config.charge_efficiency
+                + lp_var_bess_charges_from_remote_solar[timeslot_idx - 1] * self._bess_config.charge_efficiency
                 + lp_var_bess_charges_from_grid[timeslot_idx - 1] * self._bess_config.charge_efficiency
                 - lp_var_bess_discharges_to_load[timeslot_idx - 1]
                 - lp_var_bess_discharges_to_grid[timeslot_idx - 1]
@@ -379,11 +415,11 @@ class Optimiser:
         df_ret = pd.DataFrame(index=df_sol.index)
         df_ret["soe"] = df_sol["bess_soe"]
         df_ret["energy_delta"] = (
-            df_sol["solar_to_batt"] + df_sol["grid_to_batt"]
+            df_sol["solar_to_batt"] + df_sol["grid_to_batt"] + df_sol["remote_solar_to_batt"]
             - df_sol["batt_to_grid"] - df_sol["batt_to_load"]
         )
         df_ret["bess_losses"] = (
-            (df_sol["solar_to_batt"] + df_sol["grid_to_batt"]) * (1 - self._bess_config.charge_efficiency)
+            (df_sol["solar_to_batt"] + df_sol["grid_to_batt"] + df_sol["remote_solar_to_batt"]) * (1 - self._bess_config.charge_efficiency)
         )
 
         return df_ret, n_timeslots_with_nan_pricing
