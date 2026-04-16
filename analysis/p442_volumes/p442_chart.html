@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>P442 Exempt Supply Volumes</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: #fff;
+    margin: 0;
+    padding: 20px;
+  }
+  h1 { font-size: 18px; color: #333; margin: 0 0 4px 0; }
+  .subtitle { font-size: 13px; color: #666; margin: 0 0 16px 0; }
+  .tooltip {
+    position: absolute;
+    background: rgba(0,0,0,0.85);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    pointer-events: none;
+    line-height: 1.5;
+  }
+  .axis text { font-size: 11px; fill: #555; }
+  .axis path, .axis line { stroke: #ccc; }
+  .grid line { stroke: #eee; stroke-dasharray: 2,2; }
+  .grid path { stroke: none; }
+  .stats {
+    display: flex;
+    gap: 40px;
+    margin-top: 12px;
+    font-size: 13px;
+    color: #555;
+  }
+  .stats strong { color: #333; }
+</style>
+</head>
+<body>
+<h1>P442 Total Exempt Supply Volumes (Elexon S0621)</h1>
+<p class="subtitle">Daily MWh from settlement data — P442 enables levy-free bilateral supply between exempt generators and consumers</p>
+<div id="chart"></div>
+<div class="stats" id="stats"></div>
+<div id="tooltip" class="tooltip" style="display:none;"></div>
+
+<script>
+const data = [{"date":"2025-06-19","total":10.1084},{"date":"2025-06-20","total":9.7559},{"date":"2025-06-21","total":3.6341},{"date":"2025-06-22","total":3.725},{"date":"2025-06-23","total":10.5169},{"date":"2025-06-24","total":10.4044},{"date":"2025-06-25","total":10.4753},{"date":"2025-06-26","total":10.0604},{"date":"2025-06-27","total":9.7526},{"date":"2025-06-28","total":3.703},{"date":"2025-06-29","total":3.5094},{"date":"2025-06-30","total":10.7489},{"date":"2025-07-01","total":425.1655},{"date":"2025-07-02","total":11.3444},{"date":"2025-07-03","total":535.7515},{"date":"2025-07-04","total":9.8779},{"date":"2025-07-05","total":4.1316},{"date":"2025-07-06","total":557.5527},{"date":"2025-07-07","total":10.3686},{"date":"2025-07-08","total":544.698},{"date":"2025-07-09","total":9.8572},{"date":"2025-07-10","total":476.5088},{"date":"2025-07-11","total":450.4895},{"date":"2025-07-12","total":11.8684},{"date":"2025-07-13","total":11.7484},{"date":"2025-07-14","total":32.345},{"date":"2025-07-15","total":636.4685},{"date":"2025-07-16","total":419.6953},{"date":"2025-07-17","total":30.8056},{"date":"2025-07-18","total":432.2062},{"date":"2025-07-19","total":466.8396},{"date":"2025-07-20","total":12.4592},{"date":"2025-07-21","total":30.3057},{"date":"2025-07-22","total":504.2433},{"date":"2025-07-23","total":458.8232},{"date":"2025-07-24","total":29.7794},{"date":"2025-07-25","total":512.8372},{"date":"2025-07-26","total":520.8754},{"date":"2025-07-27","total":11.9588},{"date":"2025-07-28","total":29.5785},{"date":"2025-07-29","total":29.8117},{"date":"2025-07-30","total":509.7262},{"date":"2025-07-31","total":30.78},{"date":"2025-08-01","total":557.9082},{"date":"2025-08-02","total":507.833},{"date":"2025-08-03","total":583.9443},{"date":"2025-08-04","total":670.9233},{"date":"2025-08-05","total":41.613},{"date":"2025-08-06","total":38.1618},{"date":"2025-08-07","total":45.3303},{"date":"2025-08-08","total":551.8487},{"date":"2025-08-09","total":27.6172},{"date":"2025-08-10","total":25.6914},{"date":"2025-08-11","total":465.4275},{"date":"2025-08-12","total":442.6975},{"date":"2025-08-13","total":396.2719},{"date":"2025-08-14","total":461.5863},{"date":"2025-08-15","total":42.929},{"date":"2025-08-16","total":28.5886},{"date":"2025-08-17","total":530.0062},{"date":"2025-08-18","total":47.4721},{"date":"2025-08-19","total":443.8314},{"date":"2025-08-20","total":44.1972},{"date":"2025-08-21","total":38.3508},{"date":"2025-08-22","total":41.0928},{"date":"2025-08-23","total":29.237},{"date":"2025-08-24","total":427.6239},{"date":"2025-08-25","total":596.5859},{"date":"2025-08-26","total":558.6159},{"date":"2025-08-27","total":566.5747},{"date":"2025-08-28","total":76.847},{"date":"2025-08-29","total":553.0384},{"date":"2025-08-30","total":649.677},{"date":"2025-08-31","total":53.2161},{"date":"2025-09-01","total":87.0047},{"date":"2025-09-02","total":58.5103},{"date":"2025-09-03","total":79.7532},{"date":"2025-09-04","total":498.5312},{"date":"2025-09-05","total":67.3047},{"date":"2025-09-06","total":53.5895},{"date":"2025-09-07","total":55.0018},{"date":"2025-09-08","total":68.451},{"date":"2025-09-09","total":87.006},{"date":"2025-09-10","total":92.0046},{"date":"2025-09-11","total":236.6122},{"date":"2025-09-12","total":850.2826},{"date":"2025-09-13","total":745.2792},{"date":"2025-09-14","total":719.7916},{"date":"2025-09-15","total":252.5544},{"date":"2025-09-16","total":765.659},{"date":"2025-09-17","total":380.1185},{"date":"2025-09-18","total":384.5816},{"date":"2025-09-19","total":188.3928},{"date":"2025-09-20","total":676.6394},{"date":"2025-09-21","total":608.2748},{"date":"2025-09-22","total":370.567},{"date":"2025-09-23","total":493.1376},{"date":"2025-09-24","total":276.8994},{"date":"2025-09-25","total":300.6605},{"date":"2025-09-26","total":275.9474},{"date":"2025-09-27","total":697.3984},{"date":"2025-09-28","total":519.4192},{"date":"2025-09-29","total":264.6968},{"date":"2025-09-30","total":583.2781},{"date":"2025-10-01","total":426.0068},{"date":"2025-10-02","total":560.9643},{"date":"2025-10-03","total":1034.6292},{"date":"2025-10-04","total":694.4829},{"date":"2025-10-05","total":1040.9247},{"date":"2025-10-06","total":343.7909},{"date":"2025-10-07","total":472.2099},{"date":"2025-10-08","total":673.9197},{"date":"2025-10-09","total":617.4791},{"date":"2025-10-10","total":415.9013},{"date":"2025-10-11","total":362.5728},{"date":"2025-10-12","total":315.6768},{"date":"2025-10-13","total":291.8372},{"date":"2025-10-14","total":166.1242},{"date":"2025-10-15","total":281.7338},{"date":"2025-10-16","total":289.9977},{"date":"2025-10-17","total":512.313},{"date":"2025-10-18","total":746.4768},{"date":"2025-10-19","total":565.4555},{"date":"2025-10-20","total":439.7878},{"date":"2025-10-21","total":521.0208},{"date":"2025-10-22","total":465.4107},{"date":"2025-10-23","total":615.2162},{"date":"2025-10-24","total":450.9519},{"date":"2025-10-25","total":882.1685},{"date":"2025-10-26","total":322.4003},{"date":"2025-10-27","total":645.1396},{"date":"2025-10-28","total":402.4818},{"date":"2025-10-29","total":554.033},{"date":"2025-10-30","total":996.3368},{"date":"2025-10-31","total":1221.646},{"date":"2025-11-01","total":1186.23},{"date":"2025-11-02","total":1337.3775},{"date":"2025-11-03","total":1342.9627},{"date":"2025-11-04","total":1307.9621},{"date":"2025-11-05","total":785.1852},{"date":"2025-11-06","total":387.2753},{"date":"2025-11-07","total":294.0268},{"date":"2025-11-08","total":1081.2271},{"date":"2025-11-09","total":496.6355},{"date":"2025-11-10","total":491.3694},{"date":"2025-11-11","total":1182.0352},{"date":"2025-11-12","total":1127.8244},{"date":"2025-11-13","total":1262.5583},{"date":"2025-11-14","total":1211.1784},{"date":"2025-11-15","total":521.2596},{"date":"2025-11-16","total":1200.0054},{"date":"2025-11-17","total":761.3282},{"date":"2025-11-18","total":565.019},{"date":"2025-11-19","total":1314.8758},{"date":"2025-11-20","total":610.2084},{"date":"2025-11-21","total":686.3721},{"date":"2025-11-22","total":803.4201},{"date":"2025-11-23","total":746.23},{"date":"2025-11-24","total":449.6415},{"date":"2025-11-25","total":571.5781},{"date":"2025-11-26","total":1008.5876},{"date":"2025-11-27","total":1268.2154},{"date":"2025-11-28","total":1453.4027},{"date":"2025-11-29","total":569.419},{"date":"2025-11-30","total":1154.7795},{"date":"2025-12-01","total":1353.9032},{"date":"2025-12-02","total":893.9131},{"date":"2025-12-03","total":621.0167},{"date":"2025-12-04","total":707.82},{"date":"2025-12-05","total":927.309},{"date":"2025-12-06","total":1455.551},{"date":"2025-12-07","total":1277.0595},{"date":"2025-12-08","total":457.9214},{"date":"2025-12-09","total":972.6777},{"date":"2025-12-10","total":1470.3371},{"date":"2025-12-11","total":1396.8624},{"date":"2025-12-12","total":616.083},{"date":"2025-12-13","total":1342.9255},{"date":"2025-12-14","total":1443.1012},{"date":"2025-12-15","total":1215.1038},{"date":"2025-12-16","total":326.0555},{"date":"2025-12-17","total":1325.0601},{"date":"2025-12-18","total":1100.1408},{"date":"2025-12-19","total":1180.9563},{"date":"2025-12-20","total":1311.9386},{"date":"2025-12-21","total":644.0009},{"date":"2025-12-22","total":1416.8201},{"date":"2025-12-23","total":728.211},{"date":"2025-12-24","total":1340.2454},{"date":"2025-12-25","total":1126.2489},{"date":"2025-12-26","total":856.5094},{"date":"2025-12-27","total":1168.3955},{"date":"2025-12-28","total":547.9978},{"date":"2025-12-29","total":557.3019},{"date":"2025-12-30","total":321.049},{"date":"2025-12-31","total":1076.1263},{"date":"2026-01-01","total":1150.5662},{"date":"2026-01-02","total":906.6228},{"date":"2026-01-03","total":942.3492},{"date":"2026-01-04","total":366.5182},{"date":"2026-01-05","total":1153.5762},{"date":"2026-01-06","total":1173.436},{"date":"2026-01-07","total":634.5086},{"date":"2026-01-08","total":927.5295},{"date":"2026-01-09","total":1055.4547},{"date":"2026-01-10","total":1048.6406},{"date":"2026-01-11","total":611.7945},{"date":"2026-01-12","total":1259.6969},{"date":"2026-01-13","total":563.981},{"date":"2026-01-14","total":1345.1323},{"date":"2026-01-15","total":337.26},{"date":"2026-01-16","total":605.7346},{"date":"2026-01-17","total":1192.737},{"date":"2026-01-18","total":1093.3249},{"date":"2026-01-19","total":426.7786},{"date":"2026-01-20","total":1663.8593},{"date":"2026-01-21","total":1709.7806},{"date":"2026-01-22","total":874.5479},{"date":"2026-01-23","total":1233.5287},{"date":"2026-01-24","total":1004.1383},{"date":"2026-01-25","total":684.3109},{"date":"2026-01-26","total":1510.2326},{"date":"2026-01-27","total":1136.5022},{"date":"2026-01-28","total":677.1155},{"date":"2026-01-29","total":1104.2328},{"date":"2026-01-30","total":959.7559},{"date":"2026-01-31","total":815.9311},{"date":"2026-02-01","total":525.1242}]
+  .map(d => ({ date: new Date(d.date), total: d.total }));
+
+// 7-day rolling average
+data.forEach((d, i) => {
+  const w = data.slice(Math.max(0, i - 6), i + 1);
+  d.rolling7 = d3.mean(w, v => v.total);
+});
+
+// Chart dimensions — landscape
+const margin = { top: 20, right: 30, bottom: 40, left: 60 };
+const width = Math.min(window.innerWidth - 40, 1200) - margin.left - margin.right;
+const height = 400 - margin.top - margin.bottom;
+
+const svg = d3.select("#chart").append("svg")
+  .attr("width", width + margin.left + margin.right)
+  .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+  .attr("transform", `translate(${margin.left},${margin.top})`);
+
+const x = d3.scaleTime()
+  .domain(d3.extent(data, d => d.date))
+  .range([0, width]);
+
+const y = d3.scaleLinear()
+  .domain([0, d3.max(data, d => d.total) * 1.05])
+  .range([height, 0]);
+
+// Grid lines
+svg.append("g")
+  .attr("class", "grid")
+  .call(d3.axisLeft(y).tickSize(-width).tickFormat(""));
+
+// Daily bars
+const barWidth = Math.max(1, width / data.length - 0.5);
+svg.selectAll(".bar")
+  .data(data)
+  .join("rect")
+  .attr("class", "bar")
+  .attr("x", d => x(d.date) - barWidth / 2)
+  .attr("y", d => y(d.total))
+  .attr("width", barWidth)
+  .attr("height", d => height - y(d.total))
+  .attr("fill", "#4a90d9")
+  .attr("opacity", 0.6);
+
+// 7-day rolling average line
+const line = d3.line()
+  .x(d => x(d.date))
+  .y(d => y(d.rolling7))
+  .curve(d3.curveMonotoneX);
+
+svg.append("path")
+  .datum(data)
+  .attr("fill", "none")
+  .attr("stroke", "#d94a4a")
+  .attr("stroke-width", 2)
+  .attr("d", line);
+
+// Axes
+svg.append("g")
+  .attr("class", "axis")
+  .attr("transform", `translate(0,${height})`)
+  .call(d3.axisBottom(x).ticks(d3.timeMonth.every(1)).tickFormat(d3.timeFormat("%b %Y")));
+
+svg.append("g")
+  .attr("class", "axis")
+  .call(d3.axisLeft(y).ticks(8).tickFormat(d => d3.format(",")(d)));
+
+// Y axis label
+svg.append("text")
+  .attr("transform", "rotate(-90)")
+  .attr("y", -50)
+  .attr("x", -height / 2)
+  .attr("text-anchor", "middle")
+  .attr("fill", "#555")
+  .attr("font-size", "12px")
+  .text("Daily Volume (MWh)");
+
+// Legend
+const legend = svg.append("g").attr("transform", `translate(${width - 220}, 5)`);
+legend.append("rect").attr("width", 14).attr("height", 14).attr("fill", "#4a90d9").attr("opacity", 0.6);
+legend.append("text").attr("x", 20).attr("y", 12).attr("font-size", "12px").attr("fill", "#555").text("Daily total");
+legend.append("line").attr("x1", 130).attr("x2", 144).attr("y1", 7).attr("y2", 7).attr("stroke", "#d94a4a").attr("stroke-width", 2);
+legend.append("text").attr("x", 150).attr("y", 12).attr("font-size", "12px").attr("fill", "#555").text("7-day avg");
+
+// Tooltip interaction
+const tooltip = d3.select("#tooltip");
+const bisect = d3.bisector(d => d.date).left;
+
+svg.append("rect")
+  .attr("width", width)
+  .attr("height", height)
+  .attr("fill", "none")
+  .attr("pointer-events", "all")
+  .on("mousemove", function(event) {
+    const [mx] = d3.pointer(event);
+    const dt = x.invert(mx);
+    const i = bisect(data, dt, 1);
+    const d = i >= data.length ? data[data.length - 1] :
+      (dt - data[i-1].date > data[i].date - dt ? data[i] : data[i-1]);
+
+    tooltip.style("display", "block")
+      .style("left", (event.pageX + 12) + "px")
+      .style("top", (event.pageY - 40) + "px")
+      .html(`<strong>${d3.timeFormat("%a %d %b %Y")(d.date)}</strong><br>` +
+            `Daily: ${d3.format(",.0f")(d.total)} MWh<br>` +
+            `7-day avg: ${d3.format(",.0f")(d.rolling7)} MWh`);
+  })
+  .on("mouseout", () => tooltip.style("display", "none"));
+
+// Stats summary
+const totalMWh = d3.sum(data, d => d.total);
+const avgDaily = d3.mean(data, d => d.total);
+const peakDay = data.reduce((a, b) => a.total > b.total ? a : b);
+
+d3.select("#stats").html(
+  `<span><strong>Total:</strong> ${d3.format(",.0f")(totalMWh)} MWh</span>` +
+  `<span><strong>Avg daily:</strong> ${d3.format(",.0f")(avgDaily)} MWh</span>` +
+  `<span><strong>Peak day:</strong> ${d3.format(",.0f")(peakDay.total)} MWh (${d3.timeFormat("%d %b %Y")(peakDay.date)})</span>` +
+  `<span><strong>Annualised levy avoidance:</strong> ~&pound;${d3.format(",.0f")(avgDaily * 365 * 60)}</span>`
+);
+</script>
+</body>
+</html>
