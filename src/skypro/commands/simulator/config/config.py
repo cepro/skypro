@@ -39,6 +39,20 @@ class Profile:
     profiled_size_kwp: Optional[float] = field_with_opts(key="profiledSizeKwp")
     scaled_size_kwp: Optional[float] = field_with_opts(key="scaledSizeKwp")
 
+    # Display-only metadata: installed nameplate kWp. Independent of any
+    # scaling — engine never reads this for math. Useful when csvProfile
+    # already carries real kWh values (no scaling) but downstream tools
+    # still need to know the system size.
+    nameplate_kwp: Optional[float] = field_with_opts(key="nameplateKwp")
+
+    # Opt-in defensive filter for corrupt meter data. When set, csvProfile
+    # rows with |energy| above this threshold are NaN'd and linearly
+    # interpolated. Default (None) = no filter; raw values pass through so
+    # bad data surfaces loudly in sim output. Set per-profile in YAML when
+    # a known upstream pipeline emits anomalies (e.g. occasional metering
+    # glitches that produce values orders of magnitude beyond plausible).
+    max_energy_per_interval_kwh: Optional[float] = field_with_opts(key="maxEnergyPerIntervalKwh")
+
     def __post_init__(self):
         # There are three ways of setting the scaling factor: by 'kwp' fields; by 'num plot' fields; or by
         # explicitly setting the 'scalingFactor'. This is partly to support older configurations.

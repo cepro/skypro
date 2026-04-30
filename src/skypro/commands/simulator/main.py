@@ -717,6 +717,7 @@ def _process_profiles(
             source=profile_config.source,
             time_index=time_index,
             file_path_resolver_func=file_path_resolver_func,
+            max_energy_per_interval_kwh=profile_config.max_energy_per_interval_kwh,
         )
 
         profiler = Profiler(
