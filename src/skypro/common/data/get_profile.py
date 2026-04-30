@@ -14,15 +14,22 @@ def get_profile(
         source: ProfileDataSource,
         time_index: pd.DatetimeIndex,
         file_path_resolver_func: Optional[Callable],
+        max_energy_per_interval_kwh: Optional[float] = None,
 ) -> pd.DataFrame:
     """
-    Reads the profile data source and returns a dataframe containing the profile with the given time index
+    Reads the profile data source and returns a dataframe containing the profile with the given time index.
+
+    If max_energy_per_interval_kwh is set, CSV profiles are filtered: rows with |energy| above the
+    threshold are replaced with NaN and linearly interpolated. Default (None) is no filter — raw
+    values pass through, so corrupted source data surfaces loudly in downstream sim output rather
+    than being silently rewritten.
     """
 
     if source.csv_profile_data_source:
         df = _get_csv_profile(
             source=source.csv_profile_data_source,
             file_path_resolver_func=file_path_resolver_func,
+            max_energy_per_interval_kwh=max_energy_per_interval_kwh,
         )
     elif source.constant_profile_data_source:
         df = _get_constant_profile(
@@ -50,12 +57,49 @@ def _get_constant_profile(
 def _get_csv_profile(
     source: CSVProfileDataSource,
     file_path_resolver_func: Optional[Callable],
+    max_energy_per_interval_kwh: Optional[float] = None,
 ) -> pd.DataFrame:
     """
-    Returns a profile using the given CSV files
+    Returns a profile using the given CSV files.
+
+    When max_energy_per_interval_kwh is set, energy values above this absolute threshold are
+    treated as anomalous: replaced with NaN, then linearly interpolated (with ffill/bfill at
+    edges). Activate it on a per-profile basis from YAML via maxEnergyPerIntervalKwh when
+    upstream metering is known to emit corrupt rows. The default (None) is opt-in: raw values
+    pass through unchanged unless a threshold is explicitly set.
     """
 
     df = get_csv_data_source(source, file_path_resolver_func)
+
+    # Defensive filtering: opt-in via max_energy_per_interval_kwh.
+    if max_energy_per_interval_kwh is not None and "energy" in df.columns:
+        anomalous_mask = df["energy"].abs() > max_energy_per_interval_kwh
+        num_anomalous = anomalous_mask.sum()
+        if num_anomalous > 0:
+            anomalous_rows = df[anomalous_mask]
+            max_val = anomalous_rows["energy"].max()
+            min_val = anomalous_rows["energy"].min()
+            # Surface enough detail for an operator to chase the upstream meter glitch:
+            # count, range, and the first/last bad timestamps when available.
+            time_col = next(
+                (c for c in ("UTCTime", "ClockTime") if c in anomalous_rows.columns),
+                None,
+            )
+            if time_col is not None and len(anomalous_rows) > 0:
+                ts_str = (
+                    f" Timestamps: {anomalous_rows[time_col].iloc[0]} → "
+                    f"{anomalous_rows[time_col].iloc[-1]}."
+                )
+            else:
+                ts_str = ""
+            logging.warning(
+                f"Dropped {num_anomalous} rows with anomalous energy values "
+                f"(>{max_energy_per_interval_kwh} kWh per interval). "
+                f"Range: {min_val:.2f} to {max_val:.2f} kWh.{ts_str} "
+                f"This typically indicates corrupted meter data."
+            )
+            # Set anomalous values to NaN (will be interpolated below).
+            df.loc[anomalous_mask, "energy"] = np.nan
 
     # Prefer to use the UTCTime column, but if it's not present then use ClockTime with the Europe/London timezone
     use_clocktime = "UTCTime" not in df.columns or np.all(pd.isnull(df["UTCTime"]))
@@ -81,5 +125,13 @@ def _get_csv_profile(
     # If we have UTCTime then we don't need the ClockTime column
     if "ClockTime" in df.columns:
         df = df.drop("ClockTime", axis=1)
+
+    # Interpolate any NaN values in energy column (from anomalous data filtering).
+    if "energy" in df.columns and df["energy"].isna().any():
+        num_nans = df["energy"].isna().sum()
+        df["energy"] = df["energy"].interpolate(method="linear")
+        # Edge cases (NaN at start/end) — forward/backward fill.
+        df["energy"] = df["energy"].ffill().bfill()
+        logging.info(f"Interpolated {num_nans} missing energy values in profile")
 
     return df

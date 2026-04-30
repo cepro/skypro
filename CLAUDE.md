@@ -138,6 +138,7 @@ pandas, plotly, pulp, pendulum, sqlalchemy, psycopg2-binary, marshmallow, pyyaml
 
 | Date | PR | Branch | Summary |
 |------|-----|--------|---------|
+| 2026-04-30 | TBD | feature/profile-filter-and-nameplate | Opt-in profile anomaly filter (`maxEnergyPerIntervalKwh`) + display-only `nameplateKwp` metadata field on Profile (v2.0.4) |
 | 2026-01-12 | - | main | License changed from AGPL-3.0 to MIT |
 | 2026-01-09 | #59 | bugfix/nan-threshold-aggregation | Fix NaN propagation in rate averages and cost totals (v2.0.1) |
 | 2026-01-09 | #58 | feature/flux-schema-support | Flux/flows schema separation for DB queries (v2.0.0) |
