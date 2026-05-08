@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.5] - 2026-05-07
+
+### Fixed
+
+- `skypro simulate` now skips constructing a SQLAlchemy engine for the
+  flows database when all imbalance data sources are `csvTimeseries`.
+  Previously the engine was created eagerly and unconditionally, so a
+  placeholder or unparseable `env_config["flows"]["dbUrl"]` raised
+  before any simulation logic ran — blocking standalone CSV-only
+  configuration bundles. When at least one source is `flowsMarketData`
+  the engine is still constructed, with a clearer error if `dbUrl` is
+  missing.
+
 ## [2.0.0] - Unreleased
 
 ### Breaking Changes

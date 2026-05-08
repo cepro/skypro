@@ -131,3 +131,49 @@ class TestIntegration(unittest.TestCase):
                     0,
                     msg=f"Summary value out of tolerance:\n{error.transpose()}"
                 )
+
+    def test_integration_csv_only_no_flows_db(self):
+        """
+        Regression test for the eager-flows-DB bug fixed in v2.0.5.
+
+        The integration fixture has only csvTimeseries imbalance sources
+        and file-based rates — no flowsMarketData, no rates_db. This
+        means env_config["flows"]["dbUrl"] is never queried at runtime.
+        Before v2.0.5, the simulator constructed a SQLAlchemy engine for
+        the flows DB unconditionally, so an unparseable placeholder URL
+        in flows.dbUrl would crash the run before any simulation logic
+        executed — blocking standalone CSV-only handoff bundles.
+
+        env_no_flows_db.json sets flows.dbUrl to the literal placeholder
+        string "REPLACE_OR_REMOVE_NOT_USED_BY_SIMULATE" — SQLAlchemy
+        can't parse it as a URL. With the v2.0.5 fix, the simulator
+        skips engine construction when no source is flowsMarketData and
+        the run completes successfully.
+        """
+        print(
+            "\n\n\n\nSTARTING SIMULATION INTEGRATION TEST 'csv_only_no_flows_db' "
+            "- - - - - - - - - - - - - - - - - - - - -"
+        )
+
+        res = subprocess.run([
+            'python3',
+            './src/skypro/main.py',
+            'simulate',
+            '--env',
+            './src/tests/integration/fixtures/env_no_flows_db.json',
+            '-y',
+            '--config',
+            './src/tests/integration/fixtures/simulation/config.yaml',
+            '--sim',
+            'integrationTestPriceCurve',
+        ])
+
+        self.assertEqual(
+            res.returncode,
+            0,
+            msg=(
+                "Simulator exited non-zero with an unparseable flows.dbUrl "
+                "in the env file, despite all imbalance sources being "
+                "csvTimeseries. Pre-v2.0.5 regression."
+            ),
+        )

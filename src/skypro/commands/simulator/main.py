@@ -510,6 +510,33 @@ def _get_rates_from_config(
     and a dataframe containing live and final imbalance data.
     """
 
+    # Build the flows DB engine only if at least one imbalance source is
+    # `flowsMarketData`. CSV-only configs (`csvTimeseries` for all four
+    # sources) don't need the engine — `get_timeseries` accepts
+    # `db_engine=None` and only forwards it down the flowsMarketData
+    # branch. Mirrors the rates-DB gating pattern used below for
+    # `rates_config.{live,final}.rates_db`.
+    imbalance_sources = [
+        rates_config.final.imbalance_data_source.price,
+        rates_config.final.imbalance_data_source.volume,
+        rates_config.live.imbalance_data_source.price,
+        rates_config.live.imbalance_data_source.volume,
+    ]
+    needs_flows_db = any(
+        s.flows_market_data_source is not None for s in imbalance_sources
+    )
+    if needs_flows_db:
+        try:
+            flows_db_url = env_config["flows"]["dbUrl"]
+        except KeyError:
+            raise SystemExit(
+                "simulate.yaml references a flowsMarketData imbalance source, but "
+                "env_config['flows']['dbUrl'] is not set in the environment file."
+            )
+        db_engine = sqlalchemy.create_engine(flows_db_url)
+    else:
+        db_engine = None
+
     def read_imbalance_data(source: TimeseriesDataSource, context: str):
         """
         Convenience function for reading imbalance data
@@ -519,7 +546,7 @@ def _get_rates_from_config(
             start=time_index[0],
             end=time_index[-1],
             file_path_resolver_func=file_path_resolver_func,
-            db_engine=sqlalchemy.create_engine(env_config["flows"]["dbUrl"]),
+            db_engine=db_engine,
             context=context
         )
         for notice in notices:

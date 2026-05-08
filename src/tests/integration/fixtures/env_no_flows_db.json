@@ -1,0 +1,15 @@
+{
+  "_doc": "Variant of env.json with an unparseable flows.dbUrl. Used to verify that skypro simulate does NOT eagerly construct a SQLAlchemy engine for the flows DB when all imbalance sources are csvTimeseries (the case for standalone CSV-only handoff bundles). See test_integration_simulator.py::test_integration_csv_only_no_flows_db.",
+  "vars": {
+  },
+  "flows": {
+    "dbUrl": "REPLACE_OR_REMOVE_NOT_USED_BY_SIMULATE"
+  },
+  "flux": {
+    "dbUrl": "postgresql://username:password@someserver.com:5687/database",
+    "schema": "flows"
+  },
+  "rates": {
+    "dbUrl": "postgresql://username:password@someserver.com:5687/database"
+  }
+}
