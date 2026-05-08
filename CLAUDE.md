@@ -138,6 +138,8 @@ pandas, plotly, pulp, pendulum, sqlalchemy, psycopg2-binary, marshmallow, pyyaml
 
 | Date | PR | Branch | Summary |
 |------|-----|--------|---------|
+| 2026-05-08 | TBD | feature/support-axle-flex | New `Peak.dynamic.minEndOfPeakSoe` parameter reserves SoE for post-peak niv-chase. Used in time-to-empty calc as `dischargeable_soe = soe − min_end_of_peak_soe`, creating slack so the dynamic HOLD-on-LONG branch can actually fire instead of always falling through to forced full discharge. Default 0 (legacy behaviour). +5 unit tests (v2.1.1) |
+| 2026-05-08 | TBD | feature/support-axle-flex | Multi-peak support in priceCurveAlgo: new `peaks: [...]` list form alongside legacy `peak: ...` (mutually exclusive). Enables dispatch into multiple price-elevated windows per day. Backward-compat verified — existing single-peak fixture summary unchanged within tolerance (v2.1.0) |
 | 2026-04-30 | TBD | feature/profile-filter-and-nameplate | Opt-in profile anomaly filter (`maxEnergyPerIntervalKwh`) + display-only `nameplateKwp` metadata field on Profile (v2.0.4) |
 | 2026-01-12 | - | main | License changed from AGPL-3.0 to MIT |
 | 2026-01-09 | #59 | bugfix/nan-threshold-aggregation | Fix NaN propagation in rate averages and cost totals (v2.0.1) |
