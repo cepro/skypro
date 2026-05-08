@@ -186,6 +186,14 @@ class Approach:
 class PeakDynamic:
     prioritise_residual_load: bool = field_with_opts(key="prioritiseResidualLoad")
 
+    # Reserves SoE that the peak's dispatch logic will NOT discharge. Post-peak
+    # niv-chase handles the residual based on imbalance signals. Setting this >0
+    # creates "slack" in the time-to-empty calculation so the dynamic HOLD-on-LONG
+    # branch can actually fire instead of always falling through to forced full
+    # discharge. See peak.py — uses `dischargeable_soe = soe - min_end_of_peak_soe`
+    # in the time-to-empty calc, opening up flexibility within the peak window.
+    min_end_of_peak_soe: float = field_with_opts(key="minEndOfPeakSoe", default=0.0)
+
 
 @dataclass
 class Peak:
@@ -233,10 +241,27 @@ class Microgrid:
 class PriceCurveAlgo:
     """
     Configures the price curve algorithm.
+
+    A scenario may declare a single `peak` (legacy) or multiple `peaks` (e.g. morning + evening
+    Axle/imbalance trading windows), but not both. Use `resolve_peaks()` to get a list view that
+    works for either form, including the no-peak case.
     """
     microgrid: Optional[Microgrid] = field_with_opts(key="microgrid")
     peak: Optional[Peak] = field_with_opts(key="peak")
     niv_chase_periods: List[NivPeriod] = field_with_opts(key="nivChasePeriods")
+    peaks: Optional[List[Peak]] = field_with_opts(key="peaks", default=None)
+
+    def __post_init__(self):
+        if self.peak is not None and self.peaks is not None:
+            raise ValueError("Specify either 'peak' (single) or 'peaks' (list), not both.")
+
+    def resolve_peaks(self) -> List[Peak]:
+        """Return the configured peaks as a list, regardless of whether 'peak' or 'peaks' was set."""
+        if self.peaks is not None:
+            return self.peaks
+        if self.peak is not None:
+            return [self.peak]
+        return []
 
 
 @dataclass

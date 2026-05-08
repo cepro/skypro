@@ -67,6 +67,19 @@ class TestIntegration(unittest.TestCase):
                 })
             ),
             SubTest(
+                msg="integrationTestPriceCurveMultiPeak",
+                sim_name="integrationTestPriceCurveMultiPeak",
+                expected_summary_df=pd.DataFrame.from_dict({
+                    "c:solarToGrid": [499.97],
+                    "c:gridToLoad": [27809.65],
+                    "c:solarToLoad": [5022.52],
+                    "c:battToLoad": [4895.05],
+                    "c:battToGrid": [33884.23],
+                    "c:solarToBatt": [681.58],
+                    "c:gridToBatt": [44453.60],
+                })
+            ),
+            SubTest(
                 msg="integrationTestPerfectHindsightLP",
                 sim_name="integrationTestPerfectHindsightLP",
                 expected_summary_df=pd.DataFrame.from_dict({

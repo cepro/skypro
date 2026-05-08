@@ -127,8 +127,9 @@ class PriceCurveAlgo:
         niv_config = get_relevant_niv_config(self._algo_config.niv_chase_periods, t).niv
         system_state = get_system_state(self._df, t, niv_config.volume_cutoff_for_prediction)
         # If we are in a pre-defined 'peak period' then we probably just want to discharge fully to benefit from the DUoS red band:
+        peaks = self._algo_config.resolve_peaks()
         peak_power = get_peak_power(
-            peak_config=self._algo_config.peak,
+            peaks=peaks,
             t=t,
             time_step=time_step,
             soe=self._df.loc[t, "soe"],
@@ -147,7 +148,7 @@ class PriceCurveAlgo:
                 time_step=time_step,
                 soe=self._df.loc[t, "soe"],
                 charge_efficiency=self._bess_config.charge_efficiency,
-                peak_config=self._algo_config.peak,
+                peaks=peaks,
                 is_long=system_state == SystemState.LONG
             )
 
