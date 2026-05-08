@@ -130,6 +130,53 @@ On-site Allocation Methodology for calculating final demand levies. Runs in para
 - **Perfect Hindsight LP** - Optimal solution knowing future prices
 - **Price Curve Algorithm** - Real-time with NIV chase, peak shaving, load following
 
+### priceCurveAlgo gotchas
+
+Algorithm-side pitfalls surfaced during multi-round tuning. Tuning rounds
+should respect these as defaults rather than dimensions to test.
+
+- **Force-charge ignores `nivChasePeriods.chargeCurve = []` gates.** The
+  peak-approach force curve (`peak.py:_get_approach_curve`) sits parallel
+  to niv-chase; it imports based purely on the SoE-vs-time curve. To
+  prevent imports during a price-premium window, size the approach via
+  `peak.approach.assumedChargePower` and `chargeCushionMins` so the force
+  ramp ends before the window — not via niv `chargeCurve` gating.
+
+- **`peak.dynamic` HOLD-on-LONG only fires when there's slack.** The check
+  in `peak.py:get_peak_power` is `t > (latest_time_before_max_discharge -
+  time_step)` where `latest = peak_end - dischargeable_soe /
+  bess_max_power_discharge`. If `dischargeable_soe / bess_max_power_discharge
+  > peak_window − time_step`, every HH falls through to "must full
+  discharge" and the dynamic block silently no-ops. Use
+  `peak.dynamic.minEndOfPeakSoe` (added v2.1.1) to manufacture slack;
+  niv-chase post-peak then handles the residual SoE.
+
+- **`assumedChargePower` should match the realistic charge rate, not BESS
+  nameplate.** If `gridConnection.importLimit` is below BESS nameplate (a
+  common case — BESS is sized for discharge, grid is sized for residential
+  import), the BESS can only charge at `importLimit − houseLoad`. Setting
+  `assumedChargePower` above that makes the algo plan for power it cannot
+  deliver: `approach_duration` shortens, force-curve starts too late, and
+  `toSoe` is never reached at runtime. `bess_max_power_discharge` in the
+  HOLD slack calc has the same caveat — it's the dynamic effective rate,
+  not nameplate.
+
+- **Cutoffs should be aligned across niv-chase and microgrid-control.**
+  `nivChasePeriods.niv.volumeCutoffForPrediction` (used by `system_state`
+  inside niv-chase) and
+  `microgrid.imbalanceControl.nivCutoffForSystemStateAssumption` (used by
+  `chargeFromSolarWhenLong`/`dischargeIntoLoadWhenShort`/
+  `localControl.{importAvoidance,exportAvoidance}`) should match. If they
+  don't, niv-chase classifies a HH as UNKNOWN while microgrid-control
+  classifies it LONG/SHORT — incoherent dispatch (curveShifts don't fire
+  but local-control reactions do).
+
+- **Time-to-empty uses a static `bess_max_power_discharge` snapshot.**
+  `peak.py` reads the value at decision time but the realised effective
+  power varies HH-to-HH (solar contribution, residual load). The slack
+  budget is therefore an approximation; very tight slack budgets (slack <
+  20 min) will be unreliable in the dynamic HOLD branch.
+
 ## Dependencies
 
 pandas, plotly, pulp, pendulum, sqlalchemy, psycopg2-binary, marshmallow, pyyaml
