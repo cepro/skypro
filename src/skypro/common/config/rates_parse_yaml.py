@@ -1,6 +1,6 @@
 import yaml
 import os
-from typing import Dict, List, Optional, Callable, cast
+from typing import Dict, List, Optional, Callable, Tuple, cast
 
 import pandas as pd
 
@@ -44,46 +44,45 @@ def parse_vol_rates_files_for_all_energy_flows(
         supply_points: Dict[str, SupplyPoint],
         imbalance_pricing: pd.Series,
         file_path_resolver_func: Callable,
+        flow_imbalance_pricings: Optional[Dict[str, pd.Series]] = None,
 ) -> VolRatesForEnergyFlows:
     """
     Reads the rates files for each flow (JSON or YAML) and returns only the volume-based rates objects for each energy
     flow. Fixed charges like £/day are not returned.
+
+    `imbalance_pricing` is the rates-block-level default. `flow_imbalance_pricings` optionally supplies a
+    per-flow override (keyed by flow name like "grid_to_batt"), used when a flow has an
+    `imbalanceDataSourceOverride` declared.
     """
 
-    # This is a rudimentary caching mechanism to spot if two flows have identical files and re-use the same rate
-    # instances in that case.
+    flow_imbalance_pricings = flow_imbalance_pricings or {}
+
+    # FlowFiles instances per flow — they carry the file list and any per-flow imbalance override metadata.
     flows = {
-        "solar_to_batt": {
-            "files": rates_files.solar_to_batt
-        },
-        "grid_to_batt": {
-            "files": rates_files.grid_to_batt
-        },
-        "batt_to_load": {
-            "files": rates_files.batt_to_load
-        },
-        "batt_to_grid": {
-            "files": rates_files.batt_to_grid
-        },
-        "solar_to_grid": {
-            "files": rates_files.solar_to_grid
-        },
-        "solar_to_load": {
-            "files": rates_files.solar_to_load
-        },
-        "grid_to_load": {
-            "files": rates_files.grid_to_load
-        },
+        "solar_to_batt": rates_files.solar_to_batt,
+        "grid_to_batt":  rates_files.grid_to_batt,
+        "batt_to_load":  rates_files.batt_to_load,
+        "batt_to_grid":  rates_files.batt_to_grid,
+        "solar_to_grid": rates_files.solar_to_grid,
+        "solar_to_load": rates_files.solar_to_load,
+        "grid_to_load":  rates_files.grid_to_load,
     }
 
-    cached: Dict[str, List[VolRate]] = {}
-    for flow_name, flow_info in flows.items():
-        files_str = str(flow_info["files"])
-        if files_str not in cached:
+    # Cache reuses identical (files, imbalance-pricing) pairs. The pricing identity is
+    # part of the key so flows with the same files but different imbalance overrides
+    # don't share rate instances.
+    cached: Dict[Tuple[str, int], List[VolRate]] = {}
+    pull_keys: Dict[str, Tuple[str, int]] = {}
+    for flow_name, flow_files in flows.items():
+        pricing = flow_imbalance_pricings.get(flow_name, imbalance_pricing)
+        cache_key = (str(flow_files.rates), id(pricing))
+        pull_keys[flow_name] = cache_key
+
+        if cache_key not in cached:
             rates = parse_rate_files(
-                files=flow_info["files"],
+                files=flow_files.rates,
                 supply_points=supply_points,
-                imbalance_pricing=imbalance_pricing,
+                imbalance_pricing=pricing,
                 file_path_resolver_func=file_path_resolver_func,
             )
             # check that the rates are all volume-based, and not fixed rates
@@ -91,23 +90,16 @@ def parse_vol_rates_files_for_all_energy_flows(
                 if not isinstance(rate, VolRate):
                     raise ValueError(f"Flow '{flow_name}' specifies a non-volume based rate: '{rate.name}'")
 
-            cached[files_str] = cast(List[VolRate], rates)
-
-    def pull_from_cache(name: str) -> List[VolRate]:
-        """
-        Convenience function to pull the rates associated with the given flow name from the cache.
-        This function captures the `cached` variable.
-        """
-        return cached[str(flows[name]["files"])]
+            cached[cache_key] = cast(List[VolRate], rates)
 
     all_rates = VolRatesForEnergyFlows(
-        solar_to_batt=pull_from_cache("solar_to_batt"),
-        grid_to_batt=pull_from_cache("grid_to_batt"),
-        batt_to_load=pull_from_cache("batt_to_load"),
-        solar_to_grid=pull_from_cache("solar_to_grid"),
-        solar_to_load=pull_from_cache("solar_to_load"),
-        grid_to_load=pull_from_cache("grid_to_load"),
-        batt_to_grid=pull_from_cache("batt_to_grid"),
+        solar_to_batt=cached[pull_keys["solar_to_batt"]],
+        grid_to_batt=cached[pull_keys["grid_to_batt"]],
+        batt_to_load=cached[pull_keys["batt_to_load"]],
+        solar_to_grid=cached[pull_keys["solar_to_grid"]],
+        solar_to_load=cached[pull_keys["solar_to_load"]],
+        grid_to_load=cached[pull_keys["grid_to_load"]],
+        batt_to_grid=cached[pull_keys["batt_to_grid"]],
     )
 
     # This runs through all the rates in each set and if there is a multiplier rate present then it will be

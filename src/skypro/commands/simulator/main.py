@@ -46,6 +46,24 @@ STEPS_PER_SP = int(timedelta(minutes=30) / STEP_SIZE)
 assert ((timedelta(minutes=30) / STEP_SIZE) == STEPS_PER_SP)  # Check that we have an exact number of steps per SP
 
 
+def _flow_files_by_name(rates_files):
+    """Return a flow-name → FlowFiles mapping for the seven canonical microgrid flows."""
+    return {
+        "solar_to_batt": rates_files.solar_to_batt,
+        "grid_to_batt":  rates_files.grid_to_batt,
+        "batt_to_load":  rates_files.batt_to_load,
+        "batt_to_grid":  rates_files.batt_to_grid,
+        "solar_to_grid": rates_files.solar_to_grid,
+        "solar_to_load": rates_files.solar_to_load,
+        "grid_to_load":  rates_files.grid_to_load,
+    }
+
+
+def _iter_flow_files(rates_files):
+    """Iterate the seven FlowFiles instances on a RatesFiles block."""
+    return _flow_files_by_name(rates_files).values()
+
+
 @dataclass
 class ParsedRates:
     """
@@ -522,6 +540,13 @@ def _get_rates_from_config(
         rates_config.live.imbalance_data_source.price,
         rates_config.live.imbalance_data_source.volume,
     ]
+    # Per-flow imbalance overrides (if any) may also reference flowsMarketData; include them in the gate.
+    for rates_block in (rates_config.final, rates_config.live):
+        if rates_block.files is not None:
+            for flow_files in _iter_flow_files(rates_block.files):
+                if flow_files.imbalance_data_source_override is not None:
+                    imbalance_sources.append(flow_files.imbalance_data_source_override.price)
+                    imbalance_sources.append(flow_files.imbalance_data_source_override.volume)
     needs_flows_db = any(
         s.flows_market_data_source is not None for s in imbalance_sources
     )
@@ -561,6 +586,47 @@ def _get_rates_from_config(
     final_imbalance_df = normalise_final_imbalance_data(time_index, final_price_df, final_volume_df)
     live_imbalance_df = normalise_live_imbalance_data(time_index, live_price_df, live_volume_df)
     df = pd.concat([final_imbalance_df, live_imbalance_df], axis=1)
+
+    # Per-flow imbalance source overrides — fetch and normalise the price series for any flow that opts
+    # in via `imbalanceDataSourceOverride`. These are used only by the rate-construction pipeline; the
+    # block-level df above remains the canonical source for output `imbalance_volume_*` columns.
+    fetched_override_pricings: Dict[int, pd.Series] = {}
+
+    def _override_pricing(src, kind: str) -> pd.Series:
+        key = id(src)
+        if key in fetched_override_pricings:
+            return fetched_override_pricings[key]
+        price_df = read_imbalance_data(src.price, context=f"{kind} imbalance price (override)")
+        volume_df = read_imbalance_data(src.volume, context=f"{kind} imbalance volume (override)")
+        if kind == "final":
+            normalised = normalise_final_imbalance_data(time_index, price_df, volume_df)
+            pricing = normalised["imbalance_price_final"]
+        else:
+            normalised = normalise_live_imbalance_data(time_index, price_df, volume_df)
+            pricing = normalised["imbalance_price_live"]
+        fetched_override_pricings[key] = pricing
+        return pricing
+
+    def _collect_flow_pricings(rates_block, kind: str) -> Dict[str, pd.Series]:
+        if rates_block.files is None:
+            return {}
+        pricings: Dict[str, pd.Series] = {}
+        for flow_name, flow_files in _flow_files_by_name(rates_block.files).items():
+            override = flow_files.imbalance_data_source_override
+            if override is not None:
+                pricings[flow_name] = _override_pricing(override, kind)
+        return pricings
+
+    final_flow_pricings = _collect_flow_pricings(rates_config.final, "final")
+    live_flow_pricings = _collect_flow_pricings(rates_config.live, "live")
+
+    # Reject per-flow overrides when rates come from the rates DB — that path doesn't (yet) honour them.
+    if rates_config.final.rates_db is not None or rates_config.live.rates_db is not None:
+        if final_flow_pricings or live_flow_pricings:
+            raise ValueError(
+                "imbalanceDataSourceOverride is only supported with the YAML `files` rates source, "
+                "not with `ratesDB`."
+            )
 
     if (rates_config.live.rates_db is None) != (rates_config.final.rates_db is None):
         # There is nothing inherent about this limitation: the below code could be refactored to support it.
@@ -613,13 +679,15 @@ def _get_rates_from_config(
                 rates_files=rates_config.final.files,
                 supply_points=final_supply_points,
                 imbalance_pricing=df["imbalance_price_final"],
-                file_path_resolver_func=file_path_resolver_func
+                file_path_resolver_func=file_path_resolver_func,
+                flow_imbalance_pricings=final_flow_pricings,
             )
         parsed_rates.live_mkt_vol = parse_vol_rates_files_for_all_energy_flows(
             rates_files=rates_config.live.files,
             supply_points=live_supply_points,
             imbalance_pricing=df["imbalance_price_live"],
-            file_path_resolver_func=file_path_resolver_func
+            file_path_resolver_func=file_path_resolver_func,
+            flow_imbalance_pricings=live_flow_pricings,
         )
 
         # There is an 'experimental' configuration block which has beta supports customer and fixed market rates.
