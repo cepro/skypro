@@ -23,6 +23,15 @@ def parse_config(file_path: str, env_vars: dict) -> Config:
 
         version = Version(config_dict["configFormatVersion"])
 
+        # Drop scenarios annotated `enabled: false` before strict schema validation.
+        # Lets externally-managed scenarios (e.g. Monte-Carlo runs whose outputs are
+        # produced outside skypro) sit alongside live ones in the same simulate.yaml.
+        sims = config_dict.get("simulations") or {}
+        for name in list(sims):
+            cfg = sims[name]
+            if isinstance(cfg, dict) and cfg.get("enabled") is False:
+                del sims[name]
+
         # Set up the variables that are substituted into file paths
         PathField.vars_for_substitution = env_vars
         if version.major == 4 and "variables" in config_dict:
