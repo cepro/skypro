@@ -2,7 +2,17 @@
 
 **Audience:** Skypro engineer (Python core)
 **Author:** Damon Rand
-**Status:** Brief — design + implementation TBD
+**Status:** ✅ IMPLEMENTED in v2.2.0 (commit `2188e35` on `feature/multi-and-per-flow-rates`)
+**— with a different design.** The shipped implementation is a
+**parse-time fan-out**: `rates.finals: {<name>: Rates, ...}` expands
+into one independent `SimulationCase` per variant, each with its own
+output CSV. The optimiser runs N times. The single-dispatch /
+multi-settlement-column variant described below (loop
+`_process_final_rates`, suffix output columns with
+`.final[<variant>]`) is **deferred** — user priority was YAML
+ergonomics over compute saving. See `CHANGELOG.md` v2.2.0 for the
+final YAML reference. This brief is preserved as the design record
+for if/when the optimised variant lands.
 
 ## Background — why this matters
 

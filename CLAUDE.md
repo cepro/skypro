@@ -123,6 +123,51 @@ TWINE_USERNAME=__token__ TWINE_PASSWORD=$(cat ~/.simt/testpypi.token) python -m 
 - **Market** - actual cashflows with suppliers
 - **Internal** - opportunity cost for optimization
 
+### `simulate.yaml` schema reference (post-v2.2.0)
+
+Three small ergonomic features added in v2.2.0. Authoritative
+reference: `CHANGELOG.md` v2.2.0 entry; design history:
+`docs/proposals/`.
+
+**`enabled: false`** on a simulation drops it pre-schema — useful for
+externally-managed scenarios that may use unsupported strategy keys:
+```yaml
+simulations:
+  hmce.202512.imb.mc-reopt:
+    enabled: false   # outputs preserved as-is, schema doesn't see this scenario
+    strategy: { monteCarloAlgo: ... }
+```
+
+**Per-flow `imbalanceDataSourceOverride`** for two-MPAN BSCP550 sites
+(or anywhere flows in a single rates block need different imbalance
+signals). Flow can be either a list (legacy) or a dict carrying an
+override:
+```yaml
+files:
+  gridToBatt: [ a.json, b.json ]                # legacy — inherits block-level
+  solarToGrid:                                  # dict shape with override
+    rates: [ a.json, b.json ]
+    imbalanceDataSourceOverride: *imbSrc_plain
+```
+Apply override **symmetrically** to live AND final blocks — MPAN
+imbalance treatment is structural, not algo-only.
+
+**Multi-`finals`** declares N settlement variants per simulation,
+fanned out at parse time. Mutually exclusive with `final:` (same
+precedent as `peak`/`peaks`). Sim names become `<orig>.<variant>`;
+CSV paths get a variant suffix when not using `$_SIM_NAME`:
+```yaml
+rates:
+  live:  *ratesLive_basecase
+  finals:
+    fullfcl:      *ratesFinal_fullfcl
+    trio_imbflex: *ratesFinal_trio_imbflex
+```
+Each variant runs the optimiser independently — accepted trade-off
+for YAML ergonomics. The single-dispatch / multi-column variant
+(loop `_process_final_rates`, OSAM-mutation-safe via deepcopy) is
+deferred — see `docs/proposals/multi-final-rates.md`.
+
 ### OSAM (P395)
 On-site Allocation Methodology for calculating final demand levies. Runs in parallel with Skypro's own methodology; discrepancies reported as Notices.
 

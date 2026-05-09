@@ -2,7 +2,11 @@
 
 **Audience:** Skypro engineer (Python core)
 **Author:** Damon Rand
-**Status:** Brief — design + implementation TBD
+**Status:** ✅ IMPLEMENTED in v2.2.0 (commit `ca77995` on `feature/multi-and-per-flow-rates`).
+The implementation matches this brief — schema lives inside `RatesFiles`
+as a new `FlowFiles` dataclass with optional `imbalanceDataSourceOverride`.
+Legacy list shape continues to parse. See `CHANGELOG.md` v2.2.0 for the
+final YAML reference.
 
 ## Background — why this matters
 
