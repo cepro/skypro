@@ -8,7 +8,6 @@ Unit tests for the YAML parser helpers added in the multi-and-per-flow-rates wor
 End-to-end behaviour (`enabled:false` drop, schema validation) is exercised
 via the existing integration test in `test_integration_simulator.py`.
 """
-import copy
 import unittest
 from types import SimpleNamespace
 
