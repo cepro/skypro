@@ -123,6 +123,51 @@ TWINE_USERNAME=__token__ TWINE_PASSWORD=$(cat ~/.simt/testpypi.token) python -m 
 - **Market** - actual cashflows with suppliers
 - **Internal** - opportunity cost for optimization
 
+### `simulate.yaml` schema reference (post-v2.2.0)
+
+Three small ergonomic features added in v2.2.0. Authoritative
+reference: `CHANGELOG.md` v2.2.0 entry; design history:
+`docs/proposals/`.
+
+**`enabled: false`** on a simulation drops it pre-schema — useful for
+externally-managed scenarios that may use unsupported strategy keys:
+```yaml
+simulations:
+  hmce.202512.imb.mc-reopt:
+    enabled: false   # outputs preserved as-is, schema doesn't see this scenario
+    strategy: { monteCarloAlgo: ... }
+```
+
+**Per-flow `imbalanceDataSourceOverride`** for two-MPAN BSCP550 sites
+(or anywhere flows in a single rates block need different imbalance
+signals). Flow can be either a list (legacy) or a dict carrying an
+override:
+```yaml
+files:
+  gridToBatt: [ a.json, b.json ]                # legacy — inherits block-level
+  solarToGrid:                                  # dict shape with override
+    rates: [ a.json, b.json ]
+    imbalanceDataSourceOverride: *imbSrc_plain
+```
+Apply override **symmetrically** to live AND final blocks — MPAN
+imbalance treatment is structural, not algo-only.
+
+**Multi-`finals`** declares N settlement variants per simulation,
+fanned out at parse time. Mutually exclusive with `final:` (same
+precedent as `peak`/`peaks`). Sim names become `<orig>.<variant>`;
+CSV paths get a variant suffix when not using `$_SIM_NAME`:
+```yaml
+rates:
+  live:  *ratesLive_basecase
+  finals:
+    fullfcl:      *ratesFinal_fullfcl
+    trio_imbflex: *ratesFinal_trio_imbflex
+```
+Each variant runs the optimiser independently — accepted trade-off
+for YAML ergonomics. The single-dispatch / multi-column variant
+(loop `_process_final_rates`, OSAM-mutation-safe via deepcopy) is
+deferred — see `docs/proposals/multi-final-rates.md`.
+
 ### OSAM (P395)
 On-site Allocation Methodology for calculating final demand levies. Runs in parallel with Skypro's own methodology; discrepancies reported as Notices.
 
@@ -185,6 +230,7 @@ pandas, plotly, pulp, pendulum, sqlalchemy, psycopg2-binary, marshmallow, pyyaml
 
 | Date | PR | Branch | Summary |
 |------|-----|--------|---------|
+| 2026-05-09 | TBD | feature/multi-and-per-flow-rates | Three schema additions for multi-MPAN BSCP550 + multi-settlement workflows: (1) `enabled: false` annotation on simulations now accepted by core (drops the rebuilder's temp-yaml workaround); (2) per-flow `imbalanceDataSourceOverride` inside `RatesFiles` flows so two-MPAN sites can settle BESS-MPAN and site-MPAN against different imbalance signals (closes the HMCE Apr-26 BSCP550 ~£500–700/mo Axle leak); (3) `rates.finals: {<name>: Rates, ...}` declares N settlement variants per simulation, fanned out at parse time into one sim per variant with auto-suffixed CSV paths. Backward-compatible — legacy list/single-final shapes unchanged. +14 unit tests (v2.2.0) |
 | 2026-05-08 | TBD | feature/support-axle-flex | New `Peak.dynamic.minEndOfPeakSoe` parameter reserves SoE for post-peak niv-chase. Used in time-to-empty calc as `dischargeable_soe = soe − min_end_of_peak_soe`, creating slack so the dynamic HOLD-on-LONG branch can actually fire instead of always falling through to forced full discharge. Default 0 (legacy behaviour). +5 unit tests (v2.1.1) |
 | 2026-05-08 | TBD | feature/support-axle-flex | Multi-peak support in priceCurveAlgo: new `peaks: [...]` list form alongside legacy `peak: ...` (mutually exclusive). Enables dispatch into multiple price-elevated windows per day. Backward-compat verified — existing single-peak fixture summary unchanged within tolerance (v2.1.0) |
 | 2026-04-30 | TBD | feature/profile-filter-and-nameplate | Opt-in profile anomaly filter (`maxEnergyPerIntervalKwh`) + display-only `nameplateKwp` metadata field on Profile (v2.0.4) |

@@ -1,3 +1,5 @@
+import copy
+import os
 from packaging.version import Version
 
 import yaml
@@ -23,6 +25,15 @@ def parse_config(file_path: str, env_vars: dict) -> Config:
 
         version = Version(config_dict["configFormatVersion"])
 
+        # Drop scenarios annotated `enabled: false` before strict schema validation.
+        # Lets externally-managed scenarios (e.g. Monte-Carlo runs whose outputs are
+        # produced outside skypro) sit alongside live ones in the same simulate.yaml.
+        sims = config_dict.get("simulations") or {}
+        for name in list(sims):
+            cfg = sims[name]
+            if isinstance(cfg, dict) and cfg.get("enabled") is False:
+                del sims[name]
+
         # Set up the variables that are substituted into file paths
         PathField.vars_for_substitution = env_vars
         if version.major == 4 and "variables" in config_dict:
@@ -34,6 +45,13 @@ def parse_config(file_path: str, env_vars: dict) -> Config:
             PathField.vars_for_substitution = env_vars | file_vars
 
         config = Config.Schema().load(config_dict)
+
+        # Fan out any sim with a `finals: {name: Rates, ...}` block into one expanded sim per variant,
+        # sharing dispatch and live rates but settling against its own final rates. The expanded
+        # sim_name is `<orig>.<variant>`. Each variant's CSV paths are de-clashed: paths containing
+        # `$_SIM_NAME` get the variant suffix via the substitution loop below; hardcoded paths get
+        # `.<variant>` inserted before the extension.
+        config.simulations = _expand_multi_final_simulations(config.simulations)
 
         if version.major == 4:
             # There is also a special variable `$CASE_NAME` which should resolve to the name of the case, which can't
@@ -51,3 +69,47 @@ def parse_config(file_path: str, env_vars: dict) -> Config:
                         sim_config.output.summary.csv = substitute_vars(sim_config.output.summary.csv, case_name_dict)
 
     return config
+
+
+def _expand_multi_final_simulations(simulations):
+    """Replace each multi-`finals` simulation with N single-`final` simulations.
+
+    Sim name becomes `<orig>.<variant>`; CSV paths get a `.<variant>` suffix when the original
+    path doesn't already use `$_SIM_NAME` (which the later substitution loop will rewrite). Order
+    is preserved: variants land in the position of their original sim, in declaration order.
+    """
+    expanded = {}
+    for sim_name, sim_config in simulations.items():
+        finals = sim_config.rates.finals
+        if finals is None:
+            expanded[sim_name] = sim_config
+            continue
+        for variant_name, variant_final in finals.items():
+            expanded_name = f"{sim_name}.{variant_name}"
+            expanded_sim = copy.deepcopy(sim_config)
+            expanded_sim.rates.final = variant_final
+            expanded_sim.rates.finals = None
+            if expanded_sim.output is not None:
+                if expanded_sim.output.simulation is not None:
+                    expanded_sim.output.simulation.csv = _add_variant_suffix(
+                        expanded_sim.output.simulation.csv, variant_name
+                    )
+                if expanded_sim.output.summary is not None:
+                    expanded_sim.output.summary.csv = _add_variant_suffix(
+                        expanded_sim.output.summary.csv, variant_name
+                    )
+            expanded[expanded_name] = expanded_sim
+    return expanded
+
+
+def _add_variant_suffix(csv_path: str, variant_name: str) -> str:
+    """Insert `.<variant>` before the extension when the path doesn't already use `$_SIM_NAME`.
+
+    Paths using `$_SIM_NAME` get the variant suffix naturally because the sim_name is now
+    `<orig>.<variant>` and the substitution loop runs after fan-out — leave those untouched.
+    Hardcoded paths must be de-clashed manually so two variants don't overwrite the same file.
+    """
+    if "$_SIM_NAME" in csv_path:
+        return csv_path
+    base, ext = os.path.splitext(csv_path)
+    return f"{base}.{variant_name}{ext}"

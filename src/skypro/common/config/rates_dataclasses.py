@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict
 
-from marshmallow_dataclass import dataclass
+from marshmallow import fields
+from marshmallow_dataclass import dataclass, NewType
 
 from skypro.common.config.data_source import ImbalanceDataSource
 from skypro.common.config.path_field import PathType
@@ -42,18 +43,57 @@ class RatesDB:
 
 
 @dataclass
+class FlowFiles:
+    """
+    Per-flow rate files, with an optional override of the rates-block-level
+    `imbalanceDataSource` for this specific flow. Used to model two-MPAN
+    arrangements (e.g. BSCP550) where the BESS and site MPANs settle against
+    different imbalance signals.
+    """
+    rates: List[PathType]
+    imbalance_data_source_override: Optional[ImbalanceDataSource] = field_with_opts(
+        key="imbalanceDataSourceOverride", default=None
+    )
+
+
+class FlowFilesField(fields.Field):
+    """
+    Marshmallow field that accepts either:
+    - a list of paths (legacy shape) — equivalent to FlowFiles(rates=[...])
+    - a dict with `rates: [...]` and optional `imbalanceDataSourceOverride: ...`
+
+    Both shapes resolve to a FlowFiles instance, so downstream code only ever
+    sees the structured form.
+    """
+    def _deserialize(self, value, attr, data, **kwargs):
+        schema = FlowFiles.Schema()
+        if isinstance(value, list):
+            return schema.load({"rates": value})
+        if isinstance(value, dict):
+            return schema.load(value)
+        raise ValueError(
+            f"Flow rates must be a list of paths or a dict with `rates`, "
+            f"got {type(value).__name__}"
+        )
+
+
+FlowFilesType = NewType("FlowFiles", FlowFiles, FlowFilesField)
+
+
+@dataclass
 class RatesFiles:
     """
     Configures rates to be pulled from YAML files, with a list of files for each microgrid flow.
-    Each rate definition file may define one or more rates.
+    Each rate definition file may define one or more rates. Each flow may also carry an optional
+    `imbalanceDataSourceOverride` to override the rates-block-level imbalance source for that flow.
     """
-    solar_to_batt: List[PathType] = field_with_opts(key="solarToBatt")
-    grid_to_batt: List[PathType] = field_with_opts(key="gridToBatt")
-    batt_to_grid: List[PathType] = field_with_opts(key="battToGrid")
-    batt_to_load: List[PathType] = field_with_opts(key="battToLoad")
-    solar_to_grid: List[PathType] = field_with_opts(key="solarToGrid")
-    solar_to_load: List[PathType] = field_with_opts(key="solarToLoad")
-    grid_to_load: List[PathType] = field_with_opts(key="gridToLoad")
+    solar_to_batt: FlowFilesType = field_with_opts(key="solarToBatt")
+    grid_to_batt: FlowFilesType = field_with_opts(key="gridToBatt")
+    batt_to_grid: FlowFilesType = field_with_opts(key="battToGrid")
+    batt_to_load: FlowFilesType = field_with_opts(key="battToLoad")
+    solar_to_grid: FlowFilesType = field_with_opts(key="solarToGrid")
+    solar_to_load: FlowFilesType = field_with_opts(key="solarToLoad")
+    grid_to_load: FlowFilesType = field_with_opts(key="gridToLoad")
 
 
 @dataclass

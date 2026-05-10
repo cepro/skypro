@@ -381,11 +381,20 @@ class AllRates:
     - live: these are the rates which the algorithm thinks are going to happen at the time it is making decisions
     - final: these are the rates which are used after the algorithm has run, and determine the actual costs/revenues of the simulation run.
 
+    Either declare a single `final` (the legacy form) or multiple named variants via `finals` —
+    when `finals` is set, the simulation is fanned out into one run per variant at parse time, each
+    run sharing dispatch/`live` rates but settling against its own final rates. Output CSV paths get
+    a per-variant suffix to avoid collisions.
+
     It is sometimes useful to have two sets of rates, for example, we might want to use Modo imbalance price predictions as 'live' and the
     actual Elexon prices as 'final'.
     """
     live: Rates
-    final: Rates
+    final: Optional[Rates] = field_with_opts(default=None)
+    finals: Optional[Dict[str, Rates]] = field_with_opts(default=None)
+
+    def __post_init__(self):
+        enforce_one_option([self.final, self.finals], "'final' (single) or 'finals' (named variants)")
 
 
 @dataclass
